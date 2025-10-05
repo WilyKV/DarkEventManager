@@ -46,9 +46,6 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", participant.type);
-      if (participant.timeSlotId) {
-        params.append("timeSlotId", participant.timeSlotId.toString());
-      }
       const response = await fetch(`/api/squads/with-participants?${params}`);
       if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();

@@ -69,7 +69,7 @@ export function SquadSelector({
                     >
                       <UserPlus className="w-4 h-4" />
                       <span className="font-semibold">
-                        {squad.squadNumber ? `Squad ${squad.squadNumber}` : squad.name}
+                        Squad {squad.squadNumber || squad.id}
                       </span>
                     </Button>
 

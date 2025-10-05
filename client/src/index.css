@@ -1,0 +1,303 @@
+@import url('https://fonts.googleapis.com/css2?family=Creepster&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* LIGHT MODE */
+:root {
+  --button-outline: rgba(0,0,0, .10);
+  --badge-outline: rgba(0,0,0, .05);
+
+  /* Automatic computation of border around primary / danger buttons */
+  --opaque-button-border-intensity: -8; /* In terms of percentages */
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(0,0,0, .03);
+  --elevate-2: rgba(0,0,0, .08);
+
+  --background: 0 0% 98%;
+
+  --foreground: 140 8% 12%;
+
+  --border: 0 0% 88%;
+
+  --card: 0 0% 96%;
+
+  --card-foreground: 140 8% 12%;
+
+  --card-border: 0 0% 92%;
+
+  --sidebar: 0 0% 94%;
+
+  --sidebar-foreground: 140 8% 12%;
+
+  --sidebar-border: 0 0% 90%;
+
+  --sidebar-primary: 140 60% 35%;
+
+  --sidebar-primary-foreground: 140 5% 98%;
+
+  --sidebar-accent: 140 12% 88%;
+
+  --sidebar-accent-foreground: 140 8% 12%;
+
+  --sidebar-ring: 140 60% 35%;
+
+  --popover: 0 0% 92%;
+
+  --popover-foreground: 140 8% 12%;
+
+  --popover-border: 0 0% 86%;
+
+  --primary: 140 60% 35%;
+
+  --primary-foreground: 140 5% 98%;
+
+  --secondary: 0 0% 88%;
+
+  --secondary-foreground: 140 8% 12%;
+
+  --muted: 140 8% 90%;
+
+  --muted-foreground: 140 8% 35%;
+
+  --accent: 140 12% 88%;
+
+  --accent-foreground: 140 8% 12%;
+
+  --destructive: 35 85% 45%;
+
+  --destructive-foreground: 35 5% 98%;
+
+  --input: 0 0% 75%;
+  --ring: 140 60% 35%;
+  --chart-1: 140 60% 35%;
+  --chart-2: 35 85% 45%;
+  --chart-3: 200 70% 40%;
+  --chart-4: 280 65% 45%;
+  --chart-5: 45 80% 50%;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'Roboto Mono', 'Courier New', monospace;
+  --font-display: 'Creepster', cursive;
+  --radius: .5rem;
+  --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.02);
+  --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.04), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
+  --shadow: 0px 2px 0px 0px hsl(0 0% 0% / 0.05), 0px 1px 2px -1px hsl(0 0% 0% / 0.06);
+  --shadow-md: 0px 2px 0px 0px hsl(0 0% 0% / 0.06), 0px 2px 4px -1px hsl(0 0% 0% / 0.08);
+  --shadow-lg: 0px 2px 0px 0px hsl(0 0% 0% / 0.08), 0px 4px 6px -1px hsl(0 0% 0% / 0.10);
+  --shadow-xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.10), 0px 8px 10px -1px hsl(0 0% 0% / 0.12);
+  --shadow-2xl: 0px 2px 0px 0px hsl(0 0% 0% / 0.15);
+  --tracking-normal: 0em;
+  --spacing: 0.25rem;
+
+  /* Automatically computed borders */
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+.dark {
+  --button-outline: rgba(255,255,255, .10);
+  --badge-outline: rgba(255,255,255, .05);
+
+  --opaque-button-border-intensity: 9;
+
+  /* Backgrounds applied on top of other backgrounds when hovered/active */
+  --elevate-1: rgba(255,255,255, .04);
+  --elevate-2: rgba(255,255,255, .09);
+
+  --background: 140 8% 8%;
+
+  --foreground: 140 5% 95%;
+
+  --border: 140 8% 18%;
+
+  --card: 140 10% 12%;
+
+  --card-foreground: 140 5% 95%;
+
+  --card-border: 140 10% 16%;
+
+  --sidebar: 140 10% 10%;
+
+  --sidebar-foreground: 140 5% 95%;
+
+  --sidebar-border: 140 10% 14%;
+
+  --sidebar-primary: 140 60% 35%;
+
+  --sidebar-primary-foreground: 140 5% 98%;
+
+  --sidebar-accent: 140 12% 18%;
+
+  --sidebar-accent-foreground: 140 5% 95%;
+
+  --sidebar-ring: 140 60% 35%;
+
+  --popover: 140 10% 14%;
+
+  --popover-foreground: 140 5% 95%;
+
+  --popover-border: 140 10% 18%;
+
+  --primary: 140 60% 35%;
+
+  --primary-foreground: 140 5% 98%;
+
+  --secondary: 140 10% 20%;
+
+  --secondary-foreground: 140 5% 95%;
+
+  --muted: 140 8% 16%;
+
+  --muted-foreground: 140 8% 70%;
+
+  --accent: 140 12% 18%;
+
+  --accent-foreground: 140 5% 95%;
+
+  --destructive: 35 85% 45%;
+
+  --destructive-foreground: 35 5% 98%;
+
+  --input: 140 10% 28%;
+  --ring: 140 60% 35%;
+  --chart-1: 140 55% 50%;
+  --chart-2: 35 85% 55%;
+  --chart-3: 200 70% 55%;
+  --chart-4: 280 65% 60%;
+  --chart-5: 45 80% 60%;
+
+  --shadow-2xs: 0px 2px 0px 0px hsl(140 8% 0% / 0.15);
+  --shadow-xs: 0px 2px 0px 0px hsl(140 8% 0% / 0.20);
+  --shadow-sm: 0px 2px 0px 0px hsl(140 8% 0% / 0.25), 0px 1px 2px -1px hsl(140 8% 0% / 0.30);
+  --shadow: 0px 2px 0px 0px hsl(140 8% 0% / 0.30), 0px 1px 2px -1px hsl(140 8% 0% / 0.35);
+  --shadow-md: 0px 2px 0px 0px hsl(140 8% 0% / 0.35), 0px 2px 4px -1px hsl(140 8% 0% / 0.40);
+  --shadow-lg: 0px 2px 0px 0px hsl(140 8% 0% / 0.40), 0px 4px 6px -1px hsl(140 8% 0% / 0.45);
+  --shadow-xl: 0px 2px 0px 0px hsl(140 8% 0% / 0.45), 0px 8px 10px -1px hsl(140 8% 0% / 0.50);
+  --shadow-2xl: 0px 2px 0px 0px hsl(140 8% 0% / 0.55);
+
+  --sidebar-primary-border: hsl(var(--sidebar-primary));
+  --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --sidebar-accent-border: hsl(var(--sidebar-accent));
+  --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --primary-border: hsl(var(--primary));
+  --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --secondary-border: hsl(var(--secondary));
+  --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --muted-border: hsl(var(--muted));
+  --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --accent-border: hsl(var(--accent));
+  --accent-border: hsl(from hsl(var(--accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+
+  --destructive-border: hsl(var(--destructive));
+  --destructive-border: hsl(from hsl(var(--destructive)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  input[type="search"]::-webkit-search-cancel-button {
+    @apply hidden;
+  }
+
+  [contenteditable][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .no-default-hover-elevate {}
+
+  .no-default-active-elevate {}
+
+  .toggle-elevate::before,
+  .toggle-elevate-2::before {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: -1;
+  }
+
+  .toggle-elevate.toggle-elevated::before {
+    background-color: var(--elevate-2);
+  }
+
+  .border.toggle-elevate::before {
+    inset: -1px;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate),
+  .active-elevate:not(.no-default-active-elevate),
+  .hover-elevate-2:not(.no-default-hover-elevate),
+  .active-elevate-2:not(.no-default-active-elevate) {
+    position: relative;
+    z-index: 0;
+  }
+
+  .hover-elevate:not(.no-default-hover-elevate)::after,
+  .active-elevate:not(.no-default-active-elevate)::after,
+  .hover-elevate-2:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:not(.no-default-active-elevate)::after {
+    content: "";
+    pointer-events: none;
+    position: absolute;
+    inset: 0px;
+    border-radius: inherit;
+    z-index: 999;
+  }
+
+  .hover-elevate:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-1);
+  }
+
+  .hover-elevate-2:hover:not(.no-default-hover-elevate)::after,
+  .active-elevate-2:active:not(.no-default-active-elevate)::after {
+    background-color: var(--elevate-2);
+  }
+
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate-2:not(.no-hover-interaction-elevate)::after,
+  .border.active-elevate-2:not(.no-active-interaction-elevate)::after,
+  .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
+    inset: -1px;
+  }
+}

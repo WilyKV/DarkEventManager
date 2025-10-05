@@ -13,6 +13,7 @@ import {
   type InsertTimeSlot,
   type Squad,
   type InsertSquad,
+  type SquadWithRelations,
   type ShopItem,
   type InsertShopItem,
   type MealItem,
@@ -66,6 +67,7 @@ export interface IStorage {
   // Squads
   getSquads(type?: string): Promise<Squad[]>;
   getSquad(id: number): Promise<Squad | undefined>;
+  getSquadsWithParticipants(type?: string, timeSlotId?: number): Promise<SquadWithRelations[]>;
   createSquad(squad: InsertSquad): Promise<Squad>;
   
   // Shop Items
@@ -178,6 +180,33 @@ export class DatabaseStorage implements IStorage {
   async getSquad(id: number): Promise<Squad | undefined> {
     const [squad] = await db.select().from(squads).where(eq(squads.id, id));
     return squad;
+  }
+
+  async getSquadsWithParticipants(type?: string, timeSlotId?: number): Promise<SquadWithRelations[]> {
+    let conditions = [];
+    if (type) {
+      conditions.push(eq(squads.type, type));
+    }
+    if (timeSlotId) {
+      conditions.push(eq(squads.timeSlotId, timeSlotId));
+    }
+
+    const query = conditions.length > 0
+      ? db.query.squads.findMany({
+          where: and(...conditions),
+          with: { 
+            participants: true,
+            timeSlot: true,
+          },
+        })
+      : db.query.squads.findMany({
+          with: { 
+            participants: true,
+            timeSlot: true,
+          },
+        });
+    
+    return await query;
   }
 
   async createSquad(insertSquad: InsertSquad): Promise<Squad> {

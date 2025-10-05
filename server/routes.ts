@@ -241,6 +241,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/squads/with-participants", async (req, res) => {
+    try {
+      const type = req.query.type as string | undefined;
+      const timeSlotId = req.query.timeSlotId ? parseInt(req.query.timeSlotId as string) : undefined;
+      const squads = await storage.getSquadsWithParticipants(type, timeSlotId);
+      res.json(squads);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching squads with participants" });
+    }
+  });
+
   app.post("/api/squads", async (req, res) => {
     try {
       const data = insertSquadSchema.parse(req.body);

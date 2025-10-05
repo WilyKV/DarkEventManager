@@ -53,10 +53,10 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12 pt-8">
-          <h1 className="text-5xl md:text-7xl font-display text-primary mb-4 tracking-wider">
-            ZOMBINTHEDARK
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-3">
+            Zombinthedark
           </h1>
-          <p className="text-xl text-muted-foreground">Système de gestion d'événement</p>
+          <p className="text-lg text-muted-foreground">Système de gestion d'événement</p>
         </div>
 
         {/* Cards Grid */}
@@ -78,7 +78,7 @@ export default function HomePage() {
                     </div>
                     
                     <div className="text-center">
-                      <h2 className="text-2xl md:text-3xl font-display text-foreground mb-2">
+                      <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-2">
                         {card.title}
                       </h2>
                       <p className="text-muted-foreground">{card.description}</p>

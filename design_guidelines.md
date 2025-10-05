@@ -1,135 +1,153 @@
 # Design Guidelines: Zombinthedark Event Management System
 
 ## Design Approach
-**Hybrid Approach**: Material Design foundation with heavy zombie/post-apocalyptic theming. Balance atmospheric horror aesthetics with operational clarity for event staff efficiency.
+**Modern & Professional**: Clean, contemporary design with subtle thematic touches. Focus on usability and efficiency for event staff while maintaining a light connection to the zombie theme through minimal color accents.
 
 ## Core Design Elements
 
 ### A. Color Palette
-**Dark Mode Primary** (the app should be dark throughout):
-- Background: 140 8% 8% (deep toxic green-black)
-- Surface: 140 10% 12% (elevated dark green)
-- Primary: 140 60% 35% (radioactive green)
-- Accent: 35 85% 45% (blood orange for alerts)
-- Success: 140 55% 40% (toxic green confirmation)
-- Text Primary: 140 5% 95%
-- Text Secondary: 140 8% 70%
+**Dark Mode Primary** (modern dark interface):
+- Background: 220 15% 10% (cool dark gray - professional)
+- Surface: 220 15% 14% (elevated surfaces)
+- Primary: 150 45% 45% (modern sage green - subtle nod to theme)
+- Accent: 0 60% 55% (muted red for important actions - very subtle blood reference)
+- Success: 150 50% 50% (soft green confirmation)
+- Text Primary: 220 10% 95% (clean white text)
+- Text Secondary: 220 10% 65% (muted gray text)
+
+**Light Mode Alternative** (cleaner, professional):
+- Background: 0 0% 98% (soft white)
+- Surface: 0 0% 100% (pure white cards)
+- Primary: 150 45% 45% (same sage green)
+- Accent: 0 60% 55% (same muted red)
+- Text Primary: 220 15% 15% (dark gray)
+- Text Secondary: 220 10% 45% (medium gray)
 
 **Interactive States**:
-- Hover: Brighten by 5% lightness
-- Active: Darken by 5% lightness
-- Disabled: 30% opacity
+- Hover: Subtle brightness increase
+- Active: Slight scale down (0.98)
+- Disabled: 40% opacity
+- Focus: Ring in primary color
 
 ### B. Typography
-**Fonts** (via Google Fonts):
-- Display/Headers: "Creepster" or "Nosifer" - horror-themed for main titles
-- Body/Interface: "Inter" - clean, readable for data-heavy content
-- Monospace: "Roboto Mono" - for locker numbers and IDs
+**Fonts** (modern, professional):
+- All text: "Inter" - clean, modern, excellent readability
+- Monospace: "JetBrains Mono" or "Roboto Mono" - for IDs and locker numbers
+- No display fonts - keep it professional
 
 **Scale**:
-- H1: 3rem/2.5rem (desktop/mobile), bold, display font
-- H2: 2rem/1.75rem, semibold, display font
-- H3: 1.5rem/1.25rem, semibold, body font
-- Body: 1rem, regular, body font
+- H1: 2.5rem/2rem (desktop/mobile), bold
+- H2: 2rem/1.75rem, semibold
+- H3: 1.5rem/1.25rem, semibold
+- Body: 1rem, regular
 - Small: 0.875rem, regular
 
 ### C. Layout System
-**Spacing Units**: Use Tailwind units of 2, 4, 6, 8, 12, 16, 20
+**Spacing**: Consistent, generous spacing for modern look
 - Card padding: p-6 md:p-8
-- Section spacing: space-y-6 md:space-y-8
-- Container: max-w-7xl mx-auto px-4
+- Section spacing: space-y-8
+- Container: max-w-7xl mx-auto px-4 md:px-6
 
 **Grid System**:
-- Home cards: grid-cols-1 md:grid-cols-2 gap-6
-- Participant lists: Single column with cards
-- Form layouts: Single column, max-w-2xl
+- Home cards: grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6
+- Responsive, clean layouts
+- Plenty of whitespace
 
 ### D. Component Library
 
-**Home Page Cards** (4 large cards):
-- Large square/slightly tall cards (aspect-ratio-square md:aspect-auto)
-- Distressed borders with subtle glow effect
-- Icon at top (zombie head, survivor icon, shopping bag, utensils)
-- Title in display font with dripping effect
-- Subtle background texture (scratches, grunge)
-- Hover: Lift effect (translate-y) + increased glow
+**Home Page Cards**:
+- Clean rectangular cards
+- Subtle shadow and border
+- Icon at top (simple, modern icons)
+- Clear title and description
+- Smooth hover transition (lift + shadow)
+- No distressed effects or textures
 
 **Participant Management Interface**:
-- Search bar: Prominent at top, dark input with green focus ring
-- Participant cards: Compact horizontal cards with avatar placeholder
-- Status indicators: Checkboxes with custom zombie-themed checks
-- Squad selector: Dropdown with custom styling
-- Locker number display: Large monospace with border
-- Checklist: Items with checkboxes, strikethrough on complete
+- Clean search bar with modern styling
+- Participant cards: Clean horizontal cards
+- Status indicators: Modern badges with subtle colors
+- Squad selector: Clean dropdown
+- Locker number: Monospace display with subtle background
+- Checklist: Simple checkboxes
 
 **Forms & Inputs**:
-- Dark backgrounds (surface color)
-- Green borders on focus
-- Labels above inputs
-- Error states in blood orange
+- Clean backgrounds
+- Subtle borders
+- Green focus rings
+- Clear labels
+- Modern error states
 
-**Data Tables** (for stock management):
-- Alternating row colors for readability
-- Sticky headers
-- Inline edit capabilities
-- Stock level indicators (color-coded: low=orange, out=red, normal=green)
+**Data Tables**:
+- Clean rows with subtle hover states
+- Clear headers
+- Good spacing
+- Status colors: subtle and professional
 
 **Navigation**:
-- Top bar: App title + back button (when applicable)
-- Breadcrumbs for nested sections
-- Bottom fixed bar for primary actions
+- Clean header with app title
+- Simple back button
+- Modern breadcrumbs if needed
+- Clear action buttons
 
 **Buttons**:
-- Primary: Filled with primary green, white text
-- Secondary: Outline with green border
-- Danger: Filled with blood orange for destructive actions
-- Icon buttons: Square with hover background
+- Primary: Filled with sage green
+- Secondary: Subtle gray background
+- Danger: Muted red for destructive actions
+- Ghost: Transparent with hover
+- Modern rounded corners (0.5rem)
 
-### E. Thematic Elements
+### E. Thematic Elements (VERY SUBTLE)
 
-**Visual Atmosphere**:
-- Subtle texture overlays (grunge, scratches) on cards
-- Dripping blood/slime effects on headers (pure CSS)
-- Distressed edges on containers
-- Faint biohazard symbols as background watermarks
-- Flickering animation on critical alerts (very subtle)
+**Minimal Theme References**:
+- Color palette includes subtle green (not neon/toxic)
+- Occasional red accent (not "blood" but just a warm accent)
+- Clean, professional throughout
+- No textures, no dripping effects, no distressed edges
+- No biohazard symbols or horror elements
+- Theme is present only through color choice, not visual effects
 
 **Icons**:
-- Use Font Awesome for standard icons
-- Zombie-themed variations: skull icons, biohazard symbols
-- Status indicators: Custom checkmarks styled as X's or check marks
+- Lucide React icons (modern, clean)
+- No zombie-specific icons
+- Professional and functional
 
 **Micro-interactions**:
-- Success feedback: Brief green pulse
-- Error feedback: Shake animation + orange glow
-- Check-in completion: Satisfying confirmation animation
-- Minimal, purposeful animations only
+- Smooth transitions (200-300ms)
+- Subtle hover states
+- Clean feedback animations
+- Professional and polished
 
 ### F. Sections Detail
 
 **Home Page**:
-- Full viewport height hero area
-- 2x2 grid of large cards (stacks to single column on mobile)
-- Event title at top in massive display font
-- Each card clickable with clear hover state
+- Clean layout with app title
+- Grid of feature cards
+- Modern, professional appearance
+- Quick access to main functions
 
 **Participant Lists**:
-- Filters at top: By time slot, by squad, by status
-- Search bar prominent
-- Scrollable list of participant cards
-- Each card shows: Name, time slot, status badges, quick actions
+- Clean filters and search
+- Well-organized list
+- Status badges clear and readable
+- Quick actions easily accessible
 
-**Check-in Flow**:
-- Full-screen modal or dedicated page
-- Progress indicator (5 steps: Search → Arrival → Squad → Locker → Checklist)
-- Large, clear action buttons
-- Confirmation screen with summary
+**Forms**:
+- Single column layout
+- Clear field labels
+- Good spacing
+- Modern input styling
+- Clear validation messages
 
 **Stock Management**:
-- Split view: Categories sidebar + items grid
-- Add/remove quantity with +/- buttons
-- Low stock warnings prominent
-- Quick search and filter
+- Clean table or grid view
+- Clear stock levels
+- Simple +/- controls
+- Status indicators subtle but clear
 
-## Images
-No hero images needed - this is a functional management tool. Use icon illustrations for the 4 main cards instead of photos. If any background imagery, use subtle post-apocalyptic textures/patterns, not full photos.
+## Overall Philosophy
+- **Clean and Modern**: Professional appearance suitable for event management
+- **Subtle Theme**: Green and red accents provide minimal connection to zombie theme without being overwhelming
+- **Usability First**: Clear, efficient interface for staff
+- **No Horror Effects**: No dripping, distressed, or apocalyptic visual elements
+- **Professional**: Could be used for any event management, theme present only through color choices

@@ -73,12 +73,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { firstName, lastName, type, timeSlotId } = validationResult.data;
+      const { firstName, lastName, email, type, timeSlotId } = validationResult.data;
 
       // Set hasFreemeal based on type
       const participantData = {
         firstName,
         lastName,
+        email: email || null,
         type,
         timeSlotId: timeSlotId ?? null,
         hasFreemeal: type === "zombie",

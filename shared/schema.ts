@@ -115,7 +115,7 @@ export const squadAuditLogRelations = relations(squadAuditLog, ({ one }) => ({
 // Insert Schemas
 export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
 export const insertSquadSchema = createInsertSchema(squads).omit({ id: true });
-export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true });
+export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true, arrivedAt: true, returnedAt: true });
 export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: true });
 export const insertMealItemSchema = createInsertSchema(mealItems).omit({ id: true });
 export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ id: true, changedAt: true });

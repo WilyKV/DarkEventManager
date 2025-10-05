@@ -8,8 +8,34 @@ The application features a dark, atmospheric UI with toxic green accent color, b
 
 ## Recent Changes (October 5, 2025)
 
+### Latest Updates - Check-in Workflow & Badge Scanning
+
+**New Features Completed:**
+1. **Email Field**: Added optional email field to participant schema and registration form for badge distribution
+2. **Time Slot Management**: Created AddTimeSlotDialog component for adding/editing time slots on both zombie and survivor pages
+3. **Batch Operations**: Implemented checkbox-based selection system in ParticipantList with batch "Arrived" and "Return" buttons
+4. **Complete Check-in Workflow**: Created CheckInModal with arrival status, squad assignment, locker display, squad history timeline, and comprehensive volunteer checklist
+5. **QR Badge Scanning**: New /scan page for scanning participant badges (format: PARTICIPANT:{id}) that triggers the check-in workflow with automatic timestamp recording
+6. **Navigation**: Added "Scanner" card to home page for easy access to QR scanning functionality
+
+**Bug Fixes:**
+- Fixed CheckInModal to properly set `arrivedAt` timestamp when marking participant as arrived (ensures stats and exports work correctly)
+- Fixed schema insert schemas to exclude auto-generated timestamp fields (arrivedAt, returnedAt)
+
+**Email Integration Note:**
+Badge email distribution is ready to implement. Available integration options:
+- Resend (connector available - requires authorization setup)
+- SendGrid (connector available - requires authorization setup)
+- Gmail (connector available - requires OAuth setup)
+- Outlook (connector available - requires OAuth setup)
+- Custom SMTP (manual implementation with API keys stored as secrets)
+
+To implement email sending, the user can either:
+1. Set up one of the Replit connectors above (recommended for automatic credential management)
+2. Provide API keys/credentials to store as secrets for manual integration
+
 ### Advanced Features - Production Ready
-All five advanced features have been completed and architect-approved:
+All five advanced features have been completed and architect-reviewed:
 
 1. **Real-time Dashboard Analytics**: Comprehensive dashboard with auto-refreshing statistics (5-second interval) including participant arrivals, squad distribution charts (recharts pie/bar charts), checklist completion rates, and low stock alerts
 

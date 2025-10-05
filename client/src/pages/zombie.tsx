@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Download } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
@@ -6,8 +6,19 @@ import { ParticipantList } from "@/components/participant-list";
 import { ExcelImport } from "@/components/excel-import";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function ZombiePage() {
+  const { toast } = useToast();
+
   const { data: participants, isLoading: participantsLoading, refetch: refetchParticipants } = useQuery<ParticipantWithRelations[]>({
     queryKey: ["/api/participants", { type: "zombie" }],
     queryFn: async () => {
@@ -37,6 +48,40 @@ export default function ZombiePage() {
 
   const isLoading = participantsLoading || timeSlotsLoading || squadsLoading;
 
+  const handleExport = async (timeSlotId?: number, squadId?: number, filterName?: string) => {
+    try {
+      let url = "/api/export/participants?type=zombie";
+      if (timeSlotId) url += `&timeSlotId=${timeSlotId}`;
+      if (squadId) url += `&squadId=${squadId}`;
+      if (filterName) url += `&filterLabel=${encodeURIComponent(filterName)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Export failed");
+
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      const description = filterName 
+        ? `Export réussi pour: ${filterName}`
+        : "Export réussi pour tous les zombies";
+
+      toast({
+        title: "Export réussi",
+        description,
+      });
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible d'exporter les données",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -53,6 +98,53 @@ export default function ZombiePage() {
               <p className="text-muted-foreground mt-1">Gestion des participants zombies</p>
             </div>
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="gap-2"
+                data-testid="button-export"
+              >
+                <Download className="w-4 h-4" />
+                Exporter en Excel
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Options d'export</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleExport()}>
+                Tous les zombies
+              </DropdownMenuItem>
+              {timeSlots && timeSlots.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Par créneau</DropdownMenuLabel>
+                  {timeSlots.map((slot) => (
+                    <DropdownMenuItem
+                      key={slot.id}
+                      onClick={() => handleExport(slot.id, undefined, `Créneau ${slot.name}`)}
+                    >
+                      {slot.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+              {squads && squads.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Par squad</DropdownMenuLabel>
+                  {squads.map((squad) => (
+                    <DropdownMenuItem
+                      key={squad.id}
+                      onClick={() => handleExport(undefined, squad.id, squad.name)}
+                    >
+                      {squad.name}
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Excel Import */}

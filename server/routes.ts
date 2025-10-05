@@ -280,6 +280,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== EXPORT REPORTS =====
+  app.get("/api/export/participants", async (req, res) => {
+    try {
+      const type = req.query.type as string | undefined;
+      const timeSlotId = req.query.timeSlotId ? parseInt(req.query.timeSlotId as string) : undefined;
+      const squadId = req.query.squadId ? parseInt(req.query.squadId as string) : undefined;
+      const filterLabel = req.query.filterLabel as string | undefined;
+
+      let participants = await storage.getParticipants(type);
+
+      if (timeSlotId) {
+        participants = participants.filter(p => p.timeSlotId === timeSlotId);
+      }
+
+      if (squadId) {
+        participants = participants.filter(p => p.squadId === squadId);
+      }
+
+      const exportData = participants.map(p => ({
+        "Prénom": p.firstName,
+        "Nom": p.lastName,
+        "Type": p.type,
+        "Créneau": p.timeSlot?.name || "Non assigné",
+        "Squad": p.squad?.name || "Non assigné",
+        "Arrivé": p.arrived ? "Oui" : "Non",
+        "Casier": p.lockerNumber || "Non assigné",
+        "Checklist": p.checklistCompleted ? "Complète" : "Incomplète",
+        "Repas gratuit": p.hasFreemeal ? "Oui" : "Non",
+        "Repas réclamé": p.freeMealClaimed ? "Oui" : "Non",
+      }));
+
+      const ws = xlsx.utils.json_to_sheet(exportData);
+      const wb = xlsx.utils.book_new();
+      xlsx.utils.book_append_sheet(wb, ws, "Participants");
+
+      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+
+      const sanitizeFilename = (str: string): string => {
+        return str
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9\s]/g, "")
+          .replace(/\s+/g, "_")
+          .substring(0, 50);
+      };
+
+      const date = new Date().toISOString().split('T')[0];
+      const baseFilename = type || "participants";
+      const filterPart = filterLabel 
+        ? `_${sanitizeFilename(filterLabel)}`
+        : "_tous";
+      const filename = `${baseFilename}${filterPart}_${date}.xlsx`;
+      
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(excelBuffer);
+    } catch (error) {
+      res.status(500).json({ message: "Error exporting participants" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

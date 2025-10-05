@@ -142,6 +142,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Batch update participants
+  app.post("/api/participants/batch-update", async (req, res) => {
+    try {
+      const updates = req.body.updates as Array<{ id: number; data: any }>;
+      
+      if (!Array.isArray(updates) || updates.length === 0) {
+        return res.status(400).json({ message: "Updates array is required and must not be empty" });
+      }
+
+      // Process each update: generate locker numbers and convert timestamps
+      for (const update of updates) {
+        const currentParticipant = await storage.getParticipant(update.id);
+        if (!currentParticipant) {
+          return res.status(404).json({ message: `Participant ${update.id} not found` });
+        }
+
+        // Auto-generate locker number if arrived and no locker number exists
+        if (update.data.arrived && !update.data.lockerNumber && !currentParticipant.lockerNumber) {
+          update.data.lockerNumber = await storage.generateLockerNumber();
+        }
+
+        // Convert timestamp strings to Date objects if present
+        if (update.data.arrivedAt && typeof update.data.arrivedAt === 'string') {
+          update.data.arrivedAt = new Date(update.data.arrivedAt);
+        }
+        if (update.data.returnedAt && typeof update.data.returnedAt === 'string') {
+          update.data.returnedAt = new Date(update.data.returnedAt);
+        }
+      }
+
+      // Execute batch update in transaction
+      const results = await storage.batchUpdateParticipants(updates);
+      
+      res.json({ success: true, updated: results.length, participants: results });
+    } catch (error) {
+      console.error("Batch update error:", error);
+      res.status(500).json({ message: "Error updating participants", error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   // Import participants from Excel
   app.post("/api/participants/import", upload.single("file"), async (req, res) => {
     try {

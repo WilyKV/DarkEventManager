@@ -43,11 +43,8 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
 
   const updateMutation = useMutation({
     mutationFn: async (updates: Array<{ id: number; data: any }>) => {
-      // Update all participants
-      const promises = updates.map(({ id, data }) =>
-        apiRequest("PATCH", `/api/participants/${id}`, data)
-      );
-      await Promise.all(promises);
+      // Batch update all participants in a single request
+      await apiRequest("POST", "/api/participants/batch-update", { updates });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === '/api/participants' });

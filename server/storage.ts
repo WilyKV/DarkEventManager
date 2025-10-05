@@ -57,6 +57,7 @@ export interface IStorage {
   getParticipant(id: number): Promise<ParticipantWithRelations | undefined>;
   createParticipant(participant: InsertParticipant): Promise<Participant>;
   updateParticipant(id: number, participant: Partial<InsertParticipant>): Promise<Participant>;
+  batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]>;
   generateLockerNumber(): Promise<string>;
   
   // Time Slots
@@ -128,6 +129,44 @@ export class DatabaseStorage implements IStorage {
       .where(eq(participants.id, id))
       .returning();
     return participant;
+  }
+
+  async batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]> {
+    return await db.transaction(async (tx) => {
+      const results: Participant[] = [];
+      
+      for (const { id, data } of updates) {
+        // Get current participant to check for squad changes
+        const currentParticipant = await tx.query.participants.findFirst({
+          where: eq(participants.id, id),
+        });
+
+        if (!currentParticipant) {
+          throw new Error(`Participant ${id} not found`);
+        }
+
+        // Update participant
+        const [updated] = await tx
+          .update(participants)
+          .set(data)
+          .where(eq(participants.id, id))
+          .returning();
+        
+        results.push(updated);
+
+        // Log squad changes if squad was modified
+        const squadChanging = data.squadId !== undefined && data.squadId !== currentParticipant.squadId;
+        if (squadChanging) {
+          await tx.insert(squadAuditLog).values({
+            participantId: id,
+            previousSquadId: currentParticipant.squadId ?? null,
+            newSquadId: data.squadId ?? null,
+          });
+        }
+      }
+      
+      return results;
+    });
   }
 
   async generateLockerNumber(): Promise<string> {

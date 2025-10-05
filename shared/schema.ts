@@ -20,6 +20,8 @@ export const squads = pgTable("squads", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),
   type: text("type").notNull(), // 'zombie' or 'survivant'
+  timeSlotId: integer("time_slot_id").references(() => timeSlots.id),
+  squadNumber: integer("squad_number"), // 1-8 for zombie squads
   maxMembers: integer("max_members").default(10),
 });
 
@@ -79,10 +81,15 @@ export const squadAuditLog = pgTable("squad_audit_log", {
 // Relations
 export const timeSlotsRelations = relations(timeSlots, ({ many }) => ({
   participants: many(participants),
+  squads: many(squads),
 }));
 
-export const squadsRelations = relations(squads, ({ many }) => ({
+export const squadsRelations = relations(squads, ({ one, many }) => ({
   participants: many(participants),
+  timeSlot: one(timeSlots, {
+    fields: [squads.timeSlotId],
+    references: [timeSlots.id],
+  }),
 }));
 
 export const participantsRelations = relations(participants, ({ one, many }) => ({
@@ -152,6 +159,11 @@ export type InsertSquadAuditLog = z.infer<typeof insertSquadAuditLogSchema>;
 export type ParticipantWithRelations = Participant & {
   timeSlot?: TimeSlot | null;
   squad?: Squad | null;
+};
+
+export type SquadWithRelations = Squad & {
+  participants?: Participant[];
+  timeSlot?: TimeSlot | null;
 };
 
 export type SquadAuditLogWithRelations = SquadAuditLog & {

@@ -129,7 +129,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(participant);
     } catch (error) {
-      res.status(500).json({ message: "Error updating participant" });
+      console.error("Update participant error:", error);
+      res.status(500).json({ message: "Error updating participant", error: error instanceof Error ? error.message : String(error) });
     }
   });
 

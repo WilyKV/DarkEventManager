@@ -77,7 +77,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
       ? parseInt(selectedSquad) 
       : null;
     
-    updateMutation.mutate({
+    const updateData: any = {
       arrived,
       squadId: normalizedSquadId,
       mealTicketGiven: checklist.mealTicket,
@@ -87,7 +87,14 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
       makeupWaitExplained: checklist.makeup,
       mapGiven: checklist.map,
       checklistCompleted: allChecklistCompleted,
-    });
+    };
+
+    // Set arrivedAt timestamp when marking as arrived
+    if (arrived && !participant.arrived) {
+      updateData.arrivedAt = new Date().toISOString();
+    }
+    
+    updateMutation.mutate(updateData);
   };
 
   return (

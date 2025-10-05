@@ -237,7 +237,6 @@ export default function ScanPage() {
       {scannedParticipant && (
         <CheckInModal
           participant={scannedParticipant}
-          squads={scannedParticipant.type === "zombie" ? zombieSquads : survivantSquads}
           onClose={() => setScannedParticipant(null)}
           onSuccess={handleCheckInSuccess}
         />

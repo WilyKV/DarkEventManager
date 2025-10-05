@@ -268,7 +268,6 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
       {selectedParticipant && (
         <CheckInModal
           participant={selectedParticipant}
-          squads={squads.filter(s => s.type === type)}
           onClose={() => setSelectedParticipant(null)}
           onSuccess={() => {
             setSelectedParticipant(null);

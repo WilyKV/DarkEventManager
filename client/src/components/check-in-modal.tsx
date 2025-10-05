@@ -4,22 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ParticipantWithRelations, Squad, SquadAuditLogWithRelations } from "@shared/schema";
+import { ParticipantWithRelations, SquadWithRelations, SquadAuditLogWithRelations } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, History } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { SquadSelector } from "./squad-selector";
 
 interface CheckInModalProps {
   participant: ParticipantWithRelations;
-  squads: Squad[];
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckInModalProps) {
+export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalProps) {
   const { toast } = useToast();
   const [arrived, setArrived] = useState(participant.arrived);
   const [selectedSquad, setSelectedSquad] = useState(participant.squadId?.toString() || "");
@@ -32,11 +32,25 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
     map: participant.mapGiven,
   });
 
-  const { data: squadHistory = [], isLoading: historyLoading } = useQuery<SquadAuditLogWithRelations[]>({
+  const { data: squadHistory = [] } = useQuery<SquadAuditLogWithRelations[]>({
     queryKey: [`/api/participants/${participant.id}/squad-history`],
     queryFn: async () => {
       const response = await fetch(`/api/participants/${participant.id}/squad-history`);
       if (!response.ok) throw new Error("Failed to fetch squad history");
+      return response.json();
+    },
+  });
+
+  const { data: squadsWithParticipants = [] } = useQuery<SquadWithRelations[]>({
+    queryKey: ["/api/squads/with-participants", { type: participant.type, timeSlotId: participant.timeSlotId }],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.append("type", participant.type);
+      if (participant.timeSlotId) {
+        params.append("timeSlotId", participant.timeSlotId.toString());
+      }
+      const response = await fetch(`/api/squads/with-participants?${params}`);
+      if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();
     },
   });
@@ -121,22 +135,12 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
           </div>
 
           {/* Squad Assignment */}
-          <div className="space-y-3">
-            <Label className="text-base font-semibold">Attribution à une Squad</Label>
-            <select
-              value={selectedSquad}
-              onChange={(e) => setSelectedSquad(e.target.value)}
-              className="w-full px-4 min-h-9 rounded-md border border-input bg-background text-foreground"
-              data-testid="select-squad"
-            >
-              <option value="">Aucune squad</option>
-              {squads.map(squad => (
-                <option key={squad.id} value={squad.id.toString()}>
-                  {squad.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SquadSelector
+            squads={squadsWithParticipants}
+            selectedSquadId={selectedSquad}
+            onSquadSelect={setSelectedSquad}
+            participantType={participant.type as "zombie" | "survivant"}
+          />
 
           {/* Locker Number Display */}
           {participant.lockerNumber && (

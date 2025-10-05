@@ -110,6 +110,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Convert timestamp strings to Date objects if present
+      if (req.body.arrivedAt && typeof req.body.arrivedAt === 'string') {
+        req.body.arrivedAt = new Date(req.body.arrivedAt);
+      }
+      if (req.body.returnedAt && typeof req.body.returnedAt === 'string') {
+        req.body.returnedAt = new Date(req.body.returnedAt);
+      }
+      
       // Check if squad is changing (before update)
       const squadChanging = req.body.squadId !== undefined && req.body.squadId !== currentParticipant.squadId;
       const previousSquadId = currentParticipant.squadId;

@@ -102,7 +102,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
 
     // Set arrivedAt timestamp when marking as arrived
     if (arrived && !participant.arrived) {
-      updateData.arrivedAt = new Date().toISOString();
+      updateData.arrivedAt = new Date();
     }
     
     updateMutation.mutate(updateData);

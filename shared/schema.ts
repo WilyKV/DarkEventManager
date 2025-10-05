@@ -116,6 +116,14 @@ export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: tru
 export const insertMealItemSchema = createInsertSchema(mealItems).omit({ id: true });
 export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ id: true, changedAt: true });
 
+// Manual participant creation schema (for user-submitted data)
+export const createParticipantSchema = z.object({
+  firstName: z.string().min(1, "Le prénom est obligatoire").trim(),
+  lastName: z.string().min(1, "Le nom est obligatoire").trim(),
+  type: z.enum(["zombie", "survivant"]),
+  timeSlotId: z.number().int().positive().optional().nullable(),
+});
+
 // Types
 export type TimeSlot = typeof timeSlots.$inferSelect;
 export type InsertTimeSlot = z.infer<typeof insertTimeSlotSchema>;

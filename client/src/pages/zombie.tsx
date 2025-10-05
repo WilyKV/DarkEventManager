@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { ParticipantList } from "@/components/participant-list";
 import { ExcelImport } from "@/components/excel-import";
+import { AddParticipantDialog } from "@/components/add-participant-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -83,25 +84,27 @@ export default function ZombiePage() {
   };
 
   const actions = (
-    <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="gap-2"
-                data-testid="button-export"
-              >
-                <Download className="w-4 h-4" />
-                Exporter en Excel
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Options d'export</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleExport()}>
-                Tous les zombies
-              </DropdownMenuItem>
-              {timeSlots && timeSlots.length > 0 && (
-                <>
+    <div className="flex items-center gap-3">
+      <AddParticipantDialog participantType="zombie" />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            className="gap-2"
+            data-testid="button-export"
+          >
+            <Download className="w-4 h-4" />
+            Exporter en Excel
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>Options d'export</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => handleExport()}>
+            Tous les zombies
+          </DropdownMenuItem>
+          {timeSlots && timeSlots.length > 0 && (
+            <>
                   <DropdownMenuSeparator />
                   <DropdownMenuLabel>Par créneau</DropdownMenuLabel>
                   {timeSlots.map((slot) => (
@@ -128,8 +131,9 @@ export default function ZombiePage() {
                   ))}
                 </>
               )}
-            </DropdownMenuContent>
-    </DropdownMenu>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 
   return (

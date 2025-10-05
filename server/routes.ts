@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import xlsx from "xlsx";
-import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema } from "@shared/schema";
+import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -58,6 +58,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(participant);
     } catch (error) {
       res.status(500).json({ message: "Error fetching participant" });
+    }
+  });
+
+  // Create new participant
+  app.post("/api/participants", async (req, res) => {
+    try {
+      const validationResult = createParticipantSchema.safeParse(req.body);
+      
+      if (!validationResult.success) {
+        return res.status(400).json({ 
+          message: "Invalid participant data", 
+          errors: validationResult.error.errors 
+        });
+      }
+
+      const { firstName, lastName, type, timeSlotId } = validationResult.data;
+
+      // Set hasFreemeal based on type
+      const participantData = {
+        firstName,
+        lastName,
+        type,
+        timeSlotId: timeSlotId ?? null,
+        hasFreemeal: type === "zombie",
+      };
+
+      const participant = await storage.createParticipant(participantData);
+      res.status(201).json(participant);
+    } catch (error) {
+      console.error("Create participant error:", error);
+      res.status(500).json({ message: "Error creating participant" });
     }
   });
 

@@ -8,13 +8,24 @@ The application features a dark, atmospheric UI with toxic green accent color, b
 
 ## Recent Changes (October 5, 2025)
 
-- **Real-time Dashboard Analytics**: Added comprehensive dashboard with auto-refreshing statistics including participant arrivals, squad distribution charts (recharts), checklist completion rates, and stock alerts
-- **Filtered Excel Export Reports**: Implemented dropdown export system with sanitized filenames (Unicode normalization) for filtered reports by time slot and squad, complete French headers and clear user feedback
-- **Squad Modification Audit Trail**: Created squadAuditLog table tracking all squad reassignments with timestamps, integrated history timeline in check-in modal showing previous assignments, proper data consistency with post-update logging
-- **Fixed Critical Cache Invalidation Issues**: Updated all mutation success handlers to use predicate-based invalidation for TanStack Query, ensuring immediate UI updates after Excel import, check-in, and stock management operations
-- **Backend Route Optimization**: Restructured API endpoints to use query string parameters (?type=zombie) instead of path parameters for better RESTful design and to avoid route ordering conflicts
-- **Frontend Query Updates**: All useQuery hooks now use explicit queryFn with proper URL construction for consistent data fetching
-- **E2E Testing**: Successfully verified all MVP functionality including navigation, participant management, check-in flow, squad assignment, locker generation, and stock management
+### Advanced Features - Production Ready
+All five advanced features have been completed and architect-approved:
+
+1. **Real-time Dashboard Analytics**: Comprehensive dashboard with auto-refreshing statistics (5-second interval) including participant arrivals, squad distribution charts (recharts pie/bar charts), checklist completion rates, and low stock alerts
+
+2. **Filtered Excel Export Reports**: Dropdown-based export system with three filter options (All, By Time Slot, By Squad), sanitized filenames with Unicode normalization, complete French headers, and clear user feedback via toasts
+
+3. **Squad Modification Audit Trail**: SquadAuditLog table tracking all squad reassignments with timestamps, integrated history timeline in check-in modal showing previous assignments with French date formatting, proper data consistency with post-update logging
+
+4. **Printable Badges with QR Codes**: Badge printing page with QR code generation (qrcode library), participant selection UI with search, URL parameter support (?participantId=X) for auto-selection and auto-print, print buttons on participant management pages, print-optimized CSS with @media print
+
+5. **Timing Notification System**: ManagementLayout component providing consistent headers across all pages, NotificationCenter with bell icon and badge counter, timing alerts for meals/briefings/game/exit events within 60-minute window, comprehensive preference system with localStorage persistence (global toggle, per-event-type toggles, per-time-slot toggles), auto-refresh every minute, lucide-react icons only (no emoji)
+
+### Technical Improvements
+- **Cache Invalidation**: Updated all mutation handlers to use predicate-based invalidation for TanStack Query, ensuring immediate UI updates
+- **Backend Route Optimization**: Restructured API endpoints to use query string parameters (?type=zombie) for better RESTful design
+- **Frontend Query Updates**: All useQuery hooks use explicit queryFn with proper URL construction
+- **E2E Testing**: Successfully verified all functionality including new features
 
 ## User Preferences
 

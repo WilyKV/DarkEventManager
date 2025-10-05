@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { Skull, Users, ShoppingBag, Utensils, BarChart3, IdCard } from "lucide-react";
+import { Skull, Users, ShoppingBag, Utensils, BarChart3, IdCard, QrCode } from "lucide-react";
 import { Link } from "wouter";
 
 export default function HomePage() {
@@ -45,6 +45,13 @@ export default function HomePage() {
       path: "/badges",
       description: "Impression des badges",
       color: "from-chart-4/20 to-chart-4/5"
+    },
+    {
+      title: "Scanner",
+      icon: QrCode,
+      path: "/scan",
+      description: "Scanner les badges QR",
+      color: "from-accent/20 to-accent/5"
     },
   ];
 

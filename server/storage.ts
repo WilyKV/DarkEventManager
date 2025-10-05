@@ -5,6 +5,7 @@ import {
   squads, 
   shopItems, 
   mealItems,
+  squadAuditLog,
   type Participant, 
   type InsertParticipant,
   type ParticipantWithRelations,
@@ -16,6 +17,9 @@ import {
   type InsertShopItem,
   type MealItem,
   type InsertMealItem,
+  type SquadAuditLog,
+  type InsertSquadAuditLog,
+  type SquadAuditLogWithRelations,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
@@ -80,6 +84,10 @@ export interface IStorage {
   
   // Dashboard Stats
   getDashboardStats(): Promise<DashboardStats>;
+  
+  // Squad Audit Log
+  createSquadAuditLog(log: InsertSquadAuditLog): Promise<SquadAuditLog>;
+  getSquadAuditLogs(participantId: number): Promise<SquadAuditLogWithRelations[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -294,6 +302,26 @@ export class DatabaseStorage implements IStorage {
         })),
       },
     };
+  }
+
+  // Squad Audit Log
+  async createSquadAuditLog(log: InsertSquadAuditLog): Promise<SquadAuditLog> {
+    const [auditLog] = await db
+      .insert(squadAuditLog)
+      .values(log)
+      .returning();
+    return auditLog;
+  }
+
+  async getSquadAuditLogs(participantId: number): Promise<SquadAuditLogWithRelations[]> {
+    return await db.query.squadAuditLog.findMany({
+      where: eq(squadAuditLog.participantId, participantId),
+      with: {
+        previousSquad: true,
+        newSquad: true,
+      },
+      orderBy: (squadAuditLog, { desc }) => [desc(squadAuditLog.changedAt)],
+    });
   }
 }
 

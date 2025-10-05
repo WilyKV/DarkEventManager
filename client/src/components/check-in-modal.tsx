@@ -4,11 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ParticipantWithRelations, Squad } from "@shared/schema";
-import { useMutation } from "@tanstack/react-query";
+import { ParticipantWithRelations, Squad, SquadAuditLogWithRelations } from "@shared/schema";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, History } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 
 interface CheckInModalProps {
   participant: ParticipantWithRelations;
@@ -30,6 +32,15 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
     map: participant.mapGiven,
   });
 
+  const { data: squadHistory = [], isLoading: historyLoading } = useQuery<SquadAuditLogWithRelations[]>({
+    queryKey: [`/api/participants/${participant.id}/squad-history`],
+    queryFn: async () => {
+      const response = await fetch(`/api/participants/${participant.id}/squad-history`);
+      if (!response.ok) throw new Error("Failed to fetch squad history");
+      return response.json();
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
       return apiRequest("PATCH", `/api/participants/${participant.id}`, data);
@@ -38,6 +49,10 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
       // Invalidate all participant queries regardless of type using predicate
       queryClient.invalidateQueries({ 
         predicate: (query) => query.queryKey[0] === "/api/participants"
+      });
+      // Also invalidate squad history
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/participants/${participant.id}/squad-history`]
       });
       toast({
         title: "Succès",
@@ -57,9 +72,14 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
   const handleSave = () => {
     const allChecklistCompleted = Object.values(checklist).every(v => v);
     
+    // Normalize squadId: convert empty string to null, otherwise parse to number
+    const normalizedSquadId = selectedSquad && selectedSquad.trim() !== "" 
+      ? parseInt(selectedSquad) 
+      : null;
+    
     updateMutation.mutate({
       arrived,
-      squadId: selectedSquad ? parseInt(selectedSquad) : null,
+      squadId: normalizedSquadId,
       mealTicketGiven: checklist.mealTicket,
       waterBottleGiven: checklist.waterBottle,
       squadExplained: checklist.squad,
@@ -118,6 +138,42 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <p className="text-4xl font-mono font-bold text-primary" data-testid="text-locker-number">
                 {participant.lockerNumber}
               </p>
+            </div>
+          )}
+
+          {/* Squad History */}
+          {squadHistory.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-muted-foreground" />
+                <Label className="text-base font-semibold">Historique des changements de squad</Label>
+              </div>
+              <div className="rounded-lg border bg-card">
+                <div className="max-h-32 overflow-y-auto">
+                  {squadHistory.map((log) => (
+                    <div 
+                      key={log.id} 
+                      className="px-4 py-2 border-b last:border-b-0 text-sm"
+                      data-testid={`squad-history-${log.id}`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex-1">
+                          <span className="text-muted-foreground">
+                            {log.previousSquadId ? log.previousSquad?.name : "Aucune squad"}
+                          </span>
+                          <span className="mx-2">→</span>
+                          <span className="font-semibold text-primary">
+                            {log.newSquadId ? log.newSquad?.name : "Aucune squad"}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {log.changedAt && format(new Date(log.changedAt), "dd/MM HH:mm", { locale: fr })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

@@ -63,6 +63,15 @@ export const mealItems = pgTable("meal_items", {
   category: text("category"),
 });
 
+// Squad Audit Log Table
+export const squadAuditLog = pgTable("squad_audit_log", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  participantId: integer("participant_id").notNull().references(() => participants.id),
+  previousSquadId: integer("previous_squad_id").references(() => squads.id),
+  newSquadId: integer("new_squad_id").references(() => squads.id),
+  changedAt: timestamp("changed_at").defaultNow(),
+});
+
 // Relations
 export const timeSlotsRelations = relations(timeSlots, ({ many }) => ({
   participants: many(participants),
@@ -72,13 +81,29 @@ export const squadsRelations = relations(squads, ({ many }) => ({
   participants: many(participants),
 }));
 
-export const participantsRelations = relations(participants, ({ one }) => ({
+export const participantsRelations = relations(participants, ({ one, many }) => ({
   timeSlot: one(timeSlots, {
     fields: [participants.timeSlotId],
     references: [timeSlots.id],
   }),
   squad: one(squads, {
     fields: [participants.squadId],
+    references: [squads.id],
+  }),
+  auditLogs: many(squadAuditLog),
+}));
+
+export const squadAuditLogRelations = relations(squadAuditLog, ({ one }) => ({
+  participant: one(participants, {
+    fields: [squadAuditLog.participantId],
+    references: [participants.id],
+  }),
+  previousSquad: one(squads, {
+    fields: [squadAuditLog.previousSquadId],
+    references: [squads.id],
+  }),
+  newSquad: one(squads, {
+    fields: [squadAuditLog.newSquadId],
     references: [squads.id],
   }),
 }));
@@ -89,6 +114,7 @@ export const insertSquadSchema = createInsertSchema(squads).omit({ id: true });
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true });
 export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: true });
 export const insertMealItemSchema = createInsertSchema(mealItems).omit({ id: true });
+export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ id: true, changedAt: true });
 
 // Types
 export type TimeSlot = typeof timeSlots.$inferSelect;
@@ -106,8 +132,16 @@ export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
 export type MealItem = typeof mealItems.$inferSelect;
 export type InsertMealItem = z.infer<typeof insertMealItemSchema>;
 
+export type SquadAuditLog = typeof squadAuditLog.$inferSelect;
+export type InsertSquadAuditLog = z.infer<typeof insertSquadAuditLogSchema>;
+
 // Combined type for participant with relations
 export type ParticipantWithRelations = Participant & {
   timeSlot?: TimeSlot | null;
   squad?: Squad | null;
+};
+
+export type SquadAuditLogWithRelations = SquadAuditLog & {
+  previousSquad?: Squad | null;
+  newSquad?: Squad | null;
 };

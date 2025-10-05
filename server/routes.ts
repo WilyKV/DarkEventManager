@@ -65,16 +65,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/participants/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      const currentParticipant = await storage.getParticipant(id);
+      
+      if (!currentParticipant) {
+        return res.status(404).json({ message: "Participant not found" });
+      }
       
       // Auto-generate locker number if arrived and no locker number exists
       if (req.body.arrived && !req.body.lockerNumber) {
-        const participant = await storage.getParticipant(id);
-        if (!participant?.lockerNumber) {
+        if (!currentParticipant?.lockerNumber) {
           req.body.lockerNumber = await storage.generateLockerNumber();
         }
       }
       
+      // Check if squad is changing (before update)
+      const squadChanging = req.body.squadId !== undefined && req.body.squadId !== currentParticipant.squadId;
+      const previousSquadId = currentParticipant.squadId;
+      const newSquadId = req.body.squadId;
+      
+      // Update participant first
       const participant = await storage.updateParticipant(id, req.body);
+      
+      // Log squad changes only after successful update
+      if (squadChanging) {
+        await storage.createSquadAuditLog({
+          participantId: id,
+          previousSquadId: previousSquadId ?? null,
+          newSquadId: newSquadId,
+        });
+      }
+      
       res.json(participant);
     } catch (error) {
       res.status(500).json({ message: "Error updating participant" });
@@ -141,6 +161,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Import error:", error);
       res.status(500).json({ message: "Error importing participants" });
+    }
+  });
+
+  // Get squad audit logs for a participant
+  app.get("/api/participants/:id/squad-history", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const auditLogs = await storage.getSquadAuditLogs(id);
+      res.json(auditLogs);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching squad history" });
     }
   });
 

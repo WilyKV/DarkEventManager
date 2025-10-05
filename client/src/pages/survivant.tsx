@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ParticipantList } from "@/components/participant-list";
 import { ExcelImport } from "@/components/excel-import";
 import { AddParticipantDialog } from "@/components/add-participant-dialog";
+import { AddTimeSlotDialog } from "@/components/add-timeslot-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -86,6 +87,7 @@ export default function SurvivantPage() {
   const actions = (
     <div className="flex items-center gap-3">
       <AddParticipantDialog participantType="survivant" />
+      <AddTimeSlotDialog type="survivant" />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

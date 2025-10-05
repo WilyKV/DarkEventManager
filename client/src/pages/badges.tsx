@@ -150,7 +150,8 @@ export default function BadgesPage() {
               </Card>
             )}
           </div>
-          </div>
+        </div>
+        </div>
         </ManagementLayout>
       </div>
 

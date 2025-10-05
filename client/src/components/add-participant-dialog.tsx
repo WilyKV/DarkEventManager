@@ -170,7 +170,6 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">Aucun créneau</SelectItem>
                       {timeSlots.map((slot) => (
                         <SelectItem key={slot.id} value={slot.id.toString()}>
                           {slot.name}

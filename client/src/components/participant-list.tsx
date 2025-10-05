@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Search, UserCheck, UserX, Edit, Printer, LogIn, LogOut } from "lucide-react";
 import { Participant, ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
 import { CheckInModal } from "./check-in-modal";
+import { BatchCheckInModal } from "./batch-check-in-modal";
 import { Link } from "wouter";
 
 interface ParticipantListProps {
@@ -22,7 +23,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
   const [selectedSlot, setSelectedSlot] = useState<string>("all");
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [batchProcessing, setBatchProcessing] = useState(false);
+  const [showBatchCheckIn, setShowBatchCheckIn] = useState(false);
 
   const filteredParticipants = participants.filter(p => {
     const matchesSearch = 
@@ -50,45 +51,26 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
     }
   };
 
-  const handleBatchArrival = async () => {
+  const handleBatchArrival = () => {
     if (selectedIds.size === 0) return;
-    setBatchProcessing(true);
-    try {
-      const selectedParticipants = participants.filter(p => selectedIds.has(p.id));
-      for (const p of selectedParticipants) {
-        await fetch(`/api/participants/${p.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ arrived: true, arrivedAt: new Date().toISOString() }),
-        });
-      }
-      setSelectedIds(new Set());
-      onUpdate();
-    } catch (error) {
-      console.error("Batch arrival error:", error);
-    } finally {
-      setBatchProcessing(false);
-    }
+    setShowBatchCheckIn(true);
   };
 
   const handleBatchReturn = async () => {
     if (selectedIds.size === 0) return;
-    setBatchProcessing(true);
     try {
       const selectedParticipants = participants.filter(p => selectedIds.has(p.id));
       for (const p of selectedParticipants) {
         await fetch(`/api/participants/${p.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ returned: true, returnedAt: new Date().toISOString() }),
+          body: JSON.stringify({ returned: true, returnedAt: new Date() }),
         });
       }
       setSelectedIds(new Set());
       onUpdate();
     } catch (error) {
       console.error("Batch return error:", error);
-    } finally {
-      setBatchProcessing(false);
     }
   };
 
@@ -140,7 +122,6 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
               <div className="flex gap-2">
                 <Button
                   onClick={handleBatchArrival}
-                  disabled={batchProcessing}
                   className="gap-2"
                   data-testid="button-batch-arrival"
                 >
@@ -149,7 +130,6 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                 </Button>
                 <Button
                   onClick={handleBatchReturn}
-                  disabled={batchProcessing}
                   variant="outline"
                   className="gap-2"
                   data-testid="button-batch-return"
@@ -271,6 +251,18 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
           onClose={() => setSelectedParticipant(null)}
           onSuccess={() => {
             setSelectedParticipant(null);
+            onUpdate();
+          }}
+        />
+      )}
+
+      {showBatchCheckIn && selectedIds.size > 0 && (
+        <BatchCheckInModal
+          participants={participants.filter(p => selectedIds.has(p.id))}
+          onClose={() => setShowBatchCheckIn(false)}
+          onSuccess={() => {
+            setShowBatchCheckIn(false);
+            setSelectedIds(new Set());
             onUpdate();
           }}
         />

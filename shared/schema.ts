@@ -28,10 +28,14 @@ export const participants = pgTable("participants", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
+  email: text("email"),
   type: text("type").notNull(), // 'zombie' or 'survivant'
   timeSlotId: integer("time_slot_id").references(() => timeSlots.id),
   squadId: integer("squad_id").references(() => squads.id),
   arrived: boolean("arrived").default(false),
+  arrivedAt: timestamp("arrived_at"),
+  returned: boolean("returned").default(false),
+  returnedAt: timestamp("returned_at"),
   lockerNumber: text("locker_number"), // 4-digit unique number
   mealTicketGiven: boolean("meal_ticket_given").default(false),
   waterBottleGiven: boolean("water_bottle_given").default(false),
@@ -120,6 +124,7 @@ export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit(
 export const createParticipantSchema = z.object({
   firstName: z.string().min(1, "Le prénom est obligatoire").trim(),
   lastName: z.string().min(1, "Le nom est obligatoire").trim(),
+  email: z.string().email("Email invalide").optional().or(z.literal("")),
   type: z.enum(["zombie", "survivant"]),
   timeSlotId: z.number().int().positive().optional().nullable(),
 });

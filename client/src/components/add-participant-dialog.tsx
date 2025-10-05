@@ -36,6 +36,7 @@ import { UserPlus } from "lucide-react";
 const participantFormSchema = z.object({
   firstName: z.string().min(1, "Le prénom est obligatoire"),
   lastName: z.string().min(1, "Le nom est obligatoire"),
+  email: z.string().email("Email invalide").optional().or(z.literal("")),
   timeSlotId: z.coerce.number().optional(),
 });
 
@@ -58,6 +59,7 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
     defaultValues: {
       firstName: "",
       lastName: "",
+      email: "",
       timeSlotId: undefined,
     },
   });
@@ -147,6 +149,25 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
                       placeholder="Nom du participant" 
                       {...field}
                       data-testid="input-lastname"
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email (optionnel)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="email"
+                      placeholder="email@exemple.com" 
+                      {...field}
+                      data-testid="input-email"
                     />
                   </FormControl>
                   <FormMessage />

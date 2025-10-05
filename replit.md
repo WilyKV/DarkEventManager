@@ -8,11 +8,13 @@ The application features a dark, atmospheric UI with toxic green accent color, b
 
 ## Recent Changes (October 5, 2025)
 
+- **Real-time Dashboard Analytics**: Added comprehensive dashboard with auto-refreshing statistics including participant arrivals, squad distribution charts (recharts), checklist completion rates, and stock alerts
+- **Filtered Excel Export Reports**: Implemented dropdown export system with sanitized filenames (Unicode normalization) for filtered reports by time slot and squad, complete French headers and clear user feedback
+- **Squad Modification Audit Trail**: Created squadAuditLog table tracking all squad reassignments with timestamps, integrated history timeline in check-in modal showing previous assignments, proper data consistency with post-update logging
 - **Fixed Critical Cache Invalidation Issues**: Updated all mutation success handlers to use predicate-based invalidation for TanStack Query, ensuring immediate UI updates after Excel import, check-in, and stock management operations
 - **Backend Route Optimization**: Restructured API endpoints to use query string parameters (?type=zombie) instead of path parameters for better RESTful design and to avoid route ordering conflicts
 - **Frontend Query Updates**: All useQuery hooks now use explicit queryFn with proper URL construction for consistent data fetching
 - **E2E Testing**: Successfully verified all MVP functionality including navigation, participant management, check-in flow, squad assignment, locker generation, and stock management
-- **Production Ready**: Application is fully functional and ready for deployment
 
 ## User Preferences
 
@@ -72,6 +74,7 @@ Preferred communication style: Simple, everyday language.
 - **Squads**: Team assignments with maxMembers limits, type-specific (zombie squads: Alpha/Bravo/Charlie/Delta/Echo, survivor squads: Team 1-8)
 - **ShopItems**: Boutique inventory with name, stock, price, category
 - **MealItems**: Food inventory with name, stock, price, category
+- **SquadAuditLog**: Audit trail for squad modifications tracking participantId, previousSquadId, newSquadId, changedAt timestamp
 
 **Business Logic:**
 - Automatic locker number generation (4-digit unique codes)
@@ -79,6 +82,9 @@ Preferred communication style: Simple, everyday language.
 - Participant check-in workflow with multi-step checklist (meal ticket, water bottle, squad assignment, briefing, makeup wait, map)
 - Free meal entitlement tracking for zombies (hasFreemeal, freeMealClaimed flags)
 - Excel import functionality for bulk participant creation with automatic time slot matching
+- Squad modification audit logging with automatic history tracking after successful updates
+- Real-time dashboard statistics with 5-second auto-refresh
+- Filtered Excel export with sanitized filenames by time slot and squad
 
 ### External Dependencies
 

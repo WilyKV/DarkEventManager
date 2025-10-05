@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/card";
-import { Skull, Users, ShoppingBag, Utensils, BarChart3 } from "lucide-react";
+import { Skull, Users, ShoppingBag, Utensils, BarChart3, IdCard } from "lucide-react";
 import { Link } from "wouter";
 
 export default function HomePage() {
@@ -38,6 +38,13 @@ export default function HomePage() {
       path: "/repas",
       description: "Gestion des repas",
       color: "from-chart-5/20 to-chart-5/5"
+    },
+    {
+      title: "Badges",
+      icon: IdCard,
+      path: "/badges",
+      description: "Impression des badges",
+      color: "from-chart-4/20 to-chart-4/5"
     },
   ];
 

@@ -4,6 +4,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Print Styles for Badges */
+@media print {
+  .print-hidden {
+    display: none !important;
+  }
+
+  .print-full-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+  }
+
+  .badge-card {
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background: white;
+  }
+}
+
 /* LIGHT MODE */
 :root {
   --button-outline: rgba(0,0,0, .10);

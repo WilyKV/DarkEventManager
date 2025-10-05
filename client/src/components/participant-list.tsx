@@ -3,9 +3,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, UserCheck, UserX, Edit } from "lucide-react";
+import { Search, UserCheck, UserX, Edit, Printer } from "lucide-react";
 import { Participant, ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
 import { CheckInModal } from "./check-in-modal";
+import { Link } from "wouter";
 
 interface ParticipantListProps {
   participants: ParticipantWithRelations[];
@@ -111,14 +112,26 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                     </div>
                   </div>
 
-                  <Button
-                    onClick={() => setSelectedParticipant(participant)}
-                    className="gap-2"
-                    data-testid={`button-manage-${participant.id}`}
-                  >
-                    <Edit className="w-4 h-4" />
-                    {participant.arrived ? "Modifier" : "Enregistrer"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Link href={`/badges?participantId=${participant.id}`}>
+                      <Button
+                        variant="outline"
+                        className="gap-2"
+                        data-testid={`button-print-badge-${participant.id}`}
+                      >
+                        <Printer className="w-4 h-4" />
+                        Badge
+                      </Button>
+                    </Link>
+                    <Button
+                      onClick={() => setSelectedParticipant(participant)}
+                      className="gap-2"
+                      data-testid={`button-manage-${participant.id}`}
+                    >
+                      <Edit className="w-4 h-4" />
+                      {participant.arrived ? "Modifier" : "Enregistrer"}
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))

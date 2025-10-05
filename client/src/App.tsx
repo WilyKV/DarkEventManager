@@ -10,6 +10,7 @@ import ZombiePage from "@/pages/zombie";
 import SurvivantPage from "@/pages/survivant";
 import BoutiquePage from "@/pages/boutique";
 import RepasPage from "@/pages/repas";
+import BadgesPage from "@/pages/badges";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/survivant" component={SurvivantPage} />
       <Route path="/boutique" component={BoutiquePage} />
       <Route path="/repas" component={RepasPage} />
+      <Route path="/badges" component={BadgesPage} />
       <Route component={NotFound} />
     </Switch>
   );

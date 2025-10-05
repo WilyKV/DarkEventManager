@@ -12,6 +12,7 @@ import BoutiquePage from "@/pages/boutique";
 import RepasPage from "@/pages/repas";
 import BadgesPage from "@/pages/badges";
 import ScanPage from "@/pages/scan";
+import AdminPage from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/repas" component={RepasPage} />
       <Route path="/badges" component={BadgesPage} />
       <Route path="/scan" component={ScanPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route component={NotFound} />
     </Switch>
   );

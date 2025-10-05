@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { QrCode, UserCheck, Camera, AlertCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { CheckInModal } from "@/components/check-in-modal";
+import { SimpleCheckInModal } from "@/components/simple-check-in-modal";
 
 export default function ScanPage() {
   const { toast } = useToast();
@@ -199,7 +199,7 @@ export default function ScanPage() {
                   {scannedParticipant.squad && (
                     <div>
                       <p className="text-sm text-muted-foreground">Squad</p>
-                      <p className="font-medium">{scannedParticipant.squad.name}</p>
+                      <p className="font-medium">Squad {scannedParticipant.squad.number}</p>
                     </div>
                   )}
                   {scannedParticipant.lockerNumber && (
@@ -235,7 +235,7 @@ export default function ScanPage() {
 
       {/* Check-in Modal */}
       {scannedParticipant && (
-        <CheckInModal
+        <SimpleCheckInModal
           participant={scannedParticipant}
           onClose={() => setScannedParticipant(null)}
           onSuccess={handleCheckInSuccess}

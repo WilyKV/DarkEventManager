@@ -1,26 +1,15 @@
-import { Download } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ParticipantList } from "@/components/participant-list";
-import { ExcelImport } from "@/components/excel-import";
-import { AddParticipantDialog } from "@/components/add-participant-dialog";
-import { AddTimeSlotDialog } from "@/components/add-timeslot-dialog";
+import { ParticipantListByTimeslot } from "@/components/participant-list-by-timeslot";
+import { SquadList } from "@/components/squad-list";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
-import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Users, Shield } from "lucide-react";
+import { ParticipantWithRelations, TimeSlot } from "@shared/schema";
 import { ManagementLayout } from "@/components/management-layout";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 export default function SurvivantPage() {
-  const { toast } = useToast();
-
+  const [activeTab, setActiveTab] = useState("participants");
   const { data: participants, isLoading: participantsLoading, refetch: refetchParticipants } = useQuery<ParticipantWithRelations[]>({
     queryKey: ["/api/participants", { type: "survivant" }],
     queryFn: async () => {
@@ -39,161 +28,77 @@ export default function SurvivantPage() {
     },
   });
 
-  const { data: squads, isLoading: squadsLoading } = useQuery<Squad[]>({
-    queryKey: ["/api/squads", { type: "survivant" }],
-    queryFn: async () => {
-      const res = await fetch("/api/squads?type=survivant");
-      if (!res.ok) throw new Error("Failed to fetch squads");
-      return res.json();
-    },
-  });
-
-  const isLoading = participantsLoading || timeSlotsLoading || squadsLoading;
-
-  const handleExport = async (timeSlotId?: number, squadId?: number, filterName?: string) => {
-    try {
-      let url = "/api/export/participants?type=survivant";
-      if (timeSlotId) url += `&timeSlotId=${timeSlotId}`;
-      if (squadId) url += `&squadId=${squadId}`;
-      if (filterName) url += `&filterLabel=${encodeURIComponent(filterName)}`;
-
-      const response = await fetch(url);
-      if (!response.ok) throw new Error("Export failed");
-
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = downloadUrl;
-      a.click();
-      window.URL.revokeObjectURL(downloadUrl);
-
-      const description = filterName 
-        ? `Export réussi pour: ${filterName}`
-        : "Export réussi pour tous les survivants";
-
-      toast({
-        title: "Export réussi",
-        description,
-      });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible d'exporter les données",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const actions = (
-    <div className="flex items-center gap-3">
-      <AddParticipantDialog participantType="survivant" />
-      <AddTimeSlotDialog type="survivant" />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            className="gap-2"
-            data-testid="button-export"
-          >
-            <Download className="w-4 h-4" />
-            Exporter en Excel
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>Options d'export</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => handleExport()}>
-            Tous les survivants
-          </DropdownMenuItem>
-          {timeSlots && timeSlots.length > 0 && (
-            <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Par créneau</DropdownMenuLabel>
-                  {timeSlots.map((slot) => (
-                    <DropdownMenuItem
-                      key={slot.id}
-                      onClick={() => handleExport(slot.id, undefined, `Créneau ${slot.name}`)}
-                    >
-                      {slot.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-              {squads && squads.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Par team</DropdownMenuLabel>
-                  {squads.map((squad) => (
-                    <DropdownMenuItem
-                      key={squad.id}
-                      onClick={() => handleExport(undefined, squad.id, squad.name)}
-                    >
-                      {squad.name}
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
+  const isLoading = participantsLoading || timeSlotsLoading;
 
   return (
     <ManagementLayout
       title="Survivants"
       subtitle="Gestion des participants survivants"
-      actions={actions}
     >
-      <div className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="participants" className="gap-2">
+            <Users className="w-4 h-4" />
+            Participants
+          </TabsTrigger>
+          <TabsTrigger value="squads" className="gap-2">
+            <Shield className="w-4 h-4" />
+            Squads
+          </TabsTrigger>
+        </TabsList>
 
-        {/* Excel Import */}
-        <ExcelImport type="survivant" />
+        {/* Participants Tab */}
+        <TabsContent value="participants" className="space-y-6">
+          {/* Stats */}
+          {!isLoading && participants && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg bg-card border">
+                <p className="text-sm text-muted-foreground">Total</p>
+                <p className="text-2xl font-bold text-foreground">{participants.length}</p>
+              </div>
+              <div className="p-4 rounded-lg bg-card border">
+                <p className="text-sm text-muted-foreground">Arrivés</p>
+                <p className="text-2xl font-bold text-chart-3">
+                  {participants.filter(p => p.arrived).length}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-card border">
+                <p className="text-sm text-muted-foreground">En attente</p>
+                <p className="text-2xl font-bold text-chart-2">
+                  {participants.filter(p => !p.arrived).length}
+                </p>
+              </div>
+              <div className="p-4 rounded-lg bg-card border">
+                <p className="text-sm text-muted-foreground">Checklist OK</p>
+                <p className="text-2xl font-bold text-chart-1">
+                  {participants.filter(p => p.checklistCompleted).length}
+                </p>
+              </div>
+            </div>
+          )}
 
-        {/* Stats */}
-        {!isLoading && participants && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-card border">
-              <p className="text-sm text-muted-foreground">Total</p>
-              <p className="text-2xl font-bold text-foreground">{participants.length}</p>
+          {/* Participant List */}
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
             </div>
-            <div className="p-4 rounded-lg bg-card border">
-              <p className="text-sm text-muted-foreground">Arrivés</p>
-              <p className="text-2xl font-bold text-chart-3">
-                {participants.filter(p => p.arrived).length}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg bg-card border">
-              <p className="text-sm text-muted-foreground">En attente</p>
-              <p className="text-2xl font-bold text-chart-2">
-                {participants.filter(p => !p.arrived).length}
-              </p>
-            </div>
-            <div className="p-4 rounded-lg bg-card border">
-              <p className="text-sm text-muted-foreground">Checklist OK</p>
-              <p className="text-2xl font-bold text-chart-1">
-                {participants.filter(p => p.checklistCompleted).length}
-              </p>
-            </div>
-          </div>
-        )}
+          ) : (
+            <ParticipantListByTimeslot
+              participants={participants || []}
+              timeSlots={timeSlots || []}
+              type="survivant"
+              onUpdate={() => refetchParticipants()}
+            />
+          )}
+        </TabsContent>
 
-        {/* Participant List */}
-        {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-12 w-full" />
-            <Skeleton className="h-32 w-full" />
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : (
-          <ParticipantList
-            participants={participants || []}
-            timeSlots={timeSlots || []}
-            squads={squads || []}
-            type="survivant"
-            onUpdate={() => refetchParticipants()}
-          />
-        )}
-      </div>
+        {/* Squads Tab */}
+        <TabsContent value="squads" className="space-y-6">
+          <SquadList type="survivant" showActions={false} />
+        </TabsContent>
+      </Tabs>
     </ManagementLayout>
   );
 }

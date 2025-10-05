@@ -9,28 +9,6 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
-  // Initialize default squads if none exist
-  const initializeSquads = async () => {
-    const zombieSquads = await storage.getSquads("zombie");
-    const survivantSquads = await storage.getSquads("survivant");
-    
-    if (zombieSquads.length === 0) {
-      const zombieSquadNames = ["Alpha", "Bravo", "Charlie", "Delta", "Echo"];
-      for (const name of zombieSquadNames) {
-        await storage.createSquad({ name: `Squad ${name}`, type: "zombie", maxMembers: 10 });
-      }
-    }
-    
-    if (survivantSquads.length === 0) {
-      const survivantSquadNames = ["Team 1", "Team 2", "Team 3", "Team 4", "Team 5", "Team 6", "Team 7", "Team 8"];
-      for (const name of survivantSquadNames) {
-        await storage.createSquad({ name, type: "survivant", maxMembers: 8 });
-      }
-    }
-  };
-  
-  await initializeSquads();
-  
   // ===== PARTICIPANTS =====
   
   // Get all participants (with optional type filter via query string)
@@ -426,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Nom": p.lastName,
         "Type": p.type,
         "Créneau": p.timeSlot?.name || "Non assigné",
-        "Squad": p.squad?.name || "Non assigné",
+        "Squad": p.squad ? `Squad ${p.squad.number}` : "Non assigné",
         "Arrivé": p.arrived ? "Oui" : "Non",
         "Casier": p.lockerNumber || "Non assigné",
         "Checklist": p.checklistCompleted ? "Complète" : "Incomplète",

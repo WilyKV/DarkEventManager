@@ -9,26 +9,24 @@ import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronLeft, CheckCircle, Users, Utensils, Paintbrush, MapPin, Loader2 } from "lucide-react";
 import { SquadSelector } from "./squad-selector";
 
-interface BatchCheckInModalProps {
-  participants: ParticipantWithRelations[];
+interface SimpleCheckInModalProps {
+  participant: ParticipantWithRelations;
   onClose: () => void;
   onSuccess: () => void;
 }
 
 type Step = 1 | 2 | 3 | 4 | 5;
 
-export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchCheckInModalProps) {
+export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCheckInModalProps) {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>(1);
-  const [selectedSquad, setSelectedSquad] = useState("");
-
-  const participantType = participants[0]?.type || "zombie";
+  const [selectedSquad, setSelectedSquad] = useState(participant.squadId?.toString() || "");
 
   const { data: squadsWithParticipants = [] } = useQuery<SquadWithRelations[]>({
-    queryKey: ["/api/squads/with-participants", { type: participantType }],
+    queryKey: ["/api/squads/with-participants", { type: participant.type }],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.append("type", participantType);
+      params.append("type", participant.type);
       const response = await fetch(`/api/squads/with-participants?${params}`);
       if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();
@@ -36,25 +34,8 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
   });
 
   const updateMutation = useMutation({
-    mutationFn: async () => {
-      const normalizedSquadId = selectedSquad && selectedSquad.trim() !== "" ? parseInt(selectedSquad) : null;
-
-      return Promise.all(
-        participants.map(participant =>
-          apiRequest("PATCH", `/api/participants/${participant.id}`, {
-            arrived: true,
-            arrivedAt: new Date(),
-            squadId: normalizedSquadId,
-            mealTicketGiven: true,
-            waterBottleGiven: true,
-            squadExplained: true,
-            briefingExplained: true,
-            makeupWaitExplained: true,
-            mapGiven: true,
-            checklistCompleted: true,
-          })
-        )
-      );
+    mutationFn: async (data: any) => {
+      return apiRequest("PATCH", `/api/participants/${participant.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -62,21 +43,38 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
       });
       toast({
         title: "Enregistrement terminé",
-        description: `${participants.length} participant(s) enregistré(s) avec succès`,
+        description: "Le participant a été enregistré avec succès",
       });
       onSuccess();
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible d'enregistrer les participants",
+        description: "Impossible d'enregistrer le participant",
         variant: "destructive",
       });
     },
   });
 
   const handleComplete = () => {
-    updateMutation.mutate();
+    const normalizedSquadId = selectedSquad && selectedSquad.trim() !== ""
+      ? parseInt(selectedSquad)
+      : null;
+
+    const updateData: any = {
+      arrived: true,
+      arrivedAt: new Date(),
+      squadId: normalizedSquadId,
+      mealTicketGiven: true,
+      waterBottleGiven: true,
+      squadExplained: true,
+      briefingExplained: true,
+      makeupWaitExplained: true,
+      mapGiven: true,
+      checklistCompleted: true,
+    };
+
+    updateMutation.mutate(updateData);
   };
 
   const selectedSquadData = squadsWithParticipants.find(s => s.id.toString() === selectedSquad);
@@ -94,21 +92,9 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-3xl font-bold text-primary">
-            Enregistrement groupé - {participants.length} participant{participants.length > 1 ? 's' : ''}
+            Enregistrement - {participant.firstName} {participant.lastName}
           </DialogTitle>
         </DialogHeader>
-
-        {/* Participants List */}
-        <div className="mb-4">
-          <p className="text-sm font-semibold mb-2">Participants sélectionnés :</p>
-          <div className="flex flex-wrap gap-2">
-            {participants.map((p) => (
-              <Badge key={p.id} variant="secondary">
-                {p.firstName} {p.lastName}
-              </Badge>
-            ))}
-          </div>
-        </div>
 
         {/* Progress Steps */}
         <div className="flex items-center justify-between mb-8 mt-4">
@@ -158,14 +144,14 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
             <div className="space-y-6">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection de la squad</h3>
-                <p className="text-muted-foreground">Choisissez la squad pour ces participants</p>
+                <p className="text-muted-foreground">Choisissez la squad pour ce participant</p>
               </div>
 
               <SquadSelector
                 squads={squadsWithParticipants}
                 selectedSquadId={selectedSquad}
                 onSquadSelect={setSelectedSquad}
-                participantType={participantType as "zombie" | "survivant"}
+                participantType={participant.type as "zombie" | "survivant"}
               />
             </div>
           )}
@@ -290,12 +276,10 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
             {currentStep > 1 ? "Précédent" : "Annuler"}
           </Button>
 
-          <div className="flex-1" />
-
           {currentStep < 5 ? (
             <Button
               onClick={() => setCurrentStep((currentStep + 1) as Step)}
-              disabled={updateMutation.isPending}
+              disabled={currentStep === 1 && !selectedSquad}
             >
               Suivant
               <ChevronRight className="w-4 h-4 ml-2" />
@@ -304,11 +288,10 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
             <Button
               onClick={handleComplete}
               disabled={updateMutation.isPending}
-              className="bg-primary hover:bg-primary/90"
             >
               {updateMutation.isPending ? (
                 <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   Enregistrement...
                 </>
               ) : (

@@ -107,7 +107,7 @@ export default function BadgesPage() {
                           </Badge>
                           {participant.squad && (
                             <Badge variant="secondary" className="text-xs">
-                              {participant.squad.name}
+                              Squad {participant.squad.number}
                             </Badge>
                           )}
                           {participant.lockerNumber && (

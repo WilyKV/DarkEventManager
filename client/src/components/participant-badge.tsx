@@ -53,7 +53,7 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
             <div className="space-y-1">
               <p className="text-xs text-muted-foreground uppercase tracking-wider">Squad</p>
               <p className="text-2xl font-semibold text-primary">
-                {participant.squad.name}
+                #{participant.squad.number}
               </p>
             </div>
           )}

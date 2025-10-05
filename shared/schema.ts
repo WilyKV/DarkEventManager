@@ -18,11 +18,11 @@ export const timeSlots = pgTable("time_slots", {
 // Squads Table
 export const squads = pgTable("squads", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  name: text("name").notNull(),
+  number: integer("number").notNull(), // 1-8, can repeat across different timeslots
   type: text("type").notNull(), // 'zombie' or 'survivant'
-  timeSlotId: integer("time_slot_id").references(() => timeSlots.id),
-  squadNumber: integer("squad_number"), // 1-8 for zombie squads
-  maxMembers: integer("max_members").default(10),
+  timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id),
+  maxMembers: integer("max_members").default(8),
+  briefing: text("briefing"),
 });
 
 // Participants Table

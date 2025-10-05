@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: darkevent_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: darkevent
+      POSTGRES_USER: darkevent
+      POSTGRES_PASSWORD: darkevent
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darkevent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ..
+      dockerfile: .docker/Dockerfile
+    container_name: darkevent_app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://darkevent:darkevent@db:5432/darkevent
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../uploads:/app/uploads
+
+volumes:
+  postgres_data:

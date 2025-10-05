@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Search, UserCheck, UserX, Edit, Printer, LogIn, LogOut } from "lucide-react";
 import { Participant, ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
-import { CheckInModal } from "./check-in-modal";
-import { BatchCheckInModal } from "./batch-check-in-modal";
+import { SimpleCheckInModal } from "./simple-check-in-modal";
+import { BatchCheckInFlowModal } from "./batch-check-in-flow-modal";
 import { Link } from "wouter";
 
 interface ParticipantListProps {
@@ -206,7 +206,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                       </span>
                       {participant.squad && (
                         <span>
-                          <strong className="text-foreground">Squad:</strong> {participant.squad.name}
+                          <strong className="text-foreground">Squad:</strong> #{participant.squad.number}
                         </span>
                       )}
                       {participant.lockerNumber && (
@@ -246,7 +246,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
       </div>
 
       {selectedParticipant && (
-        <CheckInModal
+        <SimpleCheckInModal
           participant={selectedParticipant}
           onClose={() => setSelectedParticipant(null)}
           onSuccess={() => {
@@ -257,7 +257,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
       )}
 
       {showBatchCheckIn && selectedIds.size > 0 && (
-        <BatchCheckInModal
+        <BatchCheckInFlowModal
           participants={participants.filter(p => selectedIds.has(p.id))}
           onClose={() => setShowBatchCheckIn(false)}
           onSuccess={() => {

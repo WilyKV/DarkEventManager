@@ -66,7 +66,7 @@ export default function DashboardPage() {
   ];
 
   const squadData = stats.squads.map((squad) => ({
-    name: squad.name,
+    name: `Squad ${squad.number}`,
     Membres: squad.currentMembers,
     Maximum: squad.maxMembers,
     fill: squad.type === "zombie" ? "hsl(var(--primary))" : "hsl(var(--chart-3))",

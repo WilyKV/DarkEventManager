@@ -111,7 +111,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
           <div className="flex items-center gap-3 p-4 rounded-lg bg-card border">
             <Checkbox
               id="arrived"
-              checked={arrived}
+              checked={!!arrived}
               onCheckedChange={(checked) => setArrived(checked as boolean)}
               data-testid="checkbox-arrived"
             />
@@ -200,7 +200,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-meal"
-                  checked={checklist.mealTicket}
+                  checked={!!checklist.mealTicket}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, mealTicket: checked as boolean }))}
                   data-testid="checkbox-meal-ticket"
                 />
@@ -212,7 +212,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-water"
-                  checked={checklist.waterBottle}
+                  checked={!!checklist.waterBottle}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, waterBottle: checked as boolean }))}
                   data-testid="checkbox-water-bottle"
                 />
@@ -224,7 +224,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-squad"
-                  checked={checklist.squad}
+                  checked={!!checklist.squad}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, squad: checked as boolean }))}
                   data-testid="checkbox-squad-explained"
                 />
@@ -236,7 +236,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-briefing"
-                  checked={checklist.briefing}
+                  checked={!!checklist.briefing}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, briefing: checked as boolean }))}
                   data-testid="checkbox-briefing-explained"
                 />
@@ -248,7 +248,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-makeup"
-                  checked={checklist.makeup}
+                  checked={!!checklist.makeup}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, makeup: checked as boolean }))}
                   data-testid="checkbox-makeup-explained"
                 />
@@ -260,7 +260,7 @@ export function CheckInModal({ participant, squads, onClose, onSuccess }: CheckI
               <div className="flex items-start gap-3">
                 <Checkbox
                   id="check-map"
-                  checked={checklist.map}
+                  checked={!!checklist.map}
                   onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, map: checked as boolean }))}
                   data-testid="checkbox-map-given"
                 />

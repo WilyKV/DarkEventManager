@@ -20,6 +20,32 @@ import {
 import { db } from "./db";
 import { eq, and } from "drizzle-orm";
 
+export interface DashboardStats {
+  participants: {
+    total: number;
+    zombies: number;
+    survivors: number;
+    arrived: number;
+    pending: number;
+    arrivalRate: number;
+  };
+  squads: {
+    name: string;
+    type: string;
+    currentMembers: number;
+    maxMembers: number;
+  }[];
+  checklist: {
+    totalCompleted: number;
+    totalParticipants: number;
+    completionRate: number;
+  };
+  stock: {
+    shopItems: { name: string; stock: number; category: string }[];
+    mealItems: { name: string; stock: number; category: string }[];
+  };
+}
+
 export interface IStorage {
   // Participants
   getParticipants(type?: string): Promise<ParticipantWithRelations[]>;
@@ -51,6 +77,9 @@ export interface IStorage {
   createMealItem(item: InsertMealItem): Promise<MealItem>;
   updateMealItem(id: number, item: Partial<InsertMealItem>): Promise<MealItem>;
   deleteMealItem(id: number): Promise<void>;
+  
+  // Dashboard Stats
+  getDashboardStats(): Promise<DashboardStats>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -211,6 +240,60 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMealItem(id: number): Promise<void> {
     await db.delete(mealItems).where(eq(mealItems.id, id));
+  }
+
+  // Dashboard Stats
+  async getDashboardStats(): Promise<DashboardStats> {
+    const allParticipants = await this.getParticipants();
+    const allSquads = await db.select().from(squads);
+    const allShopItems = await this.getShopItems();
+    const allMealItems = await this.getMealItems();
+
+    const zombieCount = allParticipants.filter(p => p.type === "zombie").length;
+    const survivorCount = allParticipants.filter(p => p.type === "survivant").length;
+    const arrivedCount = allParticipants.filter(p => p.arrived).length;
+    
+    const completedChecklist = allParticipants.filter(p => p.checklistCompleted).length;
+
+    const squadStats = allSquads.map(squad => ({
+      name: squad.name,
+      type: squad.type,
+      currentMembers: allParticipants.filter(p => p.squadId === squad.id).length,
+      maxMembers: squad.maxMembers ?? 0,
+    }));
+
+    return {
+      participants: {
+        total: allParticipants.length,
+        zombies: zombieCount,
+        survivors: survivorCount,
+        arrived: arrivedCount,
+        pending: allParticipants.length - arrivedCount,
+        arrivalRate: allParticipants.length > 0 
+          ? Math.round((arrivedCount / allParticipants.length) * 100) 
+          : 0,
+      },
+      squads: squadStats,
+      checklist: {
+        totalCompleted: completedChecklist,
+        totalParticipants: allParticipants.length,
+        completionRate: allParticipants.length > 0 
+          ? Math.round((completedChecklist / allParticipants.length) * 100) 
+          : 0,
+      },
+      stock: {
+        shopItems: allShopItems.map(item => ({
+          name: item.name,
+          stock: item.stock,
+          category: item.category ?? "",
+        })),
+        mealItems: allMealItems.map(item => ({
+          name: item.name,
+          stock: item.stock,
+          category: item.category ?? "",
+        })),
+      },
+    };
   }
 }
 

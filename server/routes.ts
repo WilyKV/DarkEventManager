@@ -270,6 +270,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== DASHBOARD STATS =====
+  app.get("/api/dashboard/stats", async (req, res) => {
+    try {
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching dashboard stats" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

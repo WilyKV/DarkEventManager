@@ -1,9 +1,16 @@
 import { Card } from "@/components/ui/card";
-import { Skull, Users, ShoppingBag, Utensils } from "lucide-react";
+import { Skull, Users, ShoppingBag, Utensils, BarChart3 } from "lucide-react";
 import { Link } from "wouter";
 
 export default function HomePage() {
   const cards = [
+    {
+      title: "Dashboard",
+      icon: BarChart3,
+      path: "/dashboard",
+      description: "Statistiques temps réel",
+      color: "from-chart-1/20 to-chart-1/5"
+    },
     {
       title: "Zombie",
       icon: Skull,
@@ -46,13 +53,13 @@ export default function HomePage() {
         </div>
 
         {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {cards.map((card) => {
             const Icon = card.icon;
             return (
               <Link key={card.path} href={card.path}>
                 <Card 
-                  className={`group relative overflow-hidden h-64 md:h-80 cursor-pointer border-2 hover-elevate active-elevate-2 transition-all duration-300`}
+                  className={`group relative overflow-hidden h-64 md:h-72 cursor-pointer border-2 hover-elevate active-elevate-2 transition-all duration-300`}
                   data-testid={`card-${card.title.toLowerCase()}`}
                 >
                   <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-50`} />
@@ -60,14 +67,14 @@ export default function HomePage() {
                   <div className="relative h-full flex flex-col items-center justify-center p-8 gap-6">
                     <div className="relative">
                       <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full group-hover:bg-primary/30 transition-all duration-300" />
-                      <Icon className="w-20 h-20 md:w-24 md:h-24 text-primary relative z-10 group-hover:scale-110 transition-transform duration-300" />
+                      <Icon className="w-16 h-16 md:w-20 md:h-20 text-primary relative z-10 group-hover:scale-110 transition-transform duration-300" />
                     </div>
                     
                     <div className="text-center">
-                      <h2 className="text-3xl md:text-4xl font-display text-foreground mb-2">
+                      <h2 className="text-2xl md:text-3xl font-display text-foreground mb-2">
                         {card.title}
                       </h2>
-                      <p className="text-muted-foreground text-lg">{card.description}</p>
+                      <p className="text-muted-foreground">{card.description}</p>
                     </div>
                   </div>
                 </Card>

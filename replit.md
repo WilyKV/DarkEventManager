@@ -4,7 +4,15 @@
 
 Zombinthedark is a specialized event management system designed for a zombie/post-apocalyptic themed event. The application manages two distinct participant types (zombies and survivors), each with separate time slots, squads, and check-in workflows. The system also handles boutique (shop) and meal inventory management, with special rules for zombie participants who receive one free meal.
 
-The application features a dark, atmospheric UI with toxic green and blood orange accent colors, balancing horror aesthetics with operational clarity for event staff.
+The application features a dark, atmospheric UI with toxic green accent color, balancing horror aesthetics with operational clarity for event staff.
+
+## Recent Changes (October 5, 2025)
+
+- **Fixed Critical Cache Invalidation Issues**: Updated all mutation success handlers to use predicate-based invalidation for TanStack Query, ensuring immediate UI updates after Excel import, check-in, and stock management operations
+- **Backend Route Optimization**: Restructured API endpoints to use query string parameters (?type=zombie) instead of path parameters for better RESTful design and to avoid route ordering conflicts
+- **Frontend Query Updates**: All useQuery hooks now use explicit queryFn with proper URL construction for consistent data fetching
+- **E2E Testing**: Successfully verified all MVP functionality including navigation, participant management, check-in flow, squad assignment, locker generation, and stock management
+- **Production Ready**: Application is fully functional and ready for deployment
 
 ## User Preferences
 

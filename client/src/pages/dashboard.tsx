@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, CheckCircle, Package, TrendingUp } from "lucide-react";
-import { useLocation } from "wouter";
+import { Users, CheckCircle, Package, TrendingUp } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import { ManagementLayout } from "@/components/management-layout";
 
 interface DashboardStats {
   participants: {
@@ -32,7 +31,6 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
-  const [, setLocation] = useLocation();
 
   const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
@@ -41,18 +39,19 @@ export default function DashboardPage() {
 
   if (isLoading || !stats) {
     return (
-      <div className="min-h-screen bg-background p-6">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="h-32 bg-muted rounded"></div>
-              ))}
-            </div>
+      <ManagementLayout
+        title="Tableau de bord"
+        subtitle="Statistiques en temps réel"
+      >
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-muted rounded w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-32 bg-muted rounded"></div>
+            ))}
           </div>
         </div>
-      </div>
+      </ManagementLayout>
     );
   }
 
@@ -77,20 +76,11 @@ export default function DashboardPage() {
   const lowStockMeals = stats.stock.mealItems.filter(item => item.stock < 10);
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setLocation("/")}
-            data-testid="button-back"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-4xl font-display text-primary">Tableau de Bord</h1>
-        </div>
-
+    <ManagementLayout
+      title="Tableau de bord"
+      subtitle="Statistiques en temps réel"
+    >
+      <div className="space-y-6">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <Card data-testid="card-total-participants">
@@ -271,6 +261,6 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
-    </div>
+    </ManagementLayout>
   );
 }

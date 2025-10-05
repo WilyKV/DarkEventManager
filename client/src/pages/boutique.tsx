@@ -1,10 +1,8 @@
-import { ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { StockManagement } from "@/components/stock-management";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShopItem } from "@shared/schema";
+import { ManagementLayout } from "@/components/management-layout";
 
 export default function BoutiquePage() {
   const { data: items, isLoading } = useQuery<ShopItem[]>({
@@ -17,20 +15,11 @@ export default function BoutiquePage() {
   });
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="outline" size="icon" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-4xl font-display text-chart-2">Boutique</h1>
-            <p className="text-muted-foreground mt-1">Gestion des stocks de la boutique</p>
-          </div>
-        </div>
+    <ManagementLayout
+      title="Boutique"
+      subtitle="Gestion des stocks de la boutique"
+    >
+      <div className="space-y-6">
 
         {/* Stats */}
         {!isLoading && items && (
@@ -65,6 +54,6 @@ export default function BoutiquePage() {
           <StockManagement items={items || []} type="shop" apiPath="/api/shop-items" />
         )}
       </div>
-    </div>
+    </ManagementLayout>
   );
 }

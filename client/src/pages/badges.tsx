@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Printer, UserCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
+import { ManagementLayout } from "@/components/management-layout";
 
 export default function BadgesPage() {
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
@@ -39,18 +40,13 @@ export default function BadgesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-display text-primary mb-2">
-              Badges d'identification
-            </h1>
-            <p className="text-muted-foreground">
-              Sélectionnez un participant pour imprimer son badge avec QR code
-            </p>
-          </div>
-        </div>
+    <>
+      <div className="print:hidden">
+        <ManagementLayout
+          title="Badges"
+          subtitle="Sélectionnez un participant pour imprimer son badge avec QR code"
+        >
+          <div className="space-y-6">
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Participant Selection */}
@@ -154,8 +150,16 @@ export default function BadgesPage() {
               </Card>
             )}
           </div>
-        </div>
+          </div>
+        </ManagementLayout>
       </div>
-    </div>
+
+      {/* Print View - Only shown when printing */}
+      {selectedParticipant && (
+        <div className="hidden print:block">
+          <ParticipantBadge participant={selectedParticipant} />
+        </div>
+      )}
+    </>
   );
 }

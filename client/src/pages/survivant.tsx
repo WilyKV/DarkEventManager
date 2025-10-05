@@ -1,5 +1,4 @@
-import { ArrowLeft, Download } from "lucide-react";
-import { Link } from "wouter";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { ParticipantList } from "@/components/participant-list";
@@ -7,6 +6,7 @@ import { ExcelImport } from "@/components/excel-import";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ParticipantWithRelations, TimeSlot, Squad } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { ManagementLayout } from "@/components/management-layout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,23 +82,8 @@ export default function SurvivantPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="outline" size="icon" data-testid="button-back">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-4xl font-display text-chart-3">Survivants</h1>
-              <p className="text-muted-foreground mt-1">Gestion des participants survivants</p>
-            </div>
-          </div>
-          <DropdownMenu>
+  const actions = (
+    <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
@@ -144,8 +129,16 @@ export default function SurvivantPage() {
                 </>
               )}
             </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+    </DropdownMenu>
+  );
+
+  return (
+    <ManagementLayout
+      title="Survivants"
+      subtitle="Gestion des participants survivants"
+      actions={actions}
+    >
+      <div className="space-y-6">
 
         {/* Excel Import */}
         <ExcelImport type="survivant" />
@@ -195,6 +188,6 @@ export default function SurvivantPage() {
           />
         )}
       </div>
-    </div>
+    </ManagementLayout>
   );
 }

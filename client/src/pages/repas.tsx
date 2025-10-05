@@ -1,10 +1,8 @@
-import { ArrowLeft } from "lucide-react";
-import { Link } from "wouter";
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { StockManagement } from "@/components/stock-management";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MealItem } from "@shared/schema";
+import { ManagementLayout } from "@/components/management-layout";
 
 export default function RepasPage() {
   const { data: items, isLoading } = useQuery<MealItem[]>({
@@ -17,20 +15,11 @@ export default function RepasPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="outline" size="icon" data-testid="button-back">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-4xl font-display text-chart-5">Repas</h1>
-            <p className="text-muted-foreground mt-1">Gestion des stocks de repas</p>
-          </div>
-        </div>
+    <ManagementLayout
+      title="Repas"
+      subtitle="Gestion des stocks de repas"
+    >
+      <div className="space-y-6">
 
         {/* Info Banner */}
         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
@@ -72,6 +61,6 @@ export default function RepasPage() {
           <StockManagement items={items || []} type="meal" apiPath="/api/meal-items" />
         )}
       </div>
-    </div>
+    </ManagementLayout>
   );
 }

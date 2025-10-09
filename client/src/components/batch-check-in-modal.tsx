@@ -21,18 +21,34 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedSquad, setSelectedSquad] = useState("");
+  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(
+    participants[0]?.timeSlotId ?? null
+  );
 
   const participantType = participants[0]?.type || "zombie";
 
+  const { data: timeSlots = [] } = useQuery({
+    queryKey: ["/api/time-slots", { type: participantType }],
+    queryFn: async () => {
+      const response = await fetch(`/api/time-slots?type=${participantType}`);
+      if (!response.ok) throw new Error("Failed to fetch time slots");
+      return response.json();
+    },
+  });
+
   const { data: squadsWithParticipants = [] } = useQuery<SquadWithRelations[]>({
-    queryKey: ["/api/squads/with-participants", { type: participantType }],
+    queryKey: ["/api/squads/with-participants", { type: participantType, timeSlotId: selectedTimeSlotId }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", participantType);
+      if (selectedTimeSlotId) {
+        params.append("timeSlotId", selectedTimeSlotId.toString());
+      }
       const response = await fetch(`/api/squads/with-participants?${params}`);
       if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();
     },
+    enabled: selectedTimeSlotId !== null,
   });
 
   const updateMutation = useMutation({
@@ -44,6 +60,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
           apiRequest("PATCH", `/api/participants/${participant.id}`, {
             arrived: true,
             arrivedAt: new Date(),
+            timeSlotId: selectedTimeSlotId,
             squadId: normalizedSquadId,
             mealTicketGiven: true,
             waterBottleGiven: true,
@@ -157,16 +174,49 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection de la squad</h3>
-                <p className="text-muted-foreground">Choisissez la squad pour ces participants</p>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection du créneau et de la squad</h3>
+                <p className="text-muted-foreground">Tous les participants seront assignés au même créneau et à la même squad</p>
               </div>
 
-              <SquadSelector
-                squads={squadsWithParticipants}
-                selectedSquadId={selectedSquad}
-                onSquadSelect={setSelectedSquad}
-                participantType={participantType as "zombie" | "survivant"}
-              />
+              {/* Time Slot Selection */}
+              {!participants[0]?.timeSlotId && (
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="font-semibold text-sm">1. Sélectionner un créneau horaire</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {timeSlots.map((slot: any) => (
+                      <Button
+                        key={slot.id}
+                        variant={selectedTimeSlotId === slot.id ? "default" : "outline"}
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setSelectedTimeSlotId(slot.id);
+                          setSelectedSquad(""); // Reset squad selection when changing time slot
+                        }}
+                      >
+                        <div className="text-left">
+                          <div className="font-semibold">{slot.name}</div>
+                          <div className="text-xs opacity-80">
+                            Briefing: {slot.briefingTime} • Jeu: {slot.gameTime}
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Squad Selection */}
+              {selectedTimeSlotId && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm">{!participants[0]?.timeSlotId ? "2. " : ""}Sélectionner une squad</h4>
+                  <SquadSelector
+                    squads={squadsWithParticipants}
+                    selectedSquadId={selectedSquad}
+                    onSquadSelect={setSelectedSquad}
+                    participantType={participantType as "zombie" | "survivant"}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -295,7 +345,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
           {currentStep < 5 ? (
             <Button
               onClick={() => setCurrentStep((currentStep + 1) as Step)}
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || (currentStep === 1 && (!selectedTimeSlotId || !selectedSquad))}
             >
               Suivant
               <ChevronRight className="w-4 h-4 ml-2" />

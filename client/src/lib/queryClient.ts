@@ -1,5 +1,13 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Get device ID from localStorage for sync permissions
+function getDeviceId(): string | null {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('deviceId');
+  }
+  return null;
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -12,9 +20,17 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const deviceId = getDeviceId();
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+
+  // Add device ID header for sync permissions
+  if (deviceId) {
+    headers["X-Device-ID"] = deviceId;
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });

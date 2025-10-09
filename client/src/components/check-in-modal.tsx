@@ -52,6 +52,11 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
     },
   });
 
+  // Filtrer les squads pour n'afficher que celles associées au créneau du participant
+  const filteredSquads = participant.timeSlotId 
+    ? squadsWithParticipants.filter(squad => squad.timeSlotId === participant.timeSlotId)
+    : squadsWithParticipants;
+
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
       return apiRequest("PATCH", `/api/participants/${participant.id}`, data);
@@ -133,18 +138,18 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
 
           {/* Squad Assignment */}
           <SquadSelector
-            squads={squadsWithParticipants}
+            squads={filteredSquads}
             selectedSquadId={selectedSquad}
             onSquadSelect={setSelectedSquad}
             participantType={participant.type as "zombie" | "survivant"}
           />
 
           {/* Locker Number Display */}
-          {participant.lockerNumber && (
+          {participant.secretCode && (
             <div className="p-6 rounded-lg bg-primary/10 border-2 border-primary/20 text-center">
               <p className="text-sm text-muted-foreground mb-2">Numéro de casier</p>
               <p className="text-4xl font-mono font-bold text-primary" data-testid="text-locker-number">
-                {participant.lockerNumber}
+                {participant.secretCode}
               </p>
             </div>
           )}

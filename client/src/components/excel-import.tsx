@@ -7,10 +7,11 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface ExcelImportProps {
-  type: "zombie" | "survivant";
+  type: "zombie" | "survivant" | "staff" | "boutique" | "repas" | "badge";
+  module?: "participants" | "time-slots" | "squads" | "items" | "all";
 }
 
-export function ExcelImport({ type }: ExcelImportProps) {
+export function ExcelImport({ type, module = "participants" }: ExcelImportProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -20,8 +21,21 @@ export function ExcelImport({ type }: ExcelImportProps) {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("type", type);
+      formData.append("module", module);
 
-      const response = await fetch("/api/participants/import", {
+      let endpoint = '/api/participants/import';
+      
+      // Routes spécifiques selon le type
+      if (type === 'boutique') {
+        endpoint = '/api/shop-items/import';
+      } else if (type === 'repas') {
+        endpoint = '/api/meal-items/import';
+      } else if (type === 'badge') {
+        endpoint = '/api/participants/import';
+        formData.append("badge", "true");
+      }
+
+      const response = await fetch(endpoint, {
         method: "POST",
         body: formData,
       });
@@ -34,16 +48,28 @@ export function ExcelImport({ type }: ExcelImportProps) {
       return response.json();
     },
     onSuccess: (data) => {
-      // Invalidate all participant and time slot queries regardless of type
+      // Invalidate all relevant queries
       queryClient.invalidateQueries({ 
         predicate: (query) => {
           const key = query.queryKey[0];
-          return key === "/api/participants" || key === "/api/time-slots";
+          return key === "/api/participants" || 
+                 key === "/api/time-slots" || 
+                 key === "/api/shop-items" ||
+                 key === "/api/meal-items" ||
+                 key === "/api/squads/with-participants";
         }
       });
+      
+      const itemLabel = type === 'boutique' ? 'articles boutique' : 
+                        type === 'repas' ? 'articles repas' :
+                        type === 'badge' ? 'badges' :
+                        module === 'time-slots' ? 'créneaux' : 
+                        module === 'squads' ? 'squads' : 
+                        'participants';
+                        
       toast({
         title: "Import réussi",
-        description: `${data.count} participants importés avec succès`,
+        description: `${data.count} ${itemLabel} importés avec succès`,
       });
       setFile(null);
       if (fileInputRef.current) {
@@ -62,6 +88,15 @@ export function ExcelImport({ type }: ExcelImportProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
+      // Vérifier que le staff n'a pas de squads
+      if (type === 'staff' && module === 'squads') {
+        toast({
+          title: "Non disponible",
+          description: "Les membres du staff n'ont pas de squads",
+          variant: "destructive",
+        });
+        return;
+      }
       setFile(selectedFile);
     }
   };
@@ -72,12 +107,35 @@ export function ExcelImport({ type }: ExcelImportProps) {
     }
   };
 
+  const getModuleLabel = () => {
+    if (type === 'boutique') return 'Articles boutique';
+    if (type === 'repas') return 'Articles repas';
+    if (type === 'badge') return 'Badges participants';
+    
+    switch (module) {
+      case 'time-slots': return 'Créneaux horaires';
+      case 'squads': return 'Squads';
+      case 'all': return 'Toutes les données';
+      default: return 'Participants';
+    }
+  };
+
+  const getFormatDescription = () => {
+    if (type === 'boutique' || type === 'repas') {
+      return "Format attendu: Nom, Stock, Prix, Catégorie (colonnes A, B, C, D)";
+    }
+    if (type === 'badge') {
+      return "Format attendu: Prénom, Nom, Type, Créneau (colonnes A, B, C, D)";
+    }
+    return "Format attendu: Prénom, Nom, Créneau (colonnes A, B, C)";
+  };
+
   return (
     <Card className="p-6">
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <FileSpreadsheet className="w-6 h-6 text-primary" />
-          <h3 className="text-lg font-semibold">Import Excel</h3>
+          <h3 className="text-lg font-semibold">Import Excel - {getModuleLabel()}</h3>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -126,7 +184,7 @@ export function ExcelImport({ type }: ExcelImportProps) {
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Format attendu: Prénom, Nom, Créneau (colonnes A, B, C)
+          {getFormatDescription()}
         </p>
       </div>
     </Card>

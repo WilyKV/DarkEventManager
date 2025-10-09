@@ -1,12 +1,19 @@
 // Storage implementation - updated to use DatabaseStorage from javascript_database blueprint
-import { 
-  participants, 
-  timeSlots, 
-  squads, 
-  shopItems, 
+import {
+  participants,
+  timeSlots,
+  squads,
+  shopItems,
   mealItems,
   squadAuditLog,
-  type Participant, 
+  appConfig,
+  discounts,
+  purchases,
+  mealPurchases,
+  mealDiscounts,
+  auditLogs,
+  users,
+  type Participant,
   type InsertParticipant,
   type ParticipantWithRelations,
   type TimeSlot,
@@ -21,9 +28,24 @@ import {
   type SquadAuditLog,
   type InsertSquadAuditLog,
   type SquadAuditLogWithRelations,
+  type AppConfig,
+  type InsertAppConfig,
+  type Discount,
+  type InsertDiscount,
+  type Purchase,
+  type InsertPurchase,
+  type PurchaseWithRelations,
+  type MealPurchase,
+  type InsertMealPurchase,
+  type MealPurchaseWithRelations,
+  type MealDiscount,
+  type InsertMealDiscount,
+  type AuditLog,
+  type InsertAuditLog,
+  type AuditLogWithUser,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 
 export interface DashboardStats {
   participants: {
@@ -58,39 +80,82 @@ export interface IStorage {
   createParticipant(participant: InsertParticipant): Promise<Participant>;
   updateParticipant(id: number, participant: Partial<InsertParticipant>): Promise<Participant>;
   batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]>;
-  generateLockerNumber(): Promise<string>;
-  
+  generateSecretCode(): Promise<string>;
+
   // Time Slots
   getTimeSlots(type?: string): Promise<TimeSlot[]>;
   getTimeSlot(id: number): Promise<TimeSlot | undefined>;
   createTimeSlot(timeSlot: InsertTimeSlot): Promise<TimeSlot>;
-  
+  updateTimeSlot(id: number, timeSlot: Partial<InsertTimeSlot>): Promise<TimeSlot>;
+  deleteTimeSlot(id: number): Promise<void>;
+
   // Squads
   getSquads(type?: string): Promise<Squad[]>;
   getSquad(id: number): Promise<Squad | undefined>;
   getSquadsWithParticipants(type?: string, timeSlotId?: number): Promise<SquadWithRelations[]>;
   createSquad(squad: InsertSquad): Promise<Squad>;
-  
+  updateSquad(id: number, squad: Partial<InsertSquad>): Promise<Squad>;
+  deleteSquad(id: number): Promise<void>;
+
   // Shop Items
   getShopItems(): Promise<ShopItem[]>;
   getShopItem(id: number): Promise<ShopItem | undefined>;
   createShopItem(item: InsertShopItem): Promise<ShopItem>;
   updateShopItem(id: number, item: Partial<InsertShopItem>): Promise<ShopItem>;
   deleteShopItem(id: number): Promise<void>;
-  
+
   // Meal Items
   getMealItems(): Promise<MealItem[]>;
   getMealItem(id: number): Promise<MealItem | undefined>;
   createMealItem(item: InsertMealItem): Promise<MealItem>;
   updateMealItem(id: number, item: Partial<InsertMealItem>): Promise<MealItem>;
   deleteMealItem(id: number): Promise<void>;
-  
+
   // Dashboard Stats
   getDashboardStats(): Promise<DashboardStats>;
-  
+
   // Squad Audit Log
   createSquadAuditLog(log: InsertSquadAuditLog): Promise<SquadAuditLog>;
   getSquadAuditLogs(participantId: number): Promise<SquadAuditLogWithRelations[]>;
+
+  // Discounts
+  getGlobalDiscounts(): Promise<Discount | undefined>;
+  updateGlobalDiscounts(data: Partial<InsertDiscount>): Promise<Discount>;
+  getSquadDiscount(squadId: number): Promise<number | undefined>;
+  setSquadDiscount(squadId: number, discount: number): Promise<Discount>;
+  getParticipantDiscount(participantId: number): Promise<number | null | undefined>;
+  setParticipantDiscount(participantId: number, discount: number | null): Promise<Discount>;
+  calculateDiscount(participantId: number): Promise<number>;
+
+  // Purchases
+  getPurchases(participantId?: number): Promise<PurchaseWithRelations[]>;
+  getPurchase(id: number): Promise<PurchaseWithRelations | undefined>;
+  createPurchase(purchase: InsertPurchase): Promise<Purchase>;
+  updatePurchase(id: number, purchase: Partial<InsertPurchase>): Promise<Purchase>;
+  deletePurchase(id: number): Promise<void>;
+
+  // Meal Purchases
+  getMealPurchases(participantId?: number): Promise<MealPurchaseWithRelations[]>;
+  getMealPurchase(id: number): Promise<MealPurchaseWithRelations | undefined>;
+  createMealPurchase(purchase: InsertMealPurchase): Promise<MealPurchase>;
+  updateMealPurchase(id: number, purchase: Partial<InsertMealPurchase>): Promise<MealPurchase>;
+  deleteMealPurchase(id: number): Promise<void>;
+
+  // Meal Discounts
+  getGlobalMealDiscounts(): Promise<MealDiscount | undefined>;
+  updateGlobalMealDiscounts(data: Partial<InsertMealDiscount>): Promise<MealDiscount>;
+  getSquadMealDiscount(squadId: number): Promise<number | undefined>;
+  setSquadMealDiscount(squadId: number, discount: number): Promise<MealDiscount>;
+  getParticipantMealDiscount(participantId: number): Promise<number | null | undefined>;
+  setParticipantMealDiscount(participantId: number, discount: number | null): Promise<MealDiscount>;
+  calculateMealDiscount(participantId: number): Promise<number>;
+
+  // Audit Logs
+  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogs(filters?: { tableName?: string; action?: string; userId?: number; limit?: number }): Promise<AuditLogWithUser[]>;
+
+  // Data Management
+  resetData(module: string, type?: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -169,22 +234,22 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async generateLockerNumber(): Promise<string> {
-    // Generate unique 4-digit locker number
-    let lockerNumber: string;
+  async generateSecretCode(): Promise<string> {
+    // Generate unique 5-digit secret code
+    let secretCode: string;
     let exists = true;
-    
+
     while (exists) {
-      lockerNumber = Math.floor(1000 + Math.random() * 9000).toString();
+      secretCode = Math.floor(10000 + Math.random() * 90000).toString();
       const [existing] = await db
         .select()
         .from(participants)
-        .where(eq(participants.lockerNumber, lockerNumber))
+        .where(eq(participants.secretCode, secretCode))
         .limit(1);
       exists = !!existing;
     }
     
-    return lockerNumber!;
+    return secretCode!;
   }
 
   // Time Slots
@@ -254,6 +319,57 @@ export class DatabaseStorage implements IStorage {
       .values(insertSquad)
       .returning();
     return squad;
+  }
+
+  async updateSquad(id: number, data: Partial<InsertSquad>): Promise<Squad> {
+    const [squad] = await db
+      .update(squads)
+      .set(data)
+      .where(eq(squads.id, id))
+      .returning();
+    return squad;
+  }
+
+  async deleteSquad(id: number): Promise<void> {
+    // First, remove audit log entries referencing this squad
+    await db
+      .delete(squadAuditLog)
+      .where(eq(squadAuditLog.previousSquadId, id));
+    await db
+      .delete(squadAuditLog)
+      .where(eq(squadAuditLog.newSquadId, id));
+
+    // Then, set squadId to null for all participants in this squad
+    await db
+      .update(participants)
+      .set({ squadId: null })
+      .where(eq(participants.squadId, id));
+
+    // Finally delete the squad
+    await db.delete(squads).where(eq(squads.id, id));
+  }
+
+  async updateTimeSlot(id: number, data: Partial<InsertTimeSlot>): Promise<TimeSlot> {
+    const [timeSlot] = await db
+      .update(timeSlots)
+      .set(data)
+      .where(eq(timeSlots.id, id))
+      .returning();
+    return timeSlot;
+  }
+
+  async deleteTimeSlot(id: number): Promise<void> {
+    // First, set timeSlotId to null for all participants in this timeslot
+    await db
+      .update(participants)
+      .set({ timeSlotId: null })
+      .where(eq(participants.timeSlotId, id));
+
+    // Delete all squads in this timeslot
+    await db.delete(squads).where(eq(squads.timeSlotId, id));
+
+    // Then delete the timeslot
+    await db.delete(timeSlots).where(eq(timeSlots.id, id));
   }
 
   // Shop Items
@@ -390,6 +506,560 @@ export class DatabaseStorage implements IStorage {
       },
       orderBy: (squadAuditLog, { desc }) => [desc(squadAuditLog.changedAt)],
     });
+  }
+
+  // Data Management
+  async resetData(module: string, type?: string): Promise<void> {
+    switch (module) {
+      case "participants":
+        if (type) {
+          await db.delete(participants).where(eq(participants.type, type));
+        } else {
+          await db.delete(participants);
+        }
+        break;
+
+      case "timeslots":
+        if (type) {
+          await db.delete(timeSlots).where(eq(timeSlots.type, type));
+        } else {
+          await db.delete(timeSlots);
+        }
+        break;
+
+      case "squads":
+        // First, remove squad assignments from participants
+        if (type) {
+          const squadsToDelete = await db.select().from(squads).where(eq(squads.type, type));
+          const squadIds = squadsToDelete.map(s => s.id);
+          for (const id of squadIds) {
+            await db.update(participants).set({ squadId: null }).where(eq(participants.squadId, id));
+          }
+          await db.delete(squads).where(eq(squads.type, type));
+        } else {
+          await db.update(participants).set({ squadId: null });
+          await db.delete(squads);
+        }
+        break;
+
+      case "shop":
+        await db.delete(shopItems);
+        break;
+
+      case "meals":
+        await db.delete(mealItems);
+        break;
+
+      case "all":
+        // Reset all data in proper order to respect foreign keys
+        await db.update(participants).set({ squadId: null, timeSlotId: null });
+        await db.delete(squadAuditLog);
+        await db.delete(squads);
+        await db.delete(participants);
+        await db.delete(timeSlots);
+        await db.delete(shopItems);
+        await db.delete(mealItems);
+        break;
+
+      default:
+        throw new Error(`Unknown module: ${module}`);
+    }
+  }
+
+  // ===== SYNC CONFIGURATION =====
+
+  async getSyncConfig(): Promise<AppConfig> {
+    const config = await db.select().from(appConfig).limit(1);
+
+    if (config.length === 0) {
+      // Initialize default config if not exists
+      const defaultConfig: InsertAppConfig = {
+        isOnlineMode: true,
+        masterDeviceId: null,
+        masterDeviceName: null,
+        lastSyncAt: null,
+      };
+      const [newConfig] = await db.insert(appConfig).values(defaultConfig).returning();
+      return newConfig;
+    }
+
+    return config[0];
+  }
+
+  async updateSyncConfig(update: Partial<InsertAppConfig>): Promise<AppConfig> {
+    const currentConfig = await this.getSyncConfig();
+
+    const [updatedConfig] = await db
+      .update(appConfig)
+      .set({
+        ...update,
+        updatedAt: new Date(),
+      })
+      .where(eq(appConfig.id, currentConfig.id))
+      .returning();
+
+    return updatedConfig;
+  }
+
+  async updateLastSyncAt(): Promise<void> {
+    const currentConfig = await this.getSyncConfig();
+
+    await db
+      .update(appConfig)
+      .set({
+        lastSyncAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(appConfig.id, currentConfig.id));
+  }
+
+  // ===== DISCOUNTS =====
+
+  // Get global discounts (type-based)
+  async getGlobalDiscounts(): Promise<Discount | undefined> {
+    const [discount] = await db
+      .select()
+      .from(discounts)
+      .where(
+        and(
+          isNull(discounts.squadId),
+          isNull(discounts.participantId)
+        )
+      )
+      .limit(1);
+    return discount;
+  }
+
+  // Update or create global discounts (type-based: zombie, survivant, staff)
+  async updateGlobalDiscounts(data: Partial<InsertDiscount>): Promise<Discount> {
+    const existing = await this.getGlobalDiscounts();
+
+    if (existing) {
+      const [updated] = await db
+        .update(discounts)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(discounts.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(discounts)
+        .values({
+          zombieDiscount: data.zombieDiscount ?? 0,
+          survivantDiscount: data.survivantDiscount ?? 0,
+          staffDiscount: data.staffDiscount ?? 0,
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // Get discount for a specific squad
+  async getSquadDiscount(squadId: number): Promise<number | undefined> {
+    const [discount] = await db
+      .select()
+      .from(discounts)
+      .where(eq(discounts.squadId, squadId))
+      .limit(1);
+    return discount?.squadDiscount ?? undefined;
+  }
+
+  // Set discount for a specific squad
+  async setSquadDiscount(squadId: number, discount: number): Promise<Discount> {
+    const existing = await db
+      .select()
+      .from(discounts)
+      .where(eq(discounts.squadId, squadId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(discounts)
+        .set({ squadDiscount: discount, updatedAt: new Date() })
+        .where(eq(discounts.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(discounts)
+        .values({ squadId, squadDiscount: discount })
+        .returning();
+      return created;
+    }
+  }
+
+  // Get discount for a specific participant (returns null if set to use type/squad)
+  async getParticipantDiscount(participantId: number): Promise<number | null | undefined> {
+    const [discount] = await db
+      .select()
+      .from(discounts)
+      .where(eq(discounts.participantId, participantId))
+      .limit(1);
+
+    if (!discount) return undefined;
+    return discount.participantDiscount;
+  }
+
+  // Set discount for a specific participant (null means use type/squad discount)
+  async setParticipantDiscount(participantId: number, discount: number | null): Promise<Discount> {
+    const existing = await db
+      .select()
+      .from(discounts)
+      .where(eq(discounts.participantId, participantId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(discounts)
+        .set({ participantDiscount: discount, updatedAt: new Date() })
+        .where(eq(discounts.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(discounts)
+        .values({ participantId, participantDiscount: discount })
+        .returning();
+      return created;
+    }
+  }
+
+  // Calculate discount for a participant based on priority rules
+  async calculateDiscount(participantId: number): Promise<number> {
+    const participant = await this.getParticipant(participantId);
+    if (!participant) return 0;
+
+    // Priority 1: Check participant-specific discount
+    const participantDiscount = await this.getParticipantDiscount(participantId);
+    if (participantDiscount !== undefined && participantDiscount !== null) {
+      return participantDiscount;
+    }
+
+    // Priority 2: Get type discount and squad discount, use highest
+    const globalDiscounts = await this.getGlobalDiscounts();
+    let typeDiscount = 0;
+
+    if (globalDiscounts) {
+      switch (participant.type) {
+        case "zombie":
+          typeDiscount = globalDiscounts.zombieDiscount ?? 0;
+          break;
+        case "survivant":
+          typeDiscount = globalDiscounts.survivantDiscount ?? 0;
+          break;
+        case "staff":
+          typeDiscount = globalDiscounts.staffDiscount ?? 0;
+          break;
+      }
+    }
+
+    // Check squad discount if participant has a squad
+    let squadDiscount = 0;
+    if (participant.squadId) {
+      squadDiscount = await this.getSquadDiscount(participant.squadId) ?? 0;
+    }
+
+    // Return the highest between type and squad discount
+    return Math.max(typeDiscount, squadDiscount);
+  }
+
+  // ===== PURCHASES =====
+
+  async getPurchases(participantId?: number): Promise<PurchaseWithRelations[]> {
+    if (participantId) {
+      return await db.query.purchases.findMany({
+        where: eq(purchases.participantId, participantId),
+        with: {
+          participant: true,
+          shopItem: true,
+        },
+        orderBy: (purchases, { desc }) => [desc(purchases.purchasedAt)],
+      });
+    }
+
+    return await db.query.purchases.findMany({
+      with: {
+        participant: true,
+        shopItem: true,
+      },
+      orderBy: (purchases, { desc }) => [desc(purchases.purchasedAt)],
+    });
+  }
+
+  async getPurchase(id: number): Promise<PurchaseWithRelations | undefined> {
+    return await db.query.purchases.findFirst({
+      where: eq(purchases.id, id),
+      with: {
+        participant: true,
+        shopItem: true,
+      },
+    });
+  }
+
+  async createPurchase(insertPurchase: InsertPurchase): Promise<Purchase> {
+    const [purchase] = await db
+      .insert(purchases)
+      .values(insertPurchase)
+      .returning();
+    return purchase;
+  }
+
+  async updatePurchase(id: number, data: Partial<InsertPurchase>): Promise<Purchase> {
+    const [purchase] = await db
+      .update(purchases)
+      .set(data)
+      .where(eq(purchases.id, id))
+      .returning();
+    return purchase;
+  }
+
+  async deletePurchase(id: number): Promise<void> {
+    await db.delete(purchases).where(eq(purchases.id, id));
+  }
+
+  // ===== MEAL PURCHASES =====
+
+  async getMealPurchases(participantId?: number): Promise<MealPurchaseWithRelations[]> {
+    if (participantId) {
+      return await db.query.mealPurchases.findMany({
+        where: eq(mealPurchases.participantId, participantId),
+        with: {
+          participant: true,
+          mealItem: true,
+        },
+        orderBy: (mealPurchases, { desc }) => [desc(mealPurchases.purchasedAt)],
+      });
+    }
+
+    return await db.query.mealPurchases.findMany({
+      with: {
+        participant: true,
+        mealItem: true,
+      },
+      orderBy: (mealPurchases, { desc }) => [desc(mealPurchases.purchasedAt)],
+    });
+  }
+
+  async getMealPurchase(id: number): Promise<MealPurchaseWithRelations | undefined> {
+    return await db.query.mealPurchases.findFirst({
+      where: eq(mealPurchases.id, id),
+      with: {
+        participant: true,
+        mealItem: true,
+      },
+    });
+  }
+
+  async createMealPurchase(insertMealPurchase: InsertMealPurchase): Promise<MealPurchase> {
+    const [mealPurchase] = await db
+      .insert(mealPurchases)
+      .values(insertMealPurchase)
+      .returning();
+    return mealPurchase;
+  }
+
+  async updateMealPurchase(id: number, data: Partial<InsertMealPurchase>): Promise<MealPurchase> {
+    const [mealPurchase] = await db
+      .update(mealPurchases)
+      .set(data)
+      .where(eq(mealPurchases.id, id))
+      .returning();
+    return mealPurchase;
+  }
+
+  async deleteMealPurchase(id: number): Promise<void> {
+    await db.delete(mealPurchases).where(eq(mealPurchases.id, id));
+  }
+
+  // ===== MEAL DISCOUNTS =====
+
+  // Get global meal discounts (type-based)
+  async getGlobalMealDiscounts(): Promise<MealDiscount | undefined> {
+    const [discount] = await db
+      .select()
+      .from(mealDiscounts)
+      .where(
+        and(
+          isNull(mealDiscounts.squadId),
+          isNull(mealDiscounts.participantId)
+        )
+      )
+      .limit(1);
+    return discount;
+  }
+
+  // Update or create global meal discounts (type-based: zombie, survivant, staff)
+  async updateGlobalMealDiscounts(data: Partial<InsertMealDiscount>): Promise<MealDiscount> {
+    const existing = await this.getGlobalMealDiscounts();
+
+    if (existing) {
+      const [updated] = await db
+        .update(mealDiscounts)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(mealDiscounts.id, existing.id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(mealDiscounts)
+        .values({
+          zombieDiscount: data.zombieDiscount ?? 0,
+          survivantDiscount: data.survivantDiscount ?? 0,
+          staffDiscount: data.staffDiscount ?? 0,
+        })
+        .returning();
+      return created;
+    }
+  }
+
+  // Get meal discount for a specific squad
+  async getSquadMealDiscount(squadId: number): Promise<number | undefined> {
+    const [discount] = await db
+      .select()
+      .from(mealDiscounts)
+      .where(eq(mealDiscounts.squadId, squadId))
+      .limit(1);
+    return discount?.squadDiscount ?? undefined;
+  }
+
+  // Set meal discount for a specific squad
+  async setSquadMealDiscount(squadId: number, discount: number): Promise<MealDiscount> {
+    const existing = await db
+      .select()
+      .from(mealDiscounts)
+      .where(eq(mealDiscounts.squadId, squadId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(mealDiscounts)
+        .set({ squadDiscount: discount, updatedAt: new Date() })
+        .where(eq(mealDiscounts.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(mealDiscounts)
+        .values({ squadId, squadDiscount: discount })
+        .returning();
+      return created;
+    }
+  }
+
+  // Get meal discount for a specific participant (returns null if set to use type/squad)
+  async getParticipantMealDiscount(participantId: number): Promise<number | null | undefined> {
+    const [discount] = await db
+      .select()
+      .from(mealDiscounts)
+      .where(eq(mealDiscounts.participantId, participantId))
+      .limit(1);
+
+    if (!discount) return undefined;
+    return discount.participantDiscount;
+  }
+
+  // Set meal discount for a specific participant (null means use type/squad discount)
+  async setParticipantMealDiscount(participantId: number, discount: number | null): Promise<MealDiscount> {
+    const existing = await db
+      .select()
+      .from(mealDiscounts)
+      .where(eq(mealDiscounts.participantId, participantId))
+      .limit(1);
+
+    if (existing.length > 0) {
+      const [updated] = await db
+        .update(mealDiscounts)
+        .set({ participantDiscount: discount, updatedAt: new Date() })
+        .where(eq(mealDiscounts.id, existing[0].id))
+        .returning();
+      return updated;
+    } else {
+      const [created] = await db
+        .insert(mealDiscounts)
+        .values({ participantId, participantDiscount: discount })
+        .returning();
+      return created;
+    }
+  }
+
+  // Calculate meal discount for a participant based on priority rules
+  async calculateMealDiscount(participantId: number): Promise<number> {
+    const participant = await this.getParticipant(participantId);
+    if (!participant) return 0;
+
+    // Priority 1: Check participant-specific discount
+    const participantDiscount = await this.getParticipantMealDiscount(participantId);
+    if (participantDiscount !== undefined && participantDiscount !== null) {
+      return participantDiscount;
+    }
+
+    // Priority 2: Get type discount and squad discount, use highest
+    const globalDiscounts = await this.getGlobalMealDiscounts();
+    let typeDiscount = 0;
+
+    if (globalDiscounts) {
+      switch (participant.type) {
+        case "zombie":
+          typeDiscount = globalDiscounts.zombieDiscount ?? 0;
+          break;
+        case "survivant":
+          typeDiscount = globalDiscounts.survivantDiscount ?? 0;
+          break;
+        case "staff":
+          typeDiscount = globalDiscounts.staffDiscount ?? 0;
+          break;
+      }
+    }
+
+    // Check squad discount if participant has a squad
+    let squadDiscount = 0;
+    if (participant.squadId) {
+      squadDiscount = await this.getSquadMealDiscount(participant.squadId) ?? 0;
+    }
+
+    // Return the highest between type and squad discount
+    return Math.max(typeDiscount, squadDiscount);
+  }
+
+  // ===== AUDIT LOGS =====
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const [auditLog] = await db.insert(auditLogs).values(log).returning();
+    return auditLog;
+  }
+
+  async getAuditLogs(filters?: { 
+    tableName?: string; 
+    action?: string; 
+    userId?: number; 
+    limit?: number 
+  }): Promise<AuditLogWithUser[]> {
+    let query = db
+      .select()
+      .from(auditLogs)
+      .leftJoin(users, eq(auditLogs.userId, users.id))
+      .orderBy(desc(auditLogs.timestamp))
+      .$dynamic();
+
+    if (filters?.tableName) {
+      query = query.where(eq(auditLogs.tableName, filters.tableName));
+    }
+    if (filters?.action) {
+      query = query.where(eq(auditLogs.action, filters.action));
+    }
+    if (filters?.userId) {
+      query = query.where(eq(auditLogs.userId, filters.userId));
+    }
+    if (filters?.limit) {
+      query = query.limit(filters.limit);
+    }
+
+    const results = await query;
+    
+    return results.map(row => ({
+      ...row.audit_logs,
+      user: row.users || undefined,
+    }));
   }
 }
 

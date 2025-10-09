@@ -83,53 +83,85 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <Card data-testid="card-total-participants">
+          <Card
+            data-testid="card-total-participants"
+            className="relative overflow-hidden border-l-4 border-l-primary bg-gradient-to-br from-primary/5 via-background to-background"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Participants</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-primary">Total Participants</CardTitle>
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/20 blur-lg rounded-full" />
+                <Users className="h-5 w-5 text-primary relative" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.participants.total}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.participants.zombies} zombies, {stats.participants.survivors} survivants
+              <div className="text-3xl font-bold bg-gradient-to-br from-primary to-primary/70 bg-clip-text text-transparent">
+                {stats.participants.total}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                <span className="text-red-500 font-semibold">{stats.participants.zombies} zombies</span>, <span className="text-blue-500 font-semibold">{stats.participants.survivors} survivants</span>
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-arrival-rate">
+          <Card
+            data-testid="card-arrival-rate"
+            className="relative overflow-hidden border-l-4 border-l-green-500 bg-gradient-to-br from-green-500/5 via-background to-background"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Taux d'arrivée</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-green-600">Taux d'arrivée</CardTitle>
+              <div className="relative">
+                <div className="absolute inset-0 bg-green-500/20 blur-lg rounded-full" />
+                <TrendingUp className="h-5 w-5 text-green-500 relative" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.participants.arrivalRate}%</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-3xl font-bold bg-gradient-to-br from-green-600 to-green-500 bg-clip-text text-transparent">
+                {stats.participants.arrivalRate}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
                 {stats.participants.arrived} / {stats.participants.total} arrivés
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-checklist-completion">
+          <Card
+            data-testid="card-checklist-completion"
+            className="relative overflow-hidden border-l-4 border-l-blue-500 bg-gradient-to-br from-blue-500/5 via-background to-background"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Checklist Complète</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-blue-600">Checklist Complète</CardTitle>
+              <div className="relative">
+                <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full" />
+                <CheckCircle className="h-5 w-5 text-blue-500 relative" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.checklist.completionRate}%</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-3xl font-bold bg-gradient-to-br from-blue-600 to-blue-500 bg-clip-text text-transparent">
+                {stats.checklist.completionRate}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
                 {stats.checklist.totalCompleted} / {stats.checklist.totalParticipants} terminés
               </p>
             </CardContent>
           </Card>
 
-          <Card data-testid="card-low-stock-alerts">
+          <Card
+            data-testid="card-low-stock-alerts"
+            className="relative overflow-hidden border-l-4 border-l-orange-500 bg-gradient-to-br from-orange-500/5 via-background to-background"
+          >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Alertes Stock</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-orange-600">Alertes Stock</CardTitle>
+              <div className="relative">
+                <div className="absolute inset-0 bg-orange-500/20 blur-lg rounded-full" />
+                <Package className="h-5 w-5 text-orange-500 relative" />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{lowStockShop.length + lowStockMeals.length}</div>
-              <p className="text-xs text-muted-foreground">Articles à faible stock</p>
+              <div className="text-3xl font-bold bg-gradient-to-br from-orange-600 to-orange-500 bg-clip-text text-transparent">
+                {lowStockShop.length + lowStockMeals.length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Articles à faible stock</p>
             </CardContent>
           </Card>
         </div>
@@ -137,9 +169,14 @@ export default function DashboardPage() {
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Participant Type Distribution */}
-          <Card data-testid="card-participant-distribution">
+          <Card
+            data-testid="card-participant-distribution"
+            className="relative overflow-hidden bg-gradient-to-br from-red-500/5 via-blue-500/5 to-background border-t-4 border-t-primary"
+          >
             <CardHeader>
-              <CardTitle>Répartition des participants</CardTitle>
+              <CardTitle className="text-lg font-bold bg-gradient-to-r from-red-500 to-blue-500 bg-clip-text text-transparent">
+                Répartition des participants
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -165,9 +202,14 @@ export default function DashboardPage() {
           </Card>
 
           {/* Arrival Status */}
-          <Card data-testid="card-arrival-status">
+          <Card
+            data-testid="card-arrival-status"
+            className="relative overflow-hidden bg-gradient-to-br from-green-500/5 via-yellow-500/5 to-background border-t-4 border-t-green-500"
+          >
             <CardHeader>
-              <CardTitle>État d'arrivée</CardTitle>
+              <CardTitle className="text-lg font-bold bg-gradient-to-r from-green-600 to-yellow-600 bg-clip-text text-transparent">
+                État d'arrivée
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={250}>
@@ -194,9 +236,14 @@ export default function DashboardPage() {
         </div>
 
         {/* Squad Distribution */}
-        <Card className="mb-8" data-testid="card-squad-distribution">
+        <Card
+          className="mb-8 relative overflow-hidden bg-gradient-to-br from-purple-500/5 via-background to-background border-t-4 border-t-purple-500"
+          data-testid="card-squad-distribution"
+        >
           <CardHeader>
-            <CardTitle>Répartition des squads</CardTitle>
+            <CardTitle className="text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              Répartition des squads
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -214,23 +261,28 @@ export default function DashboardPage() {
 
         {/* Low Stock Alerts */}
         {(lowStockShop.length > 0 || lowStockMeals.length > 0) && (
-          <Card data-testid="card-low-stock-items">
+          <Card
+            data-testid="card-low-stock-items"
+            className="relative overflow-hidden bg-gradient-to-br from-orange-500/5 via-background to-background border-t-4 border-t-orange-500"
+          >
             <CardHeader>
-              <CardTitle>Alertes de stock faible</CardTitle>
+              <CardTitle className="text-lg font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent">
+                ⚠️ Alertes de stock faible
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {lowStockShop.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-sm">Boutique</h3>
+                    <h3 className="font-semibold mb-2 text-sm text-orange-600">Boutique</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {lowStockShop.map((item, idx) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center p-2 bg-muted/50 rounded"
+                          className="flex justify-between items-center p-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-lg hover:border-orange-500/40 transition-colors"
                         >
-                          <span className="text-sm">{item.name}</span>
-                          <span className="text-sm font-semibold text-chart-2">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <span className="text-sm font-bold text-orange-600 bg-orange-100 dark:bg-orange-950 px-2 py-1 rounded">
                             Stock: {item.stock}
                           </span>
                         </div>
@@ -240,15 +292,15 @@ export default function DashboardPage() {
                 )}
                 {lowStockMeals.length > 0 && (
                   <div>
-                    <h3 className="font-semibold mb-2 text-sm">Repas</h3>
+                    <h3 className="font-semibold mb-2 text-sm text-orange-600">Repas</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {lowStockMeals.map((item, idx) => (
                         <div
                           key={idx}
-                          className="flex justify-between items-center p-2 bg-muted/50 rounded"
+                          className="flex justify-between items-center p-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 border border-orange-500/20 rounded-lg hover:border-orange-500/40 transition-colors"
                         >
-                          <span className="text-sm">{item.name}</span>
-                          <span className="text-sm font-semibold text-chart-2">
+                          <span className="text-sm font-medium">{item.name}</span>
+                          <span className="text-sm font-bold text-orange-600 bg-orange-100 dark:bg-orange-950 px-2 py-1 rounded">
                             Stock: {item.stock}
                           </span>
                         </div>

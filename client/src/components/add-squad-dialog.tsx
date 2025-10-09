@@ -45,6 +45,16 @@ export function AddSquadDialog({ type }: AddSquadDialogProps) {
 
   const createMutation = useMutation({
     mutationFn: async (squadsToCreate: any[]) => {
+      // Check for duplicate squad numbers before creating
+      for (const squad of squadsToCreate) {
+        const exists = existingSquads.find(
+          s => s.timeSlotId === squad.timeSlotId && s.number === squad.number
+        );
+        if (exists) {
+          throw new Error(`La squad ${squad.number} existe déjà pour ce créneau`);
+        }
+      }
+
       return Promise.all(
         squadsToCreate.map((squad) => apiRequest("POST", "/api/squads", squad))
       );

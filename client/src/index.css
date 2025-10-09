@@ -16,25 +16,44 @@
     left: 0;
     width: 100vw;
     height: 100vh;
-    display: flex;
+    display: flex !important;
     align-items: center;
     justify-content: center;
-    background: white;
+    background: transparent !important;
   }
 
   .badge-card {
     box-shadow: none !important;
     page-break-inside: avoid;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
   }
 
   body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  @page {
+    size: A4 portrait;
     margin: 0;
-    padding: 0;
-    background: white;
+  }
+
+  /* Force background colors and gradients to print */
+  * {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  html {
+    background: transparent !important;
   }
 }
 
-/* LIGHT MODE - Thème élégant et raffiné inspiré zombie */
+/* LIGHT MODE - Thème moderne et sobre */
 :root {
   --button-outline: rgba(0,0,0, .10);
   --badge-outline: rgba(0,0,0, .05);
@@ -46,66 +65,66 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 30 15% 98%;
+  --background: 355 20% 98%;
 
-  --foreground: 30 8% 12%;
+  --foreground: 355 10% 15%;
 
-  --border: 30 10% 88%;
+  --border: 355 15% 88%;
 
   --card: 0 0% 100%;
 
-  --card-foreground: 30 8% 12%;
+  --card-foreground: 355 10% 15%;
 
-  --card-border: 30 10% 90%;
+  --card-border: 355 15% 90%;
 
-  --sidebar: 30 12% 96%;
+  --sidebar: 355 18% 96%;
 
-  --sidebar-foreground: 30 8% 12%;
+  --sidebar-foreground: 355 10% 15%;
 
-  --sidebar-border: 30 10% 88%;
+  --sidebar-border: 355 15% 88%;
 
-  --sidebar-primary: 15 65% 52%;
+  --sidebar-primary: 355 60% 48%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 30 12% 93%;
+  --sidebar-accent: 355 18% 93%;
 
-  --sidebar-accent-foreground: 30 8% 12%;
+  --sidebar-accent-foreground: 355 10% 15%;
 
-  --sidebar-ring: 15 65% 52%;
+  --sidebar-ring: 355 60% 48%;
 
   --popover: 0 0% 100%;
 
-  --popover-foreground: 30 8% 12%;
+  --popover-foreground: 355 10% 15%;
 
-  --popover-border: 30 10% 88%;
+  --popover-border: 355 15% 88%;
 
-  --primary: 15 65% 52%;
+  --primary: 355 60% 48%;
 
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 30 12% 93%;
+  --secondary: 355 18% 93%;
 
-  --secondary-foreground: 30 8% 12%;
+  --secondary-foreground: 355 10% 15%;
 
-  --muted: 30 12% 95%;
+  --muted: 355 15% 95%;
 
-  --muted-foreground: 30 8% 45%;
+  --muted-foreground: 355 10% 45%;
 
-  --accent: 30 12% 93%;
+  --accent: 355 18% 93%;
 
-  --accent-foreground: 30 8% 12%;
+  --accent-foreground: 355 10% 15%;
 
   --destructive: 0 70% 50%;
 
   --destructive-foreground: 0 0% 100%;
 
-  --input: 30 10% 85%;
-  --ring: 15 65% 52%;
-  --chart-1: 15 65% 52%;
+  --input: 355 12% 88%;
+  --ring: 355 60% 48%;
+  --chart-1: 220 15% 40%;
   --chart-2: 0 70% 50%;
   --chart-3: 210 75% 55%;
-  --chart-4: 280 60% 58%;
+  --chart-4: 142 70% 45%;
   --chart-5: 45 75% 56%;
 
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -175,23 +194,23 @@
 
   --sidebar-border: 20 15% 14%;
 
-  --sidebar-primary: 15 68% 55%;
+  --sidebar-primary: 220 18% 50%;
 
   --sidebar-primary-foreground: 0 0% 100%;
 
-  --sidebar-accent: 20 15% 18%;
+  --sidebar-accent: 0 0% 18%;
 
-  --sidebar-accent-foreground: 30 10% 96%;
+  --sidebar-accent-foreground: 0 0% 96%;
 
-  --sidebar-ring: 15 68% 55%;
+  --sidebar-ring: 220 18% 50%;
 
-  --popover: 20 16% 13%;
+  --popover: 0 0% 13%;
 
-  --popover-foreground: 30 10% 96%;
+  --popover-foreground: 0 0% 96%;
 
-  --popover-border: 20 15% 18%;
+  --popover-border: 0 0% 18%;
 
-  --primary: 15 68% 55%;
+  --primary: 220 18% 50%;
 
   --primary-foreground: 0 0% 100%;
 
@@ -212,11 +231,11 @@
   --destructive-foreground: 0 0% 100%;
 
   --input: 20 15% 24%;
-  --ring: 15 68% 55%;
-  --chart-1: 15 68% 55%;
+  --ring: 220 18% 50%;
+  --chart-1: 220 18% 50%;
   --chart-2: 0 70% 50%;
   --chart-3: 210 75% 55%;
-  --chart-4: 280 60% 58%;
+  --chart-4: 142 70% 45%;
   --chart-5: 45 75% 56%;
 
   --shadow-2xs: 0px 2px 0px 0px hsl(220 15% 0% / 0.15);

@@ -43,7 +43,7 @@ const participantFormSchema = z.object({
 type ParticipantFormData = z.infer<typeof participantFormSchema>;
 
 interface AddParticipantDialogProps {
-  participantType: "zombie" | "survivant";
+  participantType: "zombie" | "survivant" | "staff";
 }
 
 export function AddParticipantDialog({ participantType }: AddParticipantDialogProps) {
@@ -106,7 +106,7 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
       <DialogTrigger asChild>
         <Button data-testid="button-add-participant">
           <UserPlus className="w-4 h-4 mr-2" />
-          Ajouter manuellement
+          Ajouter un {participantType === "staff" ? "membre du personnel" : "participant"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">

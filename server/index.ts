@@ -1,10 +1,38 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
+import { registerSyncRoutes } from "./sync-routes";
+import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
+import { registerAuthRoutes } from "./auth-routes";
+import { setupEndEventRoute } from "./end-event-routes";
+import { wsSyncServer } from "./websocket-sync";
+import { checkSyncPermissions } from "./sync-middleware";
 import { setupVite, serveStatic, log } from "./vite";
+
+const SessionStore = MemoryStore(session);
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Session configuration
+app.use(session({
+  name: 'darkevent.sid',
+  secret: process.env.SESSION_SECRET || 'darkevent-secret-key-change-in-production',
+  resave: false,
+  saveUninitialized: false,
+  store: new SessionStore({
+    checkPeriod: 86400000, // prune expired entries every 24h
+  }),
+  cookie: {
+    path: '/',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+  },
+}));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -33,10 +61,29 @@ app.use((req, res, next) => {
     }
   });
 
+  // Debug session
+  if (path.startsWith("/api/auth")) {
+    console.log(`[Session Debug] ${req.method} ${path}`);
+    console.log(`  SessionID: ${req.sessionID || 'NONE'}`);
+    console.log(`  Session user: ${req.session?.user ? JSON.stringify(req.session.user) : 'NONE'}`);
+    console.log(`  Cookies: ${req.headers.cookie || 'NONE'}`);
+  }
+
   next();
 });
 
 (async () => {
+  // Register auth routes FIRST (no middleware needed)
+  registerAuthRoutes(app);
+
+  // Register sync routes (these have their own permission logic)
+  registerSyncRoutes(app);
+  registerSyncPushPullRoutes(app);
+
+  // Register end event route (admin only)
+  setupEndEventRoute(app);
+
+  // Register main routes
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -67,5 +114,8 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+
+    // Start WebSocket Sync Server
+    wsSyncServer.start(server);
   });
 })();

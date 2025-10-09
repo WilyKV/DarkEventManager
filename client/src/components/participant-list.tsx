@@ -209,9 +209,9 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                           <strong className="text-foreground">Squad:</strong> #{participant.squad.number}
                         </span>
                       )}
-                      {participant.lockerNumber && (
+                      {participant.secretCode && (
                         <span className="font-mono text-lg text-primary">
-                          <strong className="text-foreground font-sans text-sm">Casier:</strong> {participant.lockerNumber}
+                          <strong className="text-foreground font-sans text-sm">Code:</strong> {participant.secretCode}
                         </span>
                       )}
                     </div>

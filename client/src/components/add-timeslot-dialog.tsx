@@ -36,7 +36,7 @@ const timeSlotFormSchema = z.object({
 type TimeSlotFormData = z.infer<typeof timeSlotFormSchema>;
 
 interface AddTimeSlotDialogProps {
-  type: "zombie" | "survivant";
+  type: "zombie" | "survivant" | "staff";
 }
 
 export function AddTimeSlotDialog({ type }: AddTimeSlotDialogProps) {
@@ -95,7 +95,7 @@ export function AddTimeSlotDialog({ type }: AddTimeSlotDialogProps) {
       <DialogTrigger asChild>
         <Button variant="outline" data-testid="button-add-timeslot">
           <Clock className="w-4 h-4 mr-2" />
-          Ajouter un créneau
+          Ajouter {type === "staff" ? "une attribution" : "un créneau"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">

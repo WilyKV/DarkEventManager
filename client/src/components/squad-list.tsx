@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Users, Clock } from "lucide-react";
-import { SquadWithRelations } from "@shared/schema";
+import { Trash2, Users, Clock, Pencil } from "lucide-react";
+import { SquadWithRelations, Squad } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { EditSquadDialog } from "@/components/edit-squad-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +27,7 @@ interface SquadListProps {
 
 export function SquadList({ type, showActions = false }: SquadListProps) {
   const { toast } = useToast();
+  const [editingSquad, setEditingSquad] = useState<Squad | null>(null);
 
   const { data: squads = [], isLoading } = useQuery<SquadWithRelations[]>({
     queryKey: ["/api/squads/with-participants", { type }],
@@ -93,9 +96,17 @@ export function SquadList({ type, showActions = false }: SquadListProps) {
     return acc;
   }, {} as Record<number, SquadWithRelations[]>);
 
+  // Sort timeslots by gameTime
+  const sortedTimeslotEntries = Object.entries(squadsByTimeslot).sort((a, b) => {
+    const timeSlotA = a[1][0]?.timeSlot;
+    const timeSlotB = b[1][0]?.timeSlot;
+    if (!timeSlotA || !timeSlotB) return 0;
+    return timeSlotA.gameTime.localeCompare(timeSlotB.gameTime);
+  });
+
   return (
     <div className="space-y-6">
-      {Object.entries(squadsByTimeslot).map(([timeSlotId, timeSlotSquads]) => {
+      {sortedTimeslotEntries.map(([timeSlotId, timeSlotSquads]) => {
         const timeSlot = timeSlotSquads[0]?.timeSlot;
         return (
           <div key={timeSlotId}>
@@ -125,35 +136,45 @@ export function SquadList({ type, showActions = false }: SquadListProps) {
                         <CardTitle className="text-xl">Squad {squad.number}</CardTitle>
                       </div>
                       {showActions && (
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Supprimer la Squad {squad.number}?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Cette action est irréversible. Les participants de cette squad ne seront pas supprimés,
-                                mais ils ne seront plus assignés à une squad.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(squad.id)}
-                                className="bg-destructive hover:bg-destructive/90"
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setEditingSquad(squad)}
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
                               >
-                                Supprimer
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Supprimer la Squad {squad.number}?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Cette action est irréversible. Les participants de cette squad ne seront pas supprimés,
+                                  mais ils ne seront plus assignés à une squad.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => deleteMutation.mutate(squad.id)}
+                                  className="bg-destructive hover:bg-destructive/90"
+                                >
+                                  Supprimer
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       )}
                     </div>
                   </CardHeader>
@@ -194,6 +215,15 @@ export function SquadList({ type, showActions = false }: SquadListProps) {
           </div>
         );
       })}
+
+      {/* Edit Squad Dialog */}
+      {editingSquad && (
+        <EditSquadDialog
+          squad={editingSquad}
+          open={!!editingSquad}
+          onOpenChange={(open) => !open && setEditingSquad(null)}
+        />
+      )}
     </div>
   );
 }

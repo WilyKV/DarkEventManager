@@ -23,10 +23,13 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
   const [selectedSquad, setSelectedSquad] = useState(participant.squadId?.toString() || "");
 
   const { data: squadsWithParticipants = [] } = useQuery<SquadWithRelations[]>({
-    queryKey: ["/api/squads/with-participants", { type: participant.type }],
+    queryKey: ["/api/squads/with-participants", { type: participant.type, timeSlotId: participant.timeSlotId }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", participant.type);
+      if (participant.timeSlotId) {
+        params.append("timeSlotId", participant.timeSlotId.toString());
+      }
       const response = await fetch(`/api/squads/with-participants?${params}`);
       if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();

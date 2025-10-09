@@ -24,18 +24,34 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedSquad, setSelectedSquad] = useState("");
+  const [selectedTimeSlotId, setSelectedTimeSlotId] = useState<number | null>(
+    participants[0]?.timeSlotId ?? null
+  );
 
   const participantType = (participants[0]?.type || "zombie") as "zombie" | "survivant";
 
+  const { data: timeSlots = [] } = useQuery({
+    queryKey: ["/api/time-slots", { type: participantType }],
+    queryFn: async () => {
+      const response = await fetch(`/api/time-slots?type=${participantType}`);
+      if (!response.ok) throw new Error("Failed to fetch time slots");
+      return response.json();
+    },
+  });
+
   const { data: squadsWithParticipants = [] } = useQuery<SquadWithRelations[]>({
-    queryKey: ["/api/squads/with-participants", { type: participantType }],
+    queryKey: ["/api/squads/with-participants", { type: participantType, timeSlotId: selectedTimeSlotId }],
     queryFn: async () => {
       const params = new URLSearchParams();
       params.append("type", participantType);
+      if (selectedTimeSlotId) {
+        params.append("timeSlotId", selectedTimeSlotId.toString());
+      }
       const response = await fetch(`/api/squads/with-participants?${params}`);
       if (!response.ok) throw new Error("Failed to fetch squads");
       return response.json();
     },
+    enabled: selectedTimeSlotId !== null,
   });
 
   const updateMutation = useMutation({
@@ -71,6 +87,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
       data: {
         arrived: true,
         arrivedAt: new Date(),
+        timeSlotId: selectedTimeSlotId,
         squadId: normalizedSquadId,
         mealTicketGiven: true,
         waterBottleGiven: true,
@@ -151,13 +168,13 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
           {currentStep === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection de la squad</h3>
-                <p className="text-muted-foreground">Tous les participants seront assignés à la même squad</p>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection du créneau et de la squad</h3>
+                <p className="text-muted-foreground">Tous les participants seront assignés au même créneau et à la même squad</p>
               </div>
 
               {/* Liste des participants */}
               <Card className="p-4 bg-muted/30">
-                <h4 className="font-semibold mb-3 text-foreground">Participants sélectionnés :</h4>
+                <h4 className="font-semibold mb-3 text-foreground">Participants sélectionnés ({participants.length}) :</h4>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {participants.map(p => (
                     <div key={p.id} className="flex items-center justify-between text-sm">
@@ -172,12 +189,45 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 </div>
               </Card>
 
-              <SquadSelector
-                squads={squadsWithParticipants}
-                selectedSquadId={selectedSquad}
-                onSquadSelect={setSelectedSquad}
-                participantType={participantType}
-              />
+              {/* Time Slot Selection */}
+              {!participants[0]?.timeSlotId && (
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+                  <h4 className="font-semibold text-sm">1. Sélectionner un créneau horaire</h4>
+                  <div className="grid grid-cols-1 gap-2">
+                    {timeSlots.map((slot: any) => (
+                      <Button
+                        key={slot.id}
+                        variant={selectedTimeSlotId === slot.id ? "default" : "outline"}
+                        className="w-full justify-start"
+                        onClick={() => {
+                          setSelectedTimeSlotId(slot.id);
+                          setSelectedSquad(""); // Reset squad selection when changing time slot
+                        }}
+                      >
+                        <div className="text-left">
+                          <div className="font-semibold">{slot.name}</div>
+                          <div className="text-xs opacity-80">
+                            Briefing: {slot.briefingTime} • Jeu: {slot.gameTime}
+                          </div>
+                        </div>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Squad Selection */}
+              {selectedTimeSlotId && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm">{!participants[0]?.timeSlotId ? "2. " : ""}Sélectionner une squad</h4>
+                  <SquadSelector
+                    squads={squadsWithParticipants}
+                    selectedSquadId={selectedSquad}
+                    onSquadSelect={setSelectedSquad}
+                    participantType={participantType}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -210,12 +260,12 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                       </div>
                     )}
 
-                    {participants[0]?.timeSlot && (
+                    {selectedSquadData?.timeSlot && (
                       <div className="border-t border-primary/20 pt-4 mt-4">
                         <p className="text-sm font-semibold text-foreground mb-2">Créneau horaire :</p>
-                        <p className="text-lg font-mono">
-                          {format(new Date(participants[0].timeSlot.startTime), "HH:mm", { locale: fr })} -{" "}
-                          {format(new Date(participants[0].timeSlot.endTime), "HH:mm", { locale: fr })}
+                        <p className="text-lg">
+                          <span className="font-semibold">Briefing:</span> {selectedSquadData.timeSlot.briefingTime} •{" "}
+                          <span className="font-semibold">Jeu:</span> {selectedSquadData.timeSlot.gameTime}
                         </p>
                       </div>
                     )}
@@ -365,14 +415,14 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 </div>
 
                 {/* Afficher les numéros de casier si disponibles */}
-                {participants.some(p => p.lockerNumber) && (
+                {participants.some(p => p.secretCode) && (
                   <div className="p-6 rounded-lg bg-primary/10 border-2 border-primary/20">
                     <h4 className="text-lg font-semibold text-foreground mb-4">Numéros de casier</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {participants.filter(p => p.lockerNumber).map(p => (
+                      {participants.filter(p => p.secretCode).map(p => (
                         <div key={p.id} className="text-center p-3 rounded-lg bg-background/50">
                           <p className="text-xs text-muted-foreground mb-1">{p.firstName} {p.lastName}</p>
-                          <p className="text-2xl font-mono font-bold text-primary">{p.lockerNumber}</p>
+                          <p className="text-2xl font-mono font-bold text-primary">{p.secretCode}</p>
                         </div>
                       ))}
                     </div>
@@ -399,7 +449,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
             <Button
               onClick={() => setCurrentStep((currentStep + 1) as Step)}
               className="flex-1"
-              disabled={currentStep === 1 && !selectedSquad}
+              disabled={currentStep === 1 && (!selectedTimeSlotId || !selectedSquad)}
             >
               Suivant
               <ChevronRight className="w-4 h-4 ml-2" />

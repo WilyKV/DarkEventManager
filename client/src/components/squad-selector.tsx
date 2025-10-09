@@ -102,11 +102,6 @@ export function SquadSelector({
                             <span className="font-medium">
                               {participant.firstName} {participant.lastName}
                             </span>
-                            {participant.lockerNumber && (
-                              <Badge variant="outline" className="ml-auto text-xs">
-                                Casier {participant.lockerNumber}
-                              </Badge>
-                            )}
                           </div>
                         ))}
                       </div>

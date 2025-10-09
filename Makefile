@@ -8,17 +8,23 @@ help: ## Affiche cette aide
 install: ## Installe les dépendances dans le conteneur
 	$(DOCKER_COMPOSE) run --rm app npm install
 
+npm-install: ## Installe un paquet npm (usage: make npm-install PACKAGES="package-name")
+	$(DOCKER_COMPOSE) run --rm app npm install $(PACKAGES)
+
+npm-install-dev: ## Installe un paquet npm en dev (usage: make npm-install-dev PACKAGES="@types/package")
+	$(DOCKER_COMPOSE) run --rm app npm install --save-dev $(PACKAGES)
+
 up: ## Démarre les conteneurs
-	$(DOCKER_COMPOSE) up -d --build --remove-orphans
+	$(DOCKER_COMPOSE) up -d --remove-orphans
 
 down: ## Arrête les conteneurs
 	$(DOCKER_COMPOSE) down
 
-build: ## Build les images Docker
-	$(DOCKER_COMPOSE) build
-
 restart: ## Redémarre les conteneurs
 	$(DOCKER_COMPOSE) restart
+
+build: ## Build les images Docker
+	$(DOCKER_COMPOSE) build --no-cache
 
 logs: ## Affiche les logs
 	$(DOCKER_COMPOSE) logs -f

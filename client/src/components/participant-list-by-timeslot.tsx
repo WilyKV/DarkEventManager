@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, IdCard, LogIn, LogOut, Eye, Users, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, IdCard, LogIn, LogOut, Eye, Users, Search, Edit } from "lucide-react";
 import { ParticipantWithRelations, TimeSlot } from "@shared/schema";
 import { SimpleCheckInModal } from "./simple-check-in-modal";
 import { BatchCheckInModal } from "./batch-check-in-modal";
-import { Link } from "wouter";
+import { ParticipantBadgeModal } from "./participant-badge-modal";
+import { EditParticipantDialog } from "./edit-participant-dialog";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -16,15 +17,19 @@ import { useToast } from "@/hooks/use-toast";
 interface ParticipantListByTimeslotProps {
   participants: ParticipantWithRelations[];
   timeSlots: TimeSlot[];
-  type: "zombie" | "survivant";
+  type: "zombie" | "survivant" | "staff";
   onUpdate: () => void;
+  timeSlotLabel?: string; // Optional custom label for timeslot, e.g., "Attribution"
+  allowEdit?: boolean; // Allow editing participants (default: true)
 }
 
 export function ParticipantListByTimeslot({
   participants,
   timeSlots,
   type,
-  onUpdate
+  onUpdate,
+  timeSlotLabel = "Créneau", // Default value
+  allowEdit = true // Default: allow edit
 }: ParticipantListByTimeslotProps) {
   const { toast } = useToast();
   const [openTimeslots, setOpenTimeslots] = useState<Set<number>>(new Set());
@@ -32,6 +37,8 @@ export function ParticipantListByTimeslot({
   const [selectedForBatch, setSelectedForBatch] = useState<Set<number>>(new Set());
   const [showBatchCheckIn, setShowBatchCheckIn] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [badgeParticipant, setBadgeParticipant] = useState<ParticipantWithRelations | null>(null);
+  const [editParticipant, setEditParticipant] = useState<ParticipantWithRelations | null>(null);
 
   const batchExitMutation = useMutation({
     mutationFn: async (participantIds: number[]) => {
@@ -109,22 +116,38 @@ export function ParticipantListByTimeslot({
     );
   }, [participants, searchQuery]);
 
-  // Grouper les participants par créneau
-  const participantsByTimeslot = timeSlots.map(slot => {
-    const slotParticipants = filteredParticipants.filter(p => p.timeSlotId === slot.id);
-    return {
-      slot,
-      participants: slotParticipants,
-      arrivedCount: slotParticipants.filter(p => p.arrived).length,
-      totalCount: slotParticipants.length
-    };
-  }).filter(group => group.totalCount > 0);
+  // Grouper les participants par créneau (triés par ordre croissant de briefingTime)
+  const participantsByTimeslot = timeSlots
+    .slice()
+    .sort((a, b) => {
+      // Compare briefingTime strings (format "HH:MM")
+      return a.briefingTime.localeCompare(b.briefingTime);
+    })
+    .map(slot => {
+      const slotParticipants = filteredParticipants.filter(p => p.timeSlotId === slot.id);
+      return {
+        slot,
+        participants: slotParticipants,
+        arrivedCount: slotParticipants.filter(p => p.arrived).length,
+        totalCount: slotParticipants.length
+      };
+    }).filter(group => group.totalCount > 0);
 
   // Participants sans créneau
   const participantsWithoutSlot = filteredParticipants.filter(p => !p.timeSlotId);
 
   const formatTime = (date: Date | string) => {
+    // Si c'est déjà au format "HH:MM", le retourner directement
+    if (typeof date === 'string' && /^\d{1,2}:\d{2}$/.test(date)) {
+      return date;
+    }
+    
+    // Sinon essayer de le parser comme Date
     const d = new Date(date);
+    // Vérifier si la date est valide
+    if (isNaN(d.getTime())) {
+      return "--:--";
+    }
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   };
 
@@ -203,7 +226,7 @@ export function ParticipantListByTimeslot({
                     <div className="text-left">
                       <h3 className="font-semibold text-lg">{slot.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {formatTime(slot.startTime)} - {formatTime(slot.endTime)}
+                        Briefing: {slot.briefingTime} • Jeu: {slot.gameTime}
                       </p>
                     </div>
                   </div>
@@ -249,9 +272,10 @@ export function ParticipantListByTimeslot({
                                 Squad {participant.squad.number}
                               </Badge>
                             )}
-                            {participant.lockerNumber && (
+                            {/* Masquer le code secret dans la section Zombie */}
+                            {participant.secretCode && type !== "zombie" && (
                               <Badge variant="outline" className="text-xs font-mono">
-                                Casier {participant.lockerNumber}
+                                Code {participant.secretCode}
                               </Badge>
                             )}
                           </div>
@@ -260,11 +284,14 @@ export function ParticipantListByTimeslot({
 
                       {/* Actions */}
                       <div className="flex items-center gap-2">
-                        <Link href={`/badges?id=${participant.id}`}>
-                          <Button size="sm" variant="outline" title="Badge">
-                            <IdCard className="w-4 h-4" />
-                          </Button>
-                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          title="Badge"
+                          onClick={() => setBadgeParticipant(participant)}
+                        >
+                          <IdCard className="w-4 h-4" />
+                        </Button>
 
                         <Button
                           size="sm"
@@ -292,13 +319,17 @@ export function ParticipantListByTimeslot({
                           <LogOut className="w-4 h-4" />
                         </Button>
 
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Détails"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        {/* Edit button - only in admin */}
+                        {allowEdit && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Modifier"
+                            onClick={() => setEditParticipant(participant)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -368,11 +399,14 @@ export function ParticipantListByTimeslot({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <Link href={`/badges?id=${participant.id}`}>
-                          <Button size="sm" variant="outline" title="Badge">
-                            <IdCard className="w-4 h-4" />
-                          </Button>
-                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          title="Badge"
+                          onClick={() => setBadgeParticipant(participant)}
+                        >
+                          <IdCard className="w-4 h-4" />
+                        </Button>
 
                         <Button
                           size="sm"
@@ -392,13 +426,17 @@ export function ParticipantListByTimeslot({
                           <LogOut className="w-4 h-4" />
                         </Button>
 
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          title="Détails"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Button>
+                        {/* Edit button - only in admin */}
+                        {allowEdit && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            title="Modifier"
+                            onClick={() => setEditParticipant(participant)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -429,6 +467,26 @@ export function ParticipantListByTimeslot({
           onSuccess={() => {
             setShowBatchCheckIn(false);
             setSelectedForBatch(new Set());
+            onUpdate();
+          }}
+        />
+      )}
+
+      {/* Badge Modal */}
+      {badgeParticipant && (
+        <ParticipantBadgeModal
+          participant={badgeParticipant}
+          onClose={() => setBadgeParticipant(null)}
+        />
+      )}
+
+      {/* Edit Modal */}
+      {editParticipant && (
+        <EditParticipantDialog
+          participant={editParticipant}
+          onClose={() => setEditParticipant(null)}
+          onSuccess={() => {
+            setEditParticipant(null);
             onUpdate();
           }}
         />

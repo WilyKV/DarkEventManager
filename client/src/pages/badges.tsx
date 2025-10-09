@@ -2,27 +2,36 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ParticipantWithRelations } from "@shared/schema";
 import { ParticipantBadge } from "@/components/participant-badge";
+import { DataSyncButton } from "@/components/data-sync-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Printer, UserCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Printer, UserCircle, Database, IdCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
 import { ManagementLayout } from "@/components/management-layout";
 
 export default function BadgesPage() {
+  const [activeTab, setActiveTab] = useState("badges");
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [location] = useLocation();
 
   const { data: participants = [], isLoading } = useQuery<ParticipantWithRelations[]>({
     queryKey: ["/api/participants"],
+    queryFn: async () => {
+      const res = await fetch("/api/participants");
+      if (!res.ok) throw new Error("Failed to fetch participants");
+      return res.json();
+    },
+    refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   // Auto-select participant from URL parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const participantId = params.get("participantId");
-    
+
     if (participantId && participants.length > 0 && !selectedParticipant) {
       const participant = participants.find(p => p.id === parseInt(participantId));
       if (participant) {
@@ -30,6 +39,16 @@ export default function BadgesPage() {
       }
     }
   }, [participants, selectedParticipant]);
+
+  // Update selected participant when data refreshes
+  useEffect(() => {
+    if (selectedParticipant && participants.length > 0) {
+      const updatedParticipant = participants.find(p => p.id === selectedParticipant.id);
+      if (updatedParticipant) {
+        setSelectedParticipant(updatedParticipant);
+      }
+    }
+  }, [participants]);
 
   const filteredParticipants = participants.filter(p =>
     `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchTerm.toLowerCase())
@@ -44,11 +63,23 @@ export default function BadgesPage() {
       <div className="print:hidden">
         <ManagementLayout
           title="Badges"
-          subtitle="Sélectionnez un participant pour imprimer son badge avec QR code"
+          subtitle="Impression et gestion des badges participants"
         >
-          <div className="space-y-6">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+            <TabsList className="bg-muted/50 border border-border/50">
+              <TabsTrigger value="badges" className="gap-2 data-[state=active]:bg-indigo-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-indigo-500/20">
+                <IdCard className="w-4 h-4" />
+                Badges
+              </TabsTrigger>
+              <TabsTrigger value="data" className="gap-2 data-[state=active]:bg-indigo-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-indigo-500/20">
+                <Database className="w-4 h-4" />
+                Données
+              </TabsTrigger>
+            </TabsList>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Badges Tab */}
+            <TabsContent value="badges" className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Participant Selection */}
           <Card className="print-hidden">
             <CardHeader>
@@ -110,9 +141,9 @@ export default function BadgesPage() {
                               Squad {participant.squad.number}
                             </Badge>
                           )}
-                          {participant.lockerNumber && (
+                          {participant.secretCode && (
                             <Badge variant="secondary" className="text-xs font-mono">
-                              Casier {participant.lockerNumber}
+                              Code {participant.secretCode}
                             </Badge>
                           )}
                         </div>
@@ -150,12 +181,20 @@ export default function BadgesPage() {
               </Card>
             )}
           </div>
-        </div>
-        </div>
-        </ManagementLayout>
-      </div>
+              </div>
+            </TabsContent>
 
-      {/* Print View - Only shown when printing */}
+            {/* Data Tab */}
+            <TabsContent value="data" className="space-y-6">
+              <DataSyncButton
+                module="all"
+                title="Gestion des données"
+                description="Synchronisez toutes les données de l'application vers l'appareil maître"
+              />
+            </TabsContent>
+          </Tabs>
+        </ManagementLayout>
+      </div>      {/* Print View - Only shown when printing */}
       {selectedParticipant && (
         <div className="hidden print:block">
           <ParticipantBadge participant={selectedParticipant} />

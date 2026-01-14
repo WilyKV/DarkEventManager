@@ -203,7 +203,40 @@ server/
 **Avantages** :
 - Code organisé par domaine fonctionnel
 - Facilite la maintenance et les tests
-- Réduit la complexité de `routes.ts` (1816 lignes → à modulariser)
+- Réduit la complexité de `routes.ts` (1816 lignes → 1381 lignes)
+
+#### `server/routes/qr-pdf.routes.ts` (145 lignes) ✅ COMPLÉTÉ
+
+**Endpoints gérés** :
+- `GET /api/qr/generate/:participantId` - Génération de QR code chiffré
+- `POST /api/qr/scan` - Scan et validation de QR code
+- `GET /api/participants/:id/pdf` - Génération de PDF récapitulatif
+
+**Fonctionnalités** :
+- Chiffrement AES-256-CBC des données QR
+- Validation du code secret lors du scan
+- Génération de PDF avec achats boutique et repas
+- Logging structuré de toutes les opérations
+- Gestion d'erreurs complète
+
+### 3. Progrès de Modularisation
+
+**État actuel** :
+```
+routes.ts: 1816 lignes → 1381 lignes (-435 lignes, -24%)
+```
+
+**Modules extraits** : 2/8 (25%)
+- ✅ `participants.routes.ts` (380 lignes) - 9 endpoints
+- ✅ `qr-pdf.routes.ts` (145 lignes) - 3 endpoints
+
+**Modules restants** :
+- ⏳ `shop.routes.ts` - Boutique, achats, réductions
+- ⏳ `meals.routes.ts` - Repas, achats repas, réductions repas
+- ⏳ `dashboard.routes.ts` - Statistiques dashboard
+- ⏳ `export.routes.ts` - Export de rapports
+- ⏳ `data.routes.ts` - Gestion des données (reset, import/export)
+- ⏳ `audit.routes.ts` - Logs d'audit
 
 ---
 
@@ -450,21 +483,21 @@ TOTAL             : 14 nouveaux fichiers
 - [x] Remplacer tous les console.log
 - [x] Ajouter sanitization des données sensibles
 
-### Architecture (v1.2.0) - 30% 🔄
+### Architecture (v1.2.0) - 35% 🔄
 
 - [x] Créer la structure server/utils/
 - [x] Créer la structure server/routes/
 - [x] Extraire encryption.ts
 - [x] Extraire audit.ts
 - [x] Extraire participants.routes.ts
+- [x] Extraire qr-pdf.routes.ts
+- [x] Intégrer modules dans routes.ts
 - [ ] Extraire shop.routes.ts
 - [ ] Extraire meals.routes.ts
 - [ ] Extraire dashboard.routes.ts
 - [ ] Extraire export.routes.ts
-- [ ] Extraire qr.routes.ts
 - [ ] Extraire data.routes.ts
 - [ ] Extraire audit.routes.ts
-- [ ] Mettre à jour routes.ts pour utiliser les modules
 - [ ] Tests unitaires (0% → 50%)
 - [ ] ESLint + Prettier
 

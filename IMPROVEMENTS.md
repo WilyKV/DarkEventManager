@@ -223,20 +223,24 @@ server/
 
 **État actuel** :
 ```
-routes.ts: 1816 lignes → 1381 lignes (-435 lignes, -24%)
+routes.ts: 1816 lignes → 1186 lignes (-630 lignes, -35%)
 ```
 
-**Modules extraits** : 2/8 (25%)
+**Modules extraits** : 3/10 (30%)
 - ✅ `participants.routes.ts` (380 lignes) - 9 endpoints
 - ✅ `qr-pdf.routes.ts` (145 lignes) - 3 endpoints
+- ✅ `dashboard-export.routes.ts` (265 lignes) - 5 endpoints
 
-**Modules restants** :
-- ⏳ `shop.routes.ts` - Boutique, achats, réductions
-- ⏳ `meals.routes.ts` - Repas, achats repas, réductions repas
-- ⏳ `dashboard.routes.ts` - Statistiques dashboard
-- ⏳ `export.routes.ts` - Export de rapports
-- ⏳ `data.routes.ts` - Gestion des données (reset, import/export)
+**Total extrait** : 790 lignes dans 3 modules
+
+**Modules restants** (environ 1186 lignes) :
+- ⏳ `time-slots.routes.ts` - Gestion des créneaux horaires
+- ⏳ `squads.routes.ts` - Gestion des squads
+- ⏳ `shop.routes.ts` - Boutique + achats + réductions
+- ⏳ `meals.routes.ts` - Repas + achats repas + réductions repas
+- ⏳ `data.routes.ts` - Gestion des données (reset, import/export QR) - ~600 lignes
 - ⏳ `audit.routes.ts` - Logs d'audit
+- ⏳ `items.routes.ts` - Shop items + meal items
 
 ---
 
@@ -483,20 +487,21 @@ TOTAL             : 14 nouveaux fichiers
 - [x] Remplacer tous les console.log
 - [x] Ajouter sanitization des données sensibles
 
-### Architecture (v1.2.0) - 35% 🔄
+### Architecture (v1.2.0) - 40% 🔄
 
 - [x] Créer la structure server/utils/
 - [x] Créer la structure server/routes/
 - [x] Extraire encryption.ts
 - [x] Extraire audit.ts
-- [x] Extraire participants.routes.ts
-- [x] Extraire qr-pdf.routes.ts
+- [x] Extraire participants.routes.ts (380 lignes)
+- [x] Extraire qr-pdf.routes.ts (145 lignes)
+- [x] Extraire dashboard-export.routes.ts (265 lignes)
 - [x] Intégrer modules dans routes.ts
+- [ ] Extraire time-slots.routes.ts
+- [ ] Extraire squads.routes.ts
 - [ ] Extraire shop.routes.ts
 - [ ] Extraire meals.routes.ts
-- [ ] Extraire dashboard.routes.ts
-- [ ] Extraire export.routes.ts
-- [ ] Extraire data.routes.ts
+- [ ] Extraire data.routes.ts (~600 lignes)
 - [ ] Extraire audit.routes.ts
 - [ ] Tests unitaires (0% → 50%)
 - [ ] ESLint + Prettier

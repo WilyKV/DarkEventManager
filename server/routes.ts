@@ -11,6 +11,7 @@ import { encryptQRData, decryptQRData } from "./utils/encryption";
 import { createAuditLog } from "./utils/audit";
 import { logger } from "./utils/logger";
 import { registerParticipantRoutes } from "./routes/participants.routes";
+import { registerQrPdfRoutes } from "./routes/qr-pdf.routes";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -738,56 +739,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // ===== QR CODE GENERATION & SCANNING =====
-  app.get("/api/qr/generate/:participantId", async (req, res) => {
-    try {
-      const participantId = parseInt(req.params.participantId);
-      const participant = await storage.getParticipant(participantId);
-
-      if (!participant) {
-        return res.status(404).json({ message: "Participant not found" });
-      }
-
-      if (!participant.secretCode) {
-        return res.status(400).json({ message: "Participant does not have a secret code" });
-      }
-
-      const encryptedData = encryptQRData(participant.id, participant.secretCode);
-      res.json({ qrData: encryptedData });
-    } catch (error) {
-      res.status(500).json({ message: "Error generating QR code" });
-    }
-  });
-
-  app.post("/api/qr/scan", async (req, res) => {
-    try {
-      const { qrData } = req.body;
-
-      if (!qrData) {
-        return res.status(400).json({ message: "QR data is required" });
-      }
-
-      const decryptedData = decryptQRData(qrData);
-
-      if (!decryptedData) {
-        return res.status(400).json({ message: "Invalid QR code" });
-      }
-
-      const participant = await storage.getParticipant(decryptedData.id);
-
-      if (!participant) {
-        return res.status(404).json({ message: "Participant not found" });
-      }
-
-      if (participant.secretCode !== decryptedData.code) {
-        return res.status(400).json({ message: "Invalid secret code" });
-      }
-
-      res.json({ participant });
-    } catch (error) {
-      res.status(500).json({ message: "Error scanning QR code" });
-    }
-  });
+  // ===== QR CODE & PDF ROUTES (MODULAR) =====
+  registerQrPdfRoutes(app);
 
   // ===== DATA MANAGEMENT (RESET, EXPORT, IMPORT) =====
 
@@ -1400,45 +1353,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("QR import error:", error);
       res.status(500).json({ message: "Error importing QR data", error: errorMessage });
-    }
-  });
-
-  // Endpoint pour générer le PDF d'un participant (accessible par le visiteur)
-  app.get("/api/participants/:id/pdf", async (req, res) => {
-    try {
-      const participantId = parseInt(req.params.id);
-      
-      if (isNaN(participantId)) {
-        return res.status(400).json({ message: "ID participant invalide" });
-      }
-
-      // Récupérer le participant avec toutes les relations
-      const participant = await storage.getParticipant(participantId);
-      if (!participant) {
-        return res.status(404).json({ message: "Participant non trouvé" });
-      }
-
-      // Récupérer les achats boutique
-      const purchases = await storage.getPurchases(participantId);
-      
-      // Récupérer les achats repas
-      const mealPurchases = await storage.getMealPurchases(participantId);
-
-      // Générer le PDF
-      const pdfBuffer = await generateParticipantPDF({
-        participant,
-        purchases,
-        mealPurchases,
-      });
-
-      // Envoyer le PDF en tant que téléchargement
-      const filename = `Recap_${participant.firstName}_${participant.lastName}.pdf`;
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(pdfBuffer);
-    } catch (error) {
-      console.error("Error generating participant PDF:", error);
-      res.status(500).json({ message: "Erreur lors de la génération du PDF" });
     }
   });
 

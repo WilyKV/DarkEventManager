@@ -11,6 +11,7 @@ import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
 import { checkSyncPermissions } from "./sync-middleware";
 import { setupVite, serveStatic, log } from "./vite";
+import { logger, logRequest } from "./utils/logger";
 
 const PgSession = connectPgSimple(session);
 
@@ -108,15 +109,25 @@ app.use((req, res, next) => {
       }
 
       log(logLine);
+
+      // Structured logging for API requests
+      logRequest(req.method, path, res.statusCode, duration, {
+        ip: req.ip,
+        userAgent: req.headers['user-agent'],
+        userId: req.session?.user?.id,
+      });
     }
   });
 
   // Debug session
   if (path.startsWith("/api/auth")) {
-    console.log(`[Session Debug] ${req.method} ${path}`);
-    console.log(`  SessionID: ${req.sessionID || 'NONE'}`);
-    console.log(`  Session user: ${req.session?.user ? JSON.stringify(req.session.user) : 'NONE'}`);
-    console.log(`  Cookies: ${req.headers.cookie || 'NONE'}`);
+    logger.debug('Auth request session debug', {
+      method: req.method,
+      path: path,
+      sessionId: req.sessionID || 'NONE',
+      sessionUser: req.session?.user ? req.session.user : 'NONE',
+      hasCookie: !!req.headers.cookie,
+    });
   }
 
   next();
@@ -147,6 +158,15 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Log error with structured logging
+    logger.error('Request error', {
+      error: message,
+      status: status,
+      stack: err.stack,
+      path: _req.path,
+      method: _req.method,
+    });
+
     res.status(status).json({ message });
     throw err;
   });
@@ -172,7 +192,16 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
 
+    // Structured logging for server startup
+    logger.info('Server started successfully', {
+      port: port,
+      host: '0.0.0.0',
+      nodeEnv: process.env.NODE_ENV || 'development',
+      nodeVersion: process.version,
+    });
+
     // Start WebSocket Sync Server
     wsSyncServer.start(server);
+    logger.info('WebSocket sync server started');
   });
 })();

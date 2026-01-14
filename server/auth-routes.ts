@@ -5,6 +5,7 @@ import { loginSchema, visitorLoginSchema, insertUserSchema } from "@shared/schem
 import { eq } from "drizzle-orm";
 import bcrypt from "bcrypt";
 import { participants } from "@shared/schema";
+import { logger, logAuth } from "./utils/logger";
 
 // Hash password with bcrypt (secure, slow hashing for passwords)
 async function hashPassword(password: string): Promise<string> {
@@ -58,12 +59,14 @@ export function registerAuthRoutes(app: Express) {
         .limit(1);
 
       if (!user) {
+        logAuth('failed_login', body.username, { reason: 'user_not_found', ip: req.ip });
         return res.status(401).json({ message: "Nom d'utilisateur ou mot de passe incorrect" });
       }
 
       // Verify password with bcrypt
       const isValidPassword = await verifyPassword(body.password, user.passwordHash);
       if (!isValidPassword) {
+        logAuth('failed_login', user.username, { reason: 'invalid_password', ip: req.ip });
         return res.status(401).json({ message: "Nom d'utilisateur ou mot de passe incorrect" });
       }
 
@@ -101,6 +104,8 @@ export function registerAuthRoutes(app: Express) {
         });
       });
 
+      logAuth('login', user.username, { userId: user.id, ip: req.ip, roles: user.roles });
+
       res.json({
         user: {
           id: user.id,
@@ -112,7 +117,7 @@ export function registerAuthRoutes(app: Express) {
       if (error.name === "ZodError") {
         res.status(400).json({ message: "Données invalides", errors: error.errors });
       } else {
-        console.error("Login error:", error);
+        logger.error("Login error", { error: error.message, stack: error.stack });
         res.status(500).json({ message: "Erreur lors de la connexion" });
       }
     }
@@ -130,6 +135,7 @@ export function registerAuthRoutes(app: Express) {
         .limit(1);
 
       if (!participant) {
+        logAuth('failed_login', `visitor-${body.secretCode}`, { reason: 'invalid_code', ip: req.ip });
         return res.status(401).json({ message: "Code invalide" });
       }
 
@@ -138,6 +144,11 @@ export function registerAuthRoutes(app: Express) {
       const providedLetter = body.firstLetterLastName.toUpperCase();
 
       if (firstLetterLastName !== providedLetter) {
+        logAuth('failed_login', `visitor-${participant.id}`, {
+          reason: 'invalid_letter',
+          ip: req.ip,
+          participantId: participant.id
+        });
         return res.status(401).json({ message: "Code ou première lettre du nom incorrecte" });
       }
 
@@ -165,6 +176,12 @@ export function registerAuthRoutes(app: Express) {
         });
       });
 
+      logAuth('login', `visitor-${participant.id}`, {
+        participantId: participant.id,
+        type: participant.type,
+        ip: req.ip
+      });
+
       res.json({
         participant: {
           id: participant.id,
@@ -177,7 +194,7 @@ export function registerAuthRoutes(app: Express) {
       if (error.name === "ZodError") {
         res.status(400).json({ message: "Données invalides", errors: error.errors });
       } else {
-        console.error("Visitor login error:", error);
+        logger.error("Visitor login error", { error: error.message, stack: error.stack });
         res.status(500).json({ message: "Erreur lors de la connexion" });
       }
     }
@@ -200,11 +217,15 @@ export function registerAuthRoutes(app: Express) {
 
   // Logout
   app.post("/api/auth/logout", (req, res) => {
+    const username = req.session?.user?.username || `visitor-${req.session?.visitor?.participantId}` || 'unknown';
+
     req.session?.destroy((err) => {
       if (err) {
-        console.error("Logout error:", err);
+        logger.error("Logout error", { error: err.message, username });
         return res.status(500).json({ message: "Erreur lors de la déconnexion" });
       }
+
+      logAuth('logout', username, { ip: req.ip });
       res.json({ message: "Déconnecté avec succès" });
     });
   });
@@ -255,7 +276,7 @@ export function registerAuthRoutes(app: Express) {
       if (error.name === "ZodError") {
         res.status(400).json({ message: "Données invalides", errors: error.errors });
       } else {
-        console.error("Create user error:", error);
+        logger.error("Create user error", { error: error.message, stack: error.stack });
         res.status(500).json({ message: "Erreur lors de la création de l'utilisateur" });
       }
     }
@@ -278,9 +299,10 @@ export function registerAuthRoutes(app: Express) {
         .set({ passwordHash })
         .where(eq(users.id, userId));
 
+      logger.info('User password updated', { userId, adminId: req.session?.user?.id });
       res.json({ message: "Mot de passe mis à jour avec succès" });
-    } catch (error) {
-      console.error("Update password error:", error);
+    } catch (error: any) {
+      logger.error("Update password error", { error: error.message, stack: error.stack });
       res.status(500).json({ message: "Erreur lors de la mise à jour du mot de passe" });
     }
   });
@@ -300,9 +322,10 @@ export function registerAuthRoutes(app: Express) {
         .set({ roles: JSON.stringify(roles) })
         .where(eq(users.id, userId));
 
+      logger.info('User roles updated', { userId, roles, adminId: req.session?.user?.id });
       res.json({ message: "Rôles mis à jour avec succès" });
-    } catch (error) {
-      console.error("Update roles error:", error);
+    } catch (error: any) {
+      logger.error("Update roles error", { error: error.message, stack: error.stack });
       res.status(500).json({ message: "Erreur lors de la mise à jour des rôles" });
     }
   });
@@ -321,8 +344,8 @@ export function registerAuthRoutes(app: Express) {
         .from(users);
 
       res.json(allUsers);
-    } catch (error) {
-      console.error("Get users error:", error);
+    } catch (error: any) {
+      logger.error("Get users error", { error: error.message, stack: error.stack });
       res.status(500).json({ message: "Erreur lors de la récupération des utilisateurs" });
     }
   });
@@ -339,9 +362,10 @@ export function registerAuthRoutes(app: Express) {
 
       await db.delete(users).where(eq(users.id, userId));
 
+      logger.info('User deleted', { userId, adminId: req.session?.user?.id });
       res.json({ message: "Utilisateur supprimé avec succès" });
-    } catch (error) {
-      console.error("Delete user error:", error);
+    } catch (error: any) {
+      logger.error("Delete user error", { error: error.message, stack: error.stack });
       res.status(500).json({ message: "Erreur lors de la suppression de l'utilisateur" });
     }
   });
@@ -366,13 +390,14 @@ export function registerAuthRoutes(app: Express) {
         })
         .returning();
 
+      logger.warn('Admin account initialized with default password', { username: 'admin' });
       res.json({
         message: "Compte administrateur créé avec succès",
         username: "admin",
         defaultPassword: "admin123",
       });
-    } catch (error) {
-      console.error("Init admin error:", error);
+    } catch (error: any) {
+      logger.error("Init admin error", { error: error.message, stack: error.stack });
       res.status(500).json({ message: "Erreur lors de l'initialisation" });
     }
   });

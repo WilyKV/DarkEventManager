@@ -11,9 +11,27 @@ import { generateParticipantPDF } from "./pdf-service";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Encryption key and IV for QR codes (should be in env vars in production)
-const ENCRYPTION_KEY = process.env.QR_ENCRYPTION_KEY || "darkevent2025secretkey1234567890"; // 32 chars
-const ENCRYPTION_IV = process.env.QR_ENCRYPTION_IV || "darkevent123456"; // 16 chars
+// Encryption key and IV for QR codes - MUST be set in environment variables
+const ENCRYPTION_KEY = process.env.QR_ENCRYPTION_KEY;
+const ENCRYPTION_IV = process.env.QR_ENCRYPTION_IV;
+
+// Validate encryption keys are present
+if (!ENCRYPTION_KEY || !ENCRYPTION_IV) {
+  throw new Error(
+    '🚨 CRITICAL: QR_ENCRYPTION_KEY and QR_ENCRYPTION_IV must be set in environment variables.\n' +
+    'Generate them with:\n' +
+    '  QR_ENCRYPTION_KEY=$(node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))")\n' +
+    '  QR_ENCRYPTION_IV=$(node -e "console.log(require(\'crypto\').randomBytes(16).toString(\'hex\'))")'
+  );
+}
+
+// Validate key lengths
+if (ENCRYPTION_KEY.length < 32) {
+  throw new Error('QR_ENCRYPTION_KEY must be at least 32 characters');
+}
+if (ENCRYPTION_IV.length < 16) {
+  throw new Error('QR_ENCRYPTION_IV must be at least 16 characters');
+}
 
 function encryptQRData(participantId: number, secretCode: string): string {
   const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));

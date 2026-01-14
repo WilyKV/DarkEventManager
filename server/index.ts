@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
-import MemoryStore from "memorystore";
+import connectPgSimple from "connect-pg-simple";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import { registerRoutes } from "./routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
@@ -10,26 +12,74 @@ import { wsSyncServer } from "./websocket-sync";
 import { checkSyncPermissions } from "./sync-middleware";
 import { setupVite, serveStatic, log } from "./vite";
 
-const SessionStore = MemoryStore(session);
+const PgSession = connectPgSimple(session);
 
 const app = express();
+
+// Security: Helmet middleware for security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP for now (Vite needs it)
+  crossOriginEmbedderPolicy: false, // Needed for some resources
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Session configuration
+// Rate limiting for authentication endpoints (strict)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 requests per windowMs
+  message: { message: 'Trop de tentatives de connexion, réessayez dans 15 minutes' },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skipSuccessfulRequests: false, // Count all requests
+});
+
+// Rate limiting for general API endpoints (relaxed)
+const apiLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // Limit each IP to 100 requests per minute
+  message: { message: 'Trop de requêtes, veuillez ralentir' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for successful responses (optional)
+  skip: (req) => req.path.startsWith('/api/dashboard/stats'), // Dashboard needs frequent updates
+});
+
+// Validate SESSION_SECRET
+const SESSION_SECRET = process.env.SESSION_SECRET;
+if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+  throw new Error(
+    '🚨 CRITICAL: SESSION_SECRET must be set in environment variables and be at least 32 characters.\n' +
+    'Generate one with:\n' +
+    '  node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"'
+  );
+}
+
+// Validate DATABASE_URL
+const DATABASE_URL = process.env.DATABASE_URL;
+if (!DATABASE_URL) {
+  throw new Error('🚨 CRITICAL: DATABASE_URL must be set in environment variables');
+}
+
+// Session configuration with PostgreSQL store
 app.use(session({
   name: 'darkevent.sid',
-  secret: process.env.SESSION_SECRET || 'darkevent-secret-key-change-in-production',
+  secret: SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
-  store: new SessionStore({
-    checkPeriod: 86400000, // prune expired entries every 24h
+  store: new PgSession({
+    conString: DATABASE_URL,
+    tableName: 'session', // Table name for sessions
+    createTableIfMissing: true, // Auto-create table if it doesn't exist
+    ttl: 24 * 60 * 60, // 24 hours in seconds
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
   }),
   cookie: {
     path: '/',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     httpOnly: true,
-    secure: false,
+    secure: process.env.NODE_ENV === 'production', // Secure cookies in production
     sameSite: 'lax',
   },
 }));
@@ -73,6 +123,13 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Apply rate limiting to authentication routes
+  app.use('/api/auth/login', authLimiter);
+  app.use('/api/auth/login-visitor', authLimiter);
+
+  // Apply general rate limiting to all API routes (except specific ones)
+  app.use('/api/', apiLimiter);
+
   // Register auth routes FIRST (no middleware needed)
   registerAuthRoutes(app);
 

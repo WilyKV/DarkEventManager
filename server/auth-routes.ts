@@ -3,12 +3,18 @@ import { db } from "./db";
 import { users } from "@shared/schema";
 import { loginSchema, visitorLoginSchema, insertUserSchema } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import crypto from "crypto";
+import bcrypt from "bcrypt";
 import { participants } from "@shared/schema";
 
-// Hash password with SHA-256
-function hashPassword(password: string): string {
-  return crypto.createHash('sha256').update(password).digest('hex');
+// Hash password with bcrypt (secure, slow hashing for passwords)
+async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 12; // Higher = more secure but slower
+  return await bcrypt.hash(password, saltRounds);
+}
+
+// Verify password against hash
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return await bcrypt.compare(password, hash);
 }
 
 // Middleware to check if user is authenticated
@@ -44,7 +50,6 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/login", async (req, res) => {
     try {
       const body = loginSchema.parse(req.body);
-      const passwordHash = hashPassword(body.password);
 
       const [user] = await db
         .select()
@@ -52,7 +57,13 @@ export function registerAuthRoutes(app: Express) {
         .where(eq(users.username, body.username))
         .limit(1);
 
-      if (!user || user.passwordHash !== passwordHash) {
+      if (!user) {
+        return res.status(401).json({ message: "Nom d'utilisateur ou mot de passe incorrect" });
+      }
+
+      // Verify password with bcrypt
+      const isValidPassword = await verifyPassword(body.password, user.passwordHash);
+      if (!isValidPassword) {
         return res.status(401).json({ message: "Nom d'utilisateur ou mot de passe incorrect" });
       }
 
@@ -202,7 +213,7 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/users", requireRole('admin'), async (req, res) => {
     try {
       const body = insertUserSchema.parse(req.body);
-      const passwordHash = hashPassword(body.passwordHash); // passwordHash is the password from client
+      const passwordHash = await hashPassword(body.passwordHash); // passwordHash is the password from client
 
       // Check if username already exists
       const [existing] = await db
@@ -260,7 +271,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ message: "Le mot de passe doit contenir au moins 6 caractères" });
       }
 
-      const passwordHash = hashPassword(password);
+      const passwordHash = await hashPassword(password);
 
       await db
         .update(users)
@@ -344,7 +355,7 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ message: "Un administrateur existe déjà" });
       }
 
-      const adminPassword = hashPassword("admin123"); // Default password
+      const adminPassword = await hashPassword("admin123"); // Default password
 
       const [admin] = await db
         .insert(users)

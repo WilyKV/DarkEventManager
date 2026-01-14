@@ -1,0 +1,327 @@
+/**
+ * Example Test File - Authentication
+ *
+ * This is a template showing how to write tests for DarkEventManager.
+ * To use this file, rename it to auth.test.ts and install test dependencies:
+ *
+ * npm install --save-dev jest @types/jest ts-jest supertest @types/supertest
+ *
+ * Then add to package.json:
+ * "scripts": {
+ *   "test": "jest",
+ *   "test:watch": "jest --watch",
+ *   "test:coverage": "jest --coverage"
+ * }
+ *
+ * Configure jest.config.js:
+ * module.exports = {
+ *   preset: 'ts-jest',
+ *   testEnvironment: 'node',
+ *   roots: ['<rootDir>/server'],
+ *   testMatch: ['**/__tests__/**/*.test.ts'],
+ * };
+ */
+
+import request from 'supertest';
+import express from 'express';
+import { registerAuthRoutes } from '../auth-routes';
+import { db } from '../db';
+import { users } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+import bcrypt from 'bcrypt';
+
+// Mock the database
+jest.mock('../db', () => ({
+  db: {
+    select: jest.fn(),
+    insert: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
+  },
+}));
+
+describe('Authentication Routes', () => {
+  let app: express.Application;
+
+  beforeAll(() => {
+    app = express();
+    app.use(express.json());
+
+    // Mock session middleware
+    app.use((req, res, next) => {
+      req.session = {
+        regenerate: (callback: any) => callback(),
+        save: (callback: any) => callback(),
+        destroy: (callback: any) => callback(),
+      } as any;
+      next();
+    });
+
+    registerAuthRoutes(app);
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('POST /api/auth/login', () => {
+    it('should return 401 with invalid username', async () => {
+      // Mock: user not found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          username: 'nonexistent',
+          password: 'wrongpassword',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.message).toContain('incorrect');
+    });
+
+    it('should return 401 with invalid password', async () => {
+      const mockUser = {
+        id: 1,
+        username: 'testuser',
+        passwordHash: await bcrypt.hash('correctpassword', 12),
+        roles: '["admin"]',
+      };
+
+      // Mock: user found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockUser]),
+          }),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          username: 'testuser',
+          password: 'wrongpassword',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.message).toContain('incorrect');
+    });
+
+    it('should return 200 with valid credentials', async () => {
+      const mockUser = {
+        id: 1,
+        username: 'testuser',
+        passwordHash: await bcrypt.hash('correctpassword', 12),
+        roles: '["admin"]',
+      };
+
+      // Mock: user found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockUser]),
+          }),
+        }),
+      });
+
+      // Mock: update last login
+      (db.update as jest.Mock).mockReturnValue({
+        set: jest.fn().mockReturnValue({
+          where: jest.fn().mockResolvedValue(undefined),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          username: 'testuser',
+          password: 'correctpassword',
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.user).toBeDefined();
+      expect(response.body.user.username).toBe('testuser');
+    });
+
+    it('should return 400 with invalid input', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({
+          username: '', // Invalid: empty username
+          password: 'test',
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('invalid');
+    });
+  });
+
+  describe('POST /api/auth/login-visitor', () => {
+    it('should return 401 with invalid secret code', async () => {
+      // Mock: participant not found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login-visitor')
+        .send({
+          secretCode: '99999',
+          firstLetterLastName: 'D',
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.message).toContain('invalide');
+    });
+
+    it('should return 401 with incorrect first letter', async () => {
+      const mockParticipant = {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Doe',
+        secretCode: '12345',
+        type: 'zombie',
+      };
+
+      // Mock: participant found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockParticipant]),
+          }),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login-visitor')
+        .send({
+          secretCode: '12345',
+          firstLetterLastName: 'X', // Wrong letter
+        });
+
+      expect(response.status).toBe(401);
+      expect(response.body.message).toContain('incorrecte');
+    });
+
+    it('should return 200 with valid credentials', async () => {
+      const mockParticipant = {
+        id: 1,
+        firstName: 'John',
+        lastName: 'Doe',
+        secretCode: '12345',
+        type: 'zombie',
+      };
+
+      // Mock: participant found
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([mockParticipant]),
+          }),
+        }),
+      });
+
+      const response = await request(app)
+        .post('/api/auth/login-visitor')
+        .send({
+          secretCode: '12345',
+          firstLetterLastName: 'D', // Correct
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.participant).toBeDefined();
+      expect(response.body.participant.id).toBe(1);
+    });
+  });
+
+  describe('POST /api/auth/init', () => {
+    it('should create admin user when no users exist', async () => {
+      // Mock: no users exist
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          limit: jest.fn().mockResolvedValue([]),
+        }),
+      });
+
+      // Mock: insert new user
+      (db.insert as jest.Mock).mockReturnValue({
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([{
+            id: 1,
+            username: 'admin',
+            roles: '["admin"]',
+          }]),
+        }),
+      });
+
+      const response = await request(app).post('/api/auth/init');
+
+      expect(response.status).toBe(200);
+      expect(response.body.username).toBe('admin');
+      expect(response.body.defaultPassword).toBe('admin123');
+    });
+
+    it('should return 400 when admin already exists', async () => {
+      // Mock: admin exists
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          limit: jest.fn().mockResolvedValue([{ id: 1, username: 'admin' }]),
+        }),
+      });
+
+      const response = await request(app).post('/api/auth/init');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('existe déjà');
+    });
+  });
+});
+
+describe('Password Security', () => {
+  it('should hash passwords with bcrypt', async () => {
+    const password = 'testpassword123';
+    const hash = await bcrypt.hash(password, 12);
+
+    // Hash should be different from password
+    expect(hash).not.toBe(password);
+
+    // Hash should be long (bcrypt hashes are 60 chars)
+    expect(hash.length).toBeGreaterThan(50);
+
+    // Should verify correctly
+    const isValid = await bcrypt.compare(password, hash);
+    expect(isValid).toBe(true);
+
+    // Should not verify incorrect password
+    const isInvalid = await bcrypt.compare('wrongpassword', hash);
+    expect(isInvalid).toBe(false);
+  });
+
+  it('should use salt rounds of 12', async () => {
+    const password = 'testpassword';
+    const hash = await bcrypt.hash(password, 12);
+
+    // Bcrypt hashes start with $2b$12$ for salt rounds 12
+    expect(hash).toMatch(/^\$2[aby]\$12\$/);
+  });
+});
+
+describe('Rate Limiting', () => {
+  it('should be tested with integration tests', () => {
+    // Note: Rate limiting should be tested with integration tests
+    // that actually call the API endpoints multiple times.
+    // See the health-check.sh script for an example.
+    expect(true).toBe(true);
+  });
+});

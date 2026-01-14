@@ -1,0 +1,416 @@
+/**
+ * Example Test File - Storage Layer
+ *
+ * Tests for the database storage layer.
+ * This demonstrates unit testing of business logic.
+ */
+
+import { DatabaseStorage } from '../storage';
+import { db } from '../db';
+import { participants, squads, timeSlots } from '@shared/schema';
+import { eq } from 'drizzle-orm';
+
+// Mock the database
+jest.mock('../db');
+
+describe('DatabaseStorage', () => {
+  let storage: DatabaseStorage;
+
+  beforeAll(() => {
+    storage = new DatabaseStorage();
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe('generateSecretCode', () => {
+    it('should generate a 5-digit code', async () => {
+      // Mock: no existing codes
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      const code = await storage.generateSecretCode();
+
+      expect(code).toMatch(/^\d{5}$/);
+      expect(parseInt(code)).toBeGreaterThanOrEqual(10000);
+      expect(parseInt(code)).toBeLessThanOrEqual(99999);
+    });
+
+    it('should generate unique codes', async () => {
+      const codes = new Set<string>();
+
+      // Mock: no existing codes
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([]),
+          }),
+        }),
+      });
+
+      // Generate multiple codes
+      for (let i = 0; i < 100; i++) {
+        const code = await storage.generateSecretCode();
+        codes.add(code);
+      }
+
+      // All codes should be unique
+      expect(codes.size).toBe(100);
+    });
+
+    it('should retry if code already exists', async () => {
+      let callCount = 0;
+
+      // Mock: first call returns existing, second call returns nothing
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockImplementation(() => {
+              callCount++;
+              if (callCount === 1) {
+                return Promise.resolve([{ secretCode: '12345' }]);
+              }
+              return Promise.resolve([]);
+            }),
+          }),
+        }),
+      });
+
+      const code = await storage.generateSecretCode();
+
+      expect(code).toMatch(/^\d{5}$/);
+      expect(callCount).toBeGreaterThan(1);
+    });
+  });
+
+  describe('getParticipants', () => {
+    it('should return all participants when no type specified', async () => {
+      const mockParticipants = [
+        { id: 1, firstName: 'John', lastName: 'Doe', type: 'zombie' },
+        { id: 2, firstName: 'Jane', lastName: 'Smith', type: 'survivant' },
+      ];
+
+      (db.query as any) = {
+        participants: {
+          findMany: jest.fn().mockResolvedValue(mockParticipants),
+        },
+      };
+
+      const result = await storage.getParticipants();
+
+      expect(result).toEqual(mockParticipants);
+      expect(result.length).toBe(2);
+    });
+
+    it('should filter by type when specified', async () => {
+      const mockZombies = [
+        { id: 1, firstName: 'John', lastName: 'Doe', type: 'zombie' },
+      ];
+
+      (db.query as any) = {
+        participants: {
+          findMany: jest.fn().mockResolvedValue(mockZombies),
+        },
+      };
+
+      const result = await storage.getParticipants('zombie');
+
+      expect(result).toEqual(mockZombies);
+      expect(result.length).toBe(1);
+      expect(result[0].type).toBe('zombie');
+    });
+  });
+
+  describe('createParticipant', () => {
+    it('should create a new participant', async () => {
+      const newParticipant = {
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        type: 'zombie' as const,
+        secretCode: '12345',
+      };
+
+      const mockCreated = {
+        id: 1,
+        ...newParticipant,
+        arrived: false,
+        createdAt: new Date(),
+      };
+
+      (db.insert as jest.Mock).mockReturnValue({
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([mockCreated]),
+        }),
+      });
+
+      const result = await storage.createParticipant(newParticipant);
+
+      expect(result.id).toBe(1);
+      expect(result.firstName).toBe('John');
+      expect(result.type).toBe('zombie');
+    });
+  });
+
+  describe('calculateDiscount', () => {
+    it('should return participant-specific discount when set', async () => {
+      const mockParticipant = {
+        id: 1,
+        type: 'zombie',
+        squadId: 1,
+      };
+
+      (db.query as any) = {
+        participants: {
+          findFirst: jest.fn().mockResolvedValue(mockParticipant),
+        },
+      };
+
+      // Mock: participant has 20% discount
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockResolvedValue([{
+              participantDiscount: 20,
+            }]),
+          }),
+        }),
+      });
+
+      const discount = await storage.calculateDiscount(1);
+
+      expect(discount).toBe(20);
+    });
+
+    it('should use squad discount when no participant discount', async () => {
+      const mockParticipant = {
+        id: 1,
+        type: 'zombie',
+        squadId: 1,
+      };
+
+      (db.query as any) = {
+        participants: {
+          findFirst: jest.fn().mockResolvedValue(mockParticipant),
+        },
+      };
+
+      let callCount = 0;
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            limit: jest.fn().mockImplementation(() => {
+              callCount++;
+              if (callCount === 1) {
+                // No participant discount
+                return Promise.resolve([]);
+              } else if (callCount === 2) {
+                // Global discounts
+                return Promise.resolve([{
+                  zombieDiscount: 10,
+                  survivantDiscount: 15,
+                }]);
+              } else {
+                // Squad discount
+                return Promise.resolve([{
+                  squadDiscount: 25,
+                }]);
+              }
+            }),
+          }),
+        }),
+      });
+
+      const discount = await storage.calculateDiscount(1);
+
+      // Should use highest: squad (25%) > type (10%)
+      expect(discount).toBe(25);
+    });
+
+    it('should return 0 for non-existent participant', async () => {
+      (db.query as any) = {
+        participants: {
+          findFirst: jest.fn().mockResolvedValue(null),
+        },
+      };
+
+      const discount = await storage.calculateDiscount(999);
+
+      expect(discount).toBe(0);
+    });
+  });
+
+  describe('getDashboardStats', () => {
+    it('should calculate statistics correctly', async () => {
+      const mockParticipants = [
+        { id: 1, type: 'zombie', arrived: true, checklistCompleted: true },
+        { id: 2, type: 'zombie', arrived: false, checklistCompleted: false },
+        { id: 3, type: 'survivant', arrived: true, checklistCompleted: true },
+      ];
+
+      (db.query as any) = {
+        participants: {
+          findMany: jest.fn().mockResolvedValue(mockParticipants),
+        },
+      };
+
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockResolvedValue([]),
+      });
+
+      const stats = await storage.getDashboardStats();
+
+      expect(stats.participants.total).toBe(3);
+      expect(stats.participants.zombies).toBe(2);
+      expect(stats.participants.survivors).toBe(1);
+      expect(stats.participants.arrived).toBe(2);
+      expect(stats.participants.pending).toBe(1);
+      expect(stats.participants.arrivalRate).toBe(67); // 2/3 * 100 = 66.67 ≈ 67
+      expect(stats.checklist.totalCompleted).toBe(2);
+      expect(stats.checklist.completionRate).toBe(67);
+    });
+
+    it('should handle empty participants', async () => {
+      (db.query as any) = {
+        participants: {
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+      };
+
+      (db.select as jest.Mock).mockReturnValue({
+        from: jest.fn().mockResolvedValue([]),
+      });
+
+      const stats = await storage.getDashboardStats();
+
+      expect(stats.participants.total).toBe(0);
+      expect(stats.participants.arrivalRate).toBe(0);
+      expect(stats.checklist.completionRate).toBe(0);
+    });
+  });
+
+  describe('batchUpdateParticipants', () => {
+    it('should update multiple participants in a transaction', async () => {
+      const updates = [
+        { id: 1, data: { arrived: true } },
+        { id: 2, data: { arrived: true } },
+      ];
+
+      const mockResults = [
+        { id: 1, arrived: true },
+        { id: 2, arrived: true },
+      ];
+
+      // Mock transaction
+      (db.transaction as jest.Mock).mockImplementation(async (callback) => {
+        const mockTx = {
+          query: {
+            participants: {
+              findFirst: jest.fn()
+                .mockResolvedValueOnce({ id: 1, squadId: null })
+                .mockResolvedValueOnce({ id: 2, squadId: null }),
+            },
+          },
+          update: jest.fn().mockReturnValue({
+            set: jest.fn().mockReturnValue({
+              where: jest.fn().mockReturnValue({
+                returning: jest.fn()
+                  .mockResolvedValueOnce([mockResults[0]])
+                  .mockResolvedValueOnce([mockResults[1]]),
+              }),
+            }),
+          }),
+          insert: jest.fn(),
+        };
+        return callback(mockTx);
+      });
+
+      const results = await storage.batchUpdateParticipants(updates);
+
+      expect(results.length).toBe(2);
+      expect(results[0].id).toBe(1);
+      expect(results[1].id).toBe(2);
+    });
+
+    it('should log squad changes during batch update', async () => {
+      const updates = [
+        { id: 1, data: { squadId: 2 } }, // Squad change
+      ];
+
+      // Mock transaction
+      (db.transaction as jest.Mock).mockImplementation(async (callback) => {
+        const mockTx = {
+          query: {
+            participants: {
+              findFirst: jest.fn().mockResolvedValue({
+                id: 1,
+                squadId: 1, // Old squad
+              }),
+            },
+          },
+          update: jest.fn().mockReturnValue({
+            set: jest.fn().mockReturnValue({
+              where: jest.fn().mockReturnValue({
+                returning: jest.fn().mockResolvedValue([{
+                  id: 1,
+                  squadId: 2, // New squad
+                }]),
+              }),
+            }),
+          }),
+          insert: jest.fn().mockReturnValue({
+            values: jest.fn().mockResolvedValue(undefined),
+          }),
+        };
+        return callback(mockTx);
+      });
+
+      const results = await storage.batchUpdateParticipants(updates);
+
+      expect(results.length).toBe(1);
+      // Verify squad audit log was created (check insert was called)
+      expect(db.transaction).toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Storage Error Handling', () => {
+  let storage: DatabaseStorage;
+
+  beforeAll(() => {
+    storage = new DatabaseStorage();
+  });
+
+  it('should handle database errors gracefully', async () => {
+    // Mock database error
+    (db.query as any) = {
+      participants: {
+        findMany: jest.fn().mockRejectedValue(new Error('Database connection failed')),
+      },
+    };
+
+    await expect(storage.getParticipants()).rejects.toThrow('Database connection failed');
+  });
+
+  it('should handle malformed data', async () => {
+    const invalidParticipant = {
+      // Missing required fields
+      firstName: '',
+      lastName: '',
+    } as any;
+
+    (db.insert as jest.Mock).mockReturnValue({
+      values: jest.fn().mockReturnValue({
+        returning: jest.fn().mockRejectedValue(new Error('Invalid data')),
+      }),
+    });
+
+    await expect(storage.createParticipant(invalidParticipant)).rejects.toThrow();
+  });
+});

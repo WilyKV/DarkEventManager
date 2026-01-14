@@ -9,7 +9,18 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "migrate:roles": "tsx server/migrations/migrate-roles.ts"
+    "migrate:roles": "tsx server/migrations/migrate-roles.ts",
+    "setup": "bash scripts/setup.sh",
+    "health": "bash scripts/health-check.sh",
+    "health:watch": "watch -n 30 bash scripts/health-check.sh",
+    "secrets:generate": "node -e \"console.log('SESSION_SECRET=' + require('crypto').randomBytes(64).toString('hex')); console.log('QR_ENCRYPTION_KEY=' + require('crypto').randomBytes(32).toString('hex')); console.log('QR_ENCRYPTION_IV=' + require('crypto').randomBytes(16).toString('hex'));\"",
+    "db:studio": "drizzle-kit studio",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "logs:clear": "rm -f *.log",
+    "clean": "rm -rf dist node_modules package-lock.json && npm install",
+    "audit:security": "npm audit --production",
+    "audit:fix": "npm audit fix"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

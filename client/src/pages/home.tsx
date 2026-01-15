@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skull, Users, ShoppingBag, Utensils, BarChart3, IdCard, Settings, UserCog, LogOut } from "lucide-react";
+import { Skull, Users, ShoppingBag, Utensils, BarChart3, IdCard, Settings, UserCog, LogOut, Bluetooth } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/lib/auth";
 
@@ -81,6 +81,16 @@ export default function HomePage() {
       gradient: "from-pink-500/20 via-pink-500/10 to-transparent",
       color: "pink-500",
       emoji: "🎫",
+      roles: ['admin']
+    },
+    {
+      title: "BLE Proximity",
+      icon: Bluetooth,
+      path: "/ble",
+      description: "Gestion BLE et tracking hits",
+      gradient: "from-cyan-500/20 via-cyan-500/10 to-transparent",
+      color: "cyan-500",
+      emoji: "📡",
       roles: ['admin']
     },
     {

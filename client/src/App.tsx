@@ -17,6 +17,7 @@ import RepasPage from "@/pages/repas";
 import BadgesPage from "@/pages/badges";
 import ScanPage from "@/pages/scan";
 import AdminPage from "@/pages/admin";
+import BlePage from "@/pages/ble";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -74,6 +75,11 @@ function Router() {
       <Route path="/scan">
         <RequireAuth>
           <ScanPage />
+        </RequireAuth>
+      </Route>
+      <Route path="/ble">
+        <RequireAuth roles={["admin", "staff"]}>
+          <BlePage />
         </RequireAuth>
       </Route>
 

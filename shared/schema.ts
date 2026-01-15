@@ -402,3 +402,7 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLogWithUser = AuditLog & {
   user?: User | null;
 };
+
+// ===== BLE (Bluetooth Low Energy) Schema =====
+// Re-export all BLE tables, relations, and types
+export * from './ble-schema';

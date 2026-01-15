@@ -13,6 +13,15 @@ import {
   mealDiscounts,
   auditLogs,
   users,
+  // BLE tables
+  beacons,
+  scanners,
+  beaconAssignments,
+  scannerAssignments,
+  hits,
+  bleSyncSessions,
+  gameSessions,
+  zones,
   type Participant,
   type InsertParticipant,
   type ParticipantWithRelations,
@@ -43,6 +52,23 @@ import {
   type AuditLog,
   type InsertAuditLog,
   type AuditLogWithUser,
+  // BLE types
+  type Beacon,
+  type NewBeacon,
+  type Scanner,
+  type NewScanner,
+  type BeaconAssignment,
+  type NewBeaconAssignment,
+  type ScannerAssignment,
+  type NewScannerAssignment,
+  type Hit,
+  type NewHit,
+  type BleSyncSession,
+  type NewBleSyncSession,
+  type GameSession,
+  type NewGameSession,
+  type Zone,
+  type NewZone,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc } from "drizzle-orm";
@@ -156,6 +182,64 @@ export interface IStorage {
 
   // Data Management
   resetData(module: string, type?: string): Promise<void>;
+
+  // ===== BLE (Bluetooth Low Energy) Methods =====
+
+  // Beacons
+  getBeacons(status?: string): Promise<Beacon[]>;
+  getBeacon(id: number): Promise<Beacon | undefined>;
+  getBeaconByHardwareId(hardwareId: string): Promise<Beacon | undefined>;
+  createBeacon(beacon: NewBeacon): Promise<Beacon>;
+  updateBeacon(id: number, beacon: Partial<NewBeacon>): Promise<Beacon>;
+  deleteBeacon(id: number): Promise<void>;
+
+  // Scanners
+  getScanners(status?: string): Promise<Scanner[]>;
+  getScanner(id: number): Promise<Scanner | undefined>;
+  getScannerByHardwareId(hardwareId: string): Promise<Scanner | undefined>;
+  createScanner(scanner: NewScanner): Promise<Scanner>;
+  updateScanner(id: number, scanner: Partial<NewScanner>): Promise<Scanner>;
+  deleteScanner(id: number): Promise<void>;
+
+  // Beacon Assignments
+  getBeaconAssignments(filters?: { participantId?: number; beaconId?: number; status?: string }): Promise<BeaconAssignment[]>;
+  getBeaconAssignment(id: number): Promise<BeaconAssignment | undefined>;
+  assignBeaconToParticipant(participantId: number, beaconId: number, sessionId?: string, assignedBy?: number): Promise<BeaconAssignment>;
+  returnBeacon(assignmentId: number, returnedBy?: number): Promise<BeaconAssignment>;
+
+  // Scanner Assignments
+  getScannerAssignments(filters?: { participantId?: number; scannerId?: number; status?: string }): Promise<ScannerAssignment[]>;
+  getScannerAssignment(id: number): Promise<ScannerAssignment | undefined>;
+  assignScannerToParticipant(participantId: number, scannerId: number, sessionId?: string, assignedBy?: number): Promise<ScannerAssignment>;
+  returnScanner(assignmentId: number, returnedBy?: number): Promise<ScannerAssignment>;
+
+  // Hits
+  getHits(filters?: { beaconId?: number; scannerId?: number; sessionId?: string; validated?: boolean }): Promise<Hit[]>;
+  getHit(id: number): Promise<Hit | undefined>;
+  createHit(hit: NewHit): Promise<Hit>;
+  syncHits(hits: NewHit[], scannerId: number): Promise<{ synced: number; rejected: number; syncSessionId: number }>;
+  validateHit(hit: NewHit): Promise<{ valid: boolean; score: number; flags: any[] }>;
+
+  // BLE Sync Sessions
+  getBleSyncSessions(scannerId?: number): Promise<BleSyncSession[]>;
+  getBleSyncSession(id: number): Promise<BleSyncSession | undefined>;
+  createBleSyncSession(session: NewBleSyncSession): Promise<BleSyncSession>;
+  updateBleSyncSession(id: number, session: Partial<NewBleSyncSession>): Promise<BleSyncSession>;
+
+  // Game Sessions
+  getGameSessions(status?: string): Promise<GameSession[]>;
+  getGameSession(id: number): Promise<GameSession | undefined>;
+  getGameSessionBySessionId(sessionId: string): Promise<GameSession | undefined>;
+  createGameSession(session: NewGameSession): Promise<GameSession>;
+  updateGameSession(id: number, session: Partial<NewGameSession>): Promise<GameSession>;
+  calculateGameStats(sessionId: string): Promise<any>;
+
+  // Zones
+  getZones(status?: string): Promise<Zone[]>;
+  getZone(id: number): Promise<Zone | undefined>;
+  createZone(zone: NewZone): Promise<Zone>;
+  updateZone(id: number, zone: Partial<NewZone>): Promise<Zone>;
+  deleteZone(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1028,11 +1112,11 @@ export class DatabaseStorage implements IStorage {
     return auditLog;
   }
 
-  async getAuditLogs(filters?: { 
-    tableName?: string; 
-    action?: string; 
-    userId?: number; 
-    limit?: number 
+  async getAuditLogs(filters?: {
+    tableName?: string;
+    action?: string;
+    userId?: number;
+    limit?: number
   }): Promise<AuditLogWithUser[]> {
     let query = db
       .select()
@@ -1055,11 +1139,569 @@ export class DatabaseStorage implements IStorage {
     }
 
     const results = await query;
-    
+
     return results.map(row => ({
       ...row.audit_logs,
       user: row.users || undefined,
     }));
+  }
+
+  // ===== BLE (BLUETOOTH LOW ENERGY) METHODS =====
+
+  // ===== BEACONS =====
+
+  async getBeacons(status?: string): Promise<Beacon[]> {
+    if (status) {
+      return await db.select().from(beacons).where(eq(beacons.status, status));
+    }
+    return await db.select().from(beacons);
+  }
+
+  async getBeacon(id: number): Promise<Beacon | undefined> {
+    const [beacon] = await db.select().from(beacons).where(eq(beacons.id, id)).limit(1);
+    return beacon;
+  }
+
+  async getBeaconByHardwareId(hardwareId: string): Promise<Beacon | undefined> {
+    const [beacon] = await db
+      .select()
+      .from(beacons)
+      .where(eq(beacons.hardwareId, hardwareId))
+      .limit(1);
+    return beacon;
+  }
+
+  async createBeacon(beacon: NewBeacon): Promise<Beacon> {
+    const [created] = await db.insert(beacons).values(beacon).returning();
+    return created;
+  }
+
+  async updateBeacon(id: number, beacon: Partial<NewBeacon>): Promise<Beacon> {
+    const [updated] = await db
+      .update(beacons)
+      .set({ ...beacon, updatedAt: new Date() })
+      .where(eq(beacons.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteBeacon(id: number): Promise<void> {
+    await db.delete(beacons).where(eq(beacons.id, id));
+  }
+
+  // ===== SCANNERS =====
+
+  async getScanners(status?: string): Promise<Scanner[]> {
+    if (status) {
+      return await db.select().from(scanners).where(eq(scanners.status, status));
+    }
+    return await db.select().from(scanners);
+  }
+
+  async getScanner(id: number): Promise<Scanner | undefined> {
+    const [scanner] = await db.select().from(scanners).where(eq(scanners.id, id)).limit(1);
+    return scanner;
+  }
+
+  async getScannerByHardwareId(hardwareId: string): Promise<Scanner | undefined> {
+    const [scanner] = await db
+      .select()
+      .from(scanners)
+      .where(eq(scanners.hardwareId, hardwareId))
+      .limit(1);
+    return scanner;
+  }
+
+  async createScanner(scanner: NewScanner): Promise<Scanner> {
+    const [created] = await db.insert(scanners).values(scanner).returning();
+    return created;
+  }
+
+  async updateScanner(id: number, scanner: Partial<NewScanner>): Promise<Scanner> {
+    const [updated] = await db
+      .update(scanners)
+      .set({ ...scanner, updatedAt: new Date() })
+      .where(eq(scanners.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteScanner(id: number): Promise<void> {
+    await db.delete(scanners).where(eq(scanners.id, id));
+  }
+
+  // ===== BEACON ASSIGNMENTS =====
+
+  async getBeaconAssignments(filters?: {
+    participantId?: number;
+    beaconId?: number;
+    status?: string;
+  }): Promise<BeaconAssignment[]> {
+    let query = db.select().from(beaconAssignments).$dynamic();
+
+    if (filters?.participantId) {
+      query = query.where(eq(beaconAssignments.participantId, filters.participantId));
+    }
+    if (filters?.beaconId) {
+      query = query.where(eq(beaconAssignments.beaconId, filters.beaconId));
+    }
+    if (filters?.status) {
+      query = query.where(eq(beaconAssignments.status, filters.status));
+    }
+
+    return await query;
+  }
+
+  async getBeaconAssignment(id: number): Promise<BeaconAssignment | undefined> {
+    const [assignment] = await db
+      .select()
+      .from(beaconAssignments)
+      .where(eq(beaconAssignments.id, id))
+      .limit(1);
+    return assignment;
+  }
+
+  async assignBeaconToParticipant(
+    participantId: number,
+    beaconId: number,
+    sessionId?: string,
+    assignedBy?: number
+  ): Promise<BeaconAssignment> {
+    // Update beacon status to 'assigned'
+    await this.updateBeacon(beaconId, { status: 'assigned' });
+
+    // Create assignment record
+    const [assignment] = await db
+      .insert(beaconAssignments)
+      .values({
+        participantId,
+        beaconId,
+        sessionId: sessionId || null,
+        assignedBy: assignedBy || null,
+        status: 'active',
+      })
+      .returning();
+
+    return assignment;
+  }
+
+  async returnBeacon(assignmentId: number, returnedBy?: number): Promise<BeaconAssignment> {
+    const assignment = await this.getBeaconAssignment(assignmentId);
+    if (!assignment) {
+      throw new Error('Assignment not found');
+    }
+
+    // Update beacon status to 'available'
+    await this.updateBeacon(assignment.beaconId, { status: 'available' });
+
+    // Update assignment record
+    const [updated] = await db
+      .update(beaconAssignments)
+      .set({
+        returnedAt: new Date(),
+        returnedBy: returnedBy || null,
+        status: 'returned',
+      })
+      .where(eq(beaconAssignments.id, assignmentId))
+      .returning();
+
+    return updated;
+  }
+
+  // ===== SCANNER ASSIGNMENTS =====
+
+  async getScannerAssignments(filters?: {
+    participantId?: number;
+    scannerId?: number;
+    status?: string;
+  }): Promise<ScannerAssignment[]> {
+    let query = db.select().from(scannerAssignments).$dynamic();
+
+    if (filters?.participantId) {
+      query = query.where(eq(scannerAssignments.participantId, filters.participantId));
+    }
+    if (filters?.scannerId) {
+      query = query.where(eq(scannerAssignments.scannerId, filters.scannerId));
+    }
+    if (filters?.status) {
+      query = query.where(eq(scannerAssignments.status, filters.status));
+    }
+
+    return await query;
+  }
+
+  async getScannerAssignment(id: number): Promise<ScannerAssignment | undefined> {
+    const [assignment] = await db
+      .select()
+      .from(scannerAssignments)
+      .where(eq(scannerAssignments.id, id))
+      .limit(1);
+    return assignment;
+  }
+
+  async assignScannerToParticipant(
+    participantId: number,
+    scannerId: number,
+    sessionId?: string,
+    assignedBy?: number
+  ): Promise<ScannerAssignment> {
+    // Update scanner status to 'assigned'
+    await this.updateScanner(scannerId, { status: 'assigned' });
+
+    // Create assignment record
+    const [assignment] = await db
+      .insert(scannerAssignments)
+      .values({
+        participantId,
+        scannerId,
+        sessionId: sessionId || null,
+        assignedBy: assignedBy || null,
+        status: 'active',
+      })
+      .returning();
+
+    return assignment;
+  }
+
+  async returnScanner(assignmentId: number, returnedBy?: number): Promise<ScannerAssignment> {
+    const assignment = await this.getScannerAssignment(assignmentId);
+    if (!assignment) {
+      throw new Error('Assignment not found');
+    }
+
+    // Update scanner status to 'available'
+    await this.updateScanner(assignment.scannerId, { status: 'available' });
+
+    // Update assignment record
+    const [updated] = await db
+      .update(scannerAssignments)
+      .set({
+        returnedAt: new Date(),
+        returnedBy: returnedBy || null,
+        status: 'returned',
+      })
+      .where(eq(scannerAssignments.id, assignmentId))
+      .returning();
+
+    return updated;
+  }
+
+  // ===== HITS =====
+
+  async getHits(filters?: {
+    beaconId?: number;
+    scannerId?: number;
+    sessionId?: string;
+    validated?: boolean;
+  }): Promise<Hit[]> {
+    let query = db.select().from(hits).orderBy(desc(hits.hitTimestamp)).$dynamic();
+
+    if (filters?.beaconId) {
+      query = query.where(eq(hits.beaconId, filters.beaconId));
+    }
+    if (filters?.scannerId) {
+      query = query.where(eq(hits.scannerId, filters.scannerId));
+    }
+    if (filters?.sessionId) {
+      query = query.where(eq(hits.sessionId, filters.sessionId));
+    }
+    if (filters?.validated !== undefined) {
+      query = query.where(eq(hits.validated, filters.validated));
+    }
+
+    return await query;
+  }
+
+  async getHit(id: number): Promise<Hit | undefined> {
+    const [hit] = await db.select().from(hits).where(eq(hits.id, id)).limit(1);
+    return hit;
+  }
+
+  async createHit(hit: NewHit): Promise<Hit> {
+    const [created] = await db.insert(hits).values(hit).returning();
+    return created;
+  }
+
+  async syncHits(
+    hitsData: NewHit[],
+    scannerId: number
+  ): Promise<{ synced: number; rejected: number; syncSessionId: number }> {
+    // Create sync session
+    const [syncSession] = await db
+      .insert(bleSyncSessions)
+      .values({
+        scannerId,
+        sessionType: 'esp32_to_tablet',
+        hitsReceived: hitsData.length,
+        status: 'in_progress',
+      })
+      .returning();
+
+    let synced = 0;
+    let rejected = 0;
+
+    // Process each hit
+    for (const hitData of hitsData) {
+      try {
+        // Validate hit
+        const validation = await this.validateHit(hitData);
+
+        // Create hit record
+        await this.createHit({
+          ...hitData,
+          syncSessionId: syncSession.id,
+          validated: validation.valid,
+          validationScore: validation.score,
+          validationFlags: validation.flags,
+        });
+
+        if (validation.valid) {
+          synced++;
+        } else {
+          rejected++;
+        }
+      } catch (error) {
+        rejected++;
+      }
+    }
+
+    // Update sync session
+    await db
+      .update(bleSyncSessions)
+      .set({
+        completedAt: new Date(),
+        status: 'completed',
+        hitsValidated: synced,
+        hitsRejected: rejected,
+      })
+      .where(eq(bleSyncSessions.id, syncSession.id));
+
+    return { synced, rejected, syncSessionId: syncSession.id };
+  }
+
+  async validateHit(hit: NewHit): Promise<{ valid: boolean; score: number; flags: any[] }> {
+    const flags: any[] = [];
+    let score = 100;
+
+    // Validation 1: Check if RSSI is reasonable (not too weak, not too strong)
+    if (hit.rssi < -80) {
+      flags.push({ type: 'weak_signal', message: 'Signal too weak', rssi: hit.rssi });
+      score -= 20;
+    }
+    if (hit.rssi > -30) {
+      flags.push({ type: 'strong_signal', message: 'Signal unusually strong', rssi: hit.rssi });
+      score -= 10;
+    }
+
+    // Validation 2: Check proximity duration if provided
+    if (hit.proximityDuration !== null && hit.proximityDuration !== undefined) {
+      if (hit.proximityDuration < 2000) {
+        // Less than 2 seconds
+        flags.push({
+          type: 'short_duration',
+          message: 'Proximity duration too short',
+          duration: hit.proximityDuration,
+        });
+        score -= 30;
+      }
+    }
+
+    // Validation 3: Check if hit timestamp is reasonable (not in future, not too old)
+    const now = new Date();
+    const hitTime = new Date(hit.hitTimestamp);
+    const timeDiff = now.getTime() - hitTime.getTime();
+
+    if (timeDiff < 0) {
+      flags.push({ type: 'future_timestamp', message: 'Hit timestamp is in the future' });
+      score -= 50;
+    }
+    if (timeDiff > 24 * 60 * 60 * 1000) {
+      // More than 24 hours old
+      flags.push({ type: 'old_timestamp', message: 'Hit timestamp is more than 24 hours old' });
+      score -= 20;
+    }
+
+    // Validation 4: Check for duplicate hits (same beacon + scanner within 30 seconds)
+    if (hit.beaconId && hit.scannerId) {
+      const recentHits = await db
+        .select()
+        .from(hits)
+        .where(
+          and(
+            eq(hits.beaconId, hit.beaconId),
+            eq(hits.scannerId, hit.scannerId)
+          )
+        )
+        .orderBy(desc(hits.hitTimestamp))
+        .limit(5);
+
+      for (const recentHit of recentHits) {
+        const timeDiffMs = Math.abs(
+          new Date(hit.hitTimestamp).getTime() - new Date(recentHit.hitTimestamp).getTime()
+        );
+        if (timeDiffMs < 30000) {
+          // Within 30 seconds
+          flags.push({
+            type: 'potential_duplicate',
+            message: 'Similar hit found within 30 seconds',
+            timeDiff: timeDiffMs,
+          });
+          score -= 40;
+        }
+      }
+    }
+
+    const valid = score >= 50; // Consider valid if score is 50 or above
+
+    return { valid, score, flags };
+  }
+
+  // ===== BLE SYNC SESSIONS =====
+
+  async getBleSyncSessions(scannerId?: number): Promise<BleSyncSession[]> {
+    if (scannerId) {
+      return await db
+        .select()
+        .from(bleSyncSessions)
+        .where(eq(bleSyncSessions.scannerId, scannerId))
+        .orderBy(desc(bleSyncSessions.startedAt));
+    }
+    return await db.select().from(bleSyncSessions).orderBy(desc(bleSyncSessions.startedAt));
+  }
+
+  async getBleSyncSession(id: number): Promise<BleSyncSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(bleSyncSessions)
+      .where(eq(bleSyncSessions.id, id))
+      .limit(1);
+    return session;
+  }
+
+  async createBleSyncSession(session: NewBleSyncSession): Promise<BleSyncSession> {
+    const [created] = await db.insert(bleSyncSessions).values(session).returning();
+    return created;
+  }
+
+  async updateBleSyncSession(
+    id: number,
+    session: Partial<NewBleSyncSession>
+  ): Promise<BleSyncSession> {
+    const [updated] = await db
+      .update(bleSyncSessions)
+      .set(session)
+      .where(eq(bleSyncSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  // ===== GAME SESSIONS =====
+
+  async getGameSessions(status?: string): Promise<GameSession[]> {
+    if (status) {
+      return await db
+        .select()
+        .from(gameSessions)
+        .where(eq(gameSessions.status, status))
+        .orderBy(desc(gameSessions.startTime));
+    }
+    return await db.select().from(gameSessions).orderBy(desc(gameSessions.startTime));
+  }
+
+  async getGameSession(id: number): Promise<GameSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(gameSessions)
+      .where(eq(gameSessions.id, id))
+      .limit(1);
+    return session;
+  }
+
+  async getGameSessionBySessionId(sessionId: string): Promise<GameSession | undefined> {
+    const [session] = await db
+      .select()
+      .from(gameSessions)
+      .where(eq(gameSessions.sessionId, sessionId))
+      .limit(1);
+    return session;
+  }
+
+  async createGameSession(session: NewGameSession): Promise<GameSession> {
+    const [created] = await db.insert(gameSessions).values(session).returning();
+    return created;
+  }
+
+  async updateGameSession(id: number, session: Partial<NewGameSession>): Promise<GameSession> {
+    const [updated] = await db
+      .update(gameSessions)
+      .set({ ...session, updatedAt: new Date() })
+      .where(eq(gameSessions.id, id))
+      .returning();
+    return updated;
+  }
+
+  async calculateGameStats(sessionId: string): Promise<any> {
+    // Get all hits for this session
+    const sessionHits = await this.getHits({ sessionId, validated: true });
+
+    // Calculate statistics
+    const totalHits = sessionHits.length;
+    const uniqueZombies = new Set(sessionHits.map((h) => h.zombieId)).size;
+    const uniqueSurvivors = new Set(sessionHits.map((h) => h.survivorId)).size;
+
+    // Calculate average RSSI
+    const avgRssi =
+      sessionHits.reduce((sum, hit) => sum + (hit.rssi || 0), 0) / (totalHits || 1);
+
+    // Calculate hits per zombie
+    const zombieHits: Record<number, number> = {};
+    sessionHits.forEach((hit) => {
+      if (hit.zombieId) {
+        zombieHits[hit.zombieId] = (zombieHits[hit.zombieId] || 0) + 1;
+      }
+    });
+
+    const topZombies = Object.entries(zombieHits)
+      .map(([id, count]) => ({ zombieId: parseInt(id), hitCount: count }))
+      .sort((a, b) => b.hitCount - a.hitCount)
+      .slice(0, 10);
+
+    return {
+      totalHits,
+      uniqueZombies,
+      uniqueSurvivors,
+      avgRssi,
+      topZombies,
+      sessionId,
+    };
+  }
+
+  // ===== ZONES =====
+
+  async getZones(status?: string): Promise<Zone[]> {
+    if (status) {
+      return await db.select().from(zones).where(eq(zones.status, status));
+    }
+    return await db.select().from(zones);
+  }
+
+  async getZone(id: number): Promise<Zone | undefined> {
+    const [zone] = await db.select().from(zones).where(eq(zones.id, id)).limit(1);
+    return zone;
+  }
+
+  async createZone(zone: NewZone): Promise<Zone> {
+    const [created] = await db.insert(zones).values(zone).returning();
+    return created;
+  }
+
+  async updateZone(id: number, zone: Partial<NewZone>): Promise<Zone> {
+    const [updated] = await db.update(zones).set(zone).where(eq(zones.id, id)).returning();
+    return updated;
+  }
+
+  async deleteZone(id: number): Promise<void> {
+    await db.delete(zones).where(eq(zones.id, id));
   }
 }
 

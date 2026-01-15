@@ -13,6 +13,7 @@ import { logger } from "./utils/logger";
 import { registerParticipantRoutes } from "./routes/participants.routes";
 import { registerQrPdfRoutes } from "./routes/qr-pdf.routes";
 import { registerDashboardExportRoutes } from "./routes/dashboard-export.routes";
+import { registerBleRoutes } from "./routes/ble.routes";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -25,6 +26,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/shop-items', checkSyncPermissions);
   app.use('/api/meal-items', checkSyncPermissions);
   app.use('/api/dashboard', checkSyncPermissions);
+  app.use('/api/ble', checkSyncPermissions);
 
   // ===== PARTICIPANTS ROUTES (MODULAR) =====
   registerParticipantRoutes(app);
@@ -546,6 +548,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== QR CODE & PDF ROUTES (MODULAR) =====
   registerQrPdfRoutes(app);
+
+  // ===== BLE (BLUETOOTH LOW ENERGY) ROUTES (MODULAR) =====
+  registerBleRoutes(app);
 
   // ===== DATA MANAGEMENT (RESET, EXPORT, IMPORT) =====
 

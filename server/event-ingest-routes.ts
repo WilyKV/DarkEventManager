@@ -1,5 +1,4 @@
 import type { Express, Request, Response } from "express";
-import express from "express";
 import { z } from "zod";
 import { storage } from "./storage";
 import type { InsertServerEvent } from "@shared/schema";
@@ -45,43 +44,10 @@ const bulkIngestBodySchema = z.object({
 const seenEventUuids = new Set<string>();
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Move the last layer in app._router.stack to just before the first
- * layer whose handle is named `jsonParser` (the global express.json()).
- * This allows the large-body JSON parser to run before the global one.
- */
-function insertBeforeGlobalJsonParser(app: Express): void {
-  const router = (app as any)._router;
-  if (!router?.stack?.length) return;
-
-  const stack: any[] = router.stack;
-  const lastIndex = stack.length - 1;
-  const globalJsonIndex = stack.findIndex(
-    (l: any) => typeof l.handle === "function" && l.handle.name === "jsonParser"
-  );
-
-  if (globalJsonIndex < 0 || lastIndex <= globalJsonIndex) return;
-
-  // Remove our layer (last) and insert it before the global jsonParser
-  const [ourLayer] = stack.splice(lastIndex, 1);
-  stack.splice(globalJsonIndex, 0, ourLayer);
-}
-
-// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
 export function registerEventIngestRoutes(app: Express): void {
-  // Mount a large-body JSON parser specifically for this route, then reorder
-  // it before the global express.json() so it takes precedence.
-  app.use(
-    "/api/events/bulk-ingest",
-    express.json({ limit: "10mb" })
-  );
-  insertBeforeGlobalJsonParser(app);
 
   app.post(
     "/api/events/bulk-ingest",
@@ -147,6 +113,14 @@ export function registerEventIngestRoutes(app: Express): void {
 
         const event = parsed.data;
 
+        // Check IDOR : le deviceId du body doit correspondre exactement au header
+        // Comparaison stricte, case-sensitive, sans trim.
+        const headerDeviceId = Array.isArray(deviceId) ? deviceId[0] : deviceId;
+        if (event.deviceId !== headerDeviceId) {
+          rejected.push({ eventUuid: event.eventUuid, reason: "device_id_mismatch" });
+          continue;
+        }
+
         // Déduplication en mémoire
         if (seenEventUuids.has(event.eventUuid)) {
           duplicateCount++;
@@ -156,11 +130,11 @@ export function registerEventIngestRoutes(app: Express): void {
         validNewEvents.push(event);
       }
 
-      // 5. Persistence best-effort event par event
+      // 5. Persistence batch avec fallback best-effort par event
       let ingestedCount = 0;
 
-      for (const event of validNewEvents) {
-        const record: InsertServerEvent = {
+      if (validNewEvents.length > 0) {
+        const records: InsertServerEvent[] = validNewEvents.map((event) => ({
           eventUuid:     event.eventUuid,
           aggregateId:   event.aggregateId,
           aggregateType: event.aggregateType,
@@ -172,14 +146,41 @@ export function registerEventIngestRoutes(app: Express): void {
           wallClockTs:   event.wallClockTs,
           schemaVersion: event.schemaVersion,
           correlationId: event.correlationId ?? null,
-        };
+        }));
 
         try {
-          await storage.appendEvents([record]);
-          seenEventUuids.add(event.eventUuid);
-          ingestedCount++;
+          const result = await storage.appendEvents(records);
+          const dbInserted = result?.inserted ?? records.length;
+          const dbDuplicates = result?.duplicates ?? 0;
+          for (const event of validNewEvents) {
+            seenEventUuids.add(event.eventUuid);
+          }
+          ingestedCount = dbInserted;
+          duplicateCount += dbDuplicates;
         } catch {
-          rejected.push({ eventUuid: event.eventUuid, reason: "persistence_error" });
+          // Fallback : persistence best-effort event par event
+          for (const event of validNewEvents) {
+            const record: InsertServerEvent = {
+              eventUuid:     event.eventUuid,
+              aggregateId:   event.aggregateId,
+              aggregateType: event.aggregateType,
+              eventType:     event.eventType,
+              payload:       event.payload,
+              clientEventId: event.clientEventId,
+              deviceId:      event.deviceId,
+              lamportTs:     event.lamportTs,
+              wallClockTs:   event.wallClockTs,
+              schemaVersion: event.schemaVersion,
+              correlationId: event.correlationId ?? null,
+            };
+            try {
+              await storage.appendEvents([record]);
+              seenEventUuids.add(event.eventUuid);
+              ingestedCount++;
+            } catch {
+              rejected.push({ eventUuid: event.eventUuid, reason: "persistence_error" });
+            }
+          }
         }
       }
 

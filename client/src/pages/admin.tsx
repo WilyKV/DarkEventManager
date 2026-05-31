@@ -190,6 +190,24 @@ export default function AdminPage() {
     },
   });
 
+  const handleExport = async (type: string, module: string) => {
+    try {
+      const url = `/api/data/export/${module}?type=${type}`;
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = response.headers.get("content-disposition")?.split("filename=")[1]?.replace(/"/g, "") || `${module}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(downloadUrl);
+      toast({ title: "Export réussi", description: `Les données ont été exportées.` });
+    } catch {
+      toast({ title: "Erreur", description: "Impossible d'exporter les données.", variant: "destructive" });
+    }
+  };
+
   // Composant pour afficher les créneaux horaires
   const TimeSlotsDisplay = ({ slots, type, colorClass }: { slots: TimeSlot[], type: string, colorClass: string }) => (
     <>

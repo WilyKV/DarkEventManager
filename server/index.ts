@@ -1,6 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
-import MemoryStore from "memorystore";
 import { registerRoutes } from "./routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
@@ -9,10 +8,16 @@ import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
 import { checkSyncPermissions } from "./sync-middleware";
 import { setupVite, serveStatic, log } from "./vite";
-
-const SessionStore = MemoryStore(session);
+import { validateWebSocketSecret } from "./websocket-secret-config";
+import { createSessionStore } from "./session-config";
+import { sessionLogger } from "./session-logger";
+import { pool } from "./db";
+import { getSessionCookieOptions } from "./session-cookie-config";
+import { applySecurityHeaders } from "./security-headers";
 
 const app = express();
+applySecurityHeaders(app);
+app.use("/api/events/bulk-ingest", express.json({ limit: "10mb" }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -22,15 +27,10 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'darkevent-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
-  store: new SessionStore({
-    checkPeriod: 86400000, // prune expired entries every 24h
-  }),
+  store: createSessionStore(process.env, pool),
   cookie: {
     path: '/',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    httpOnly: true,
-    secure: false,
-    sameSite: 'lax',
+    ...getSessionCookieOptions(process.env),
   },
 }));
 
@@ -63,16 +63,21 @@ app.use((req, res, next) => {
 
   // Debug session
   if (path.startsWith("/api/auth")) {
-    console.log(`[Session Debug] ${req.method} ${path}`);
-    console.log(`  SessionID: ${req.sessionID || 'NONE'}`);
-    console.log(`  Session user: ${req.session?.user ? JSON.stringify(req.session.user) : 'NONE'}`);
-    console.log(`  Cookies: ${req.headers.cookie || 'NONE'}`);
+    sessionLogger(req, `SessionID=${req.sessionID || 'NONE'}`, { level: "info" });
   }
 
   next();
 });
 
 (async () => {
+  // Validate WebSocket secret configuration at startup
+  const wsSecretCheck = validateWebSocketSecret(process.env as Record<string, string | undefined>);
+  if (wsSecretCheck.mode === 'fail') {
+    throw new Error(wsSecretCheck.message);
+  } else if (wsSecretCheck.mode === 'warn') {
+    console.warn('[WebSocket] ' + wsSecretCheck.message);
+  }
+
   // Register auth routes FIRST (no middleware needed)
   registerAuthRoutes(app);
 

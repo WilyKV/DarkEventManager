@@ -1,31 +1,41 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
+import { USER_ROLES, type UserRole } from "@shared/schema";
+
+// Helper défensif : accepte string[] en mémoire OU string JSON-encodée (session legacy)
+function parseRoles(rawRoles: unknown): UserRole[] {
+  const ALL_ROLES = new Set<string>(Object.values(USER_ROLES));
+  let arr: unknown[] = [];
+  if (Array.isArray(rawRoles)) {
+    arr = rawRoles;
+  } else if (typeof rawRoles === 'string') {
+    try {
+      const parsed = JSON.parse(rawRoles);
+      if (Array.isArray(parsed)) arr = parsed;
+    } catch {
+      return [];
+    }
+  }
+  return arr.filter((r): r is UserRole => typeof r === 'string' && ALL_ROLES.has(r));
+}
 
 // Helper pour filtrer les données selon le rôle de l'utilisateur
 function filterDataByRole(user: any, data: any) {
-  const role = user?.role;
+  const roles = parseRoles(user?.roles);
 
-  if (role === 'admin') {
-    // Admin a accès à tout
+  if (roles.includes(USER_ROLES.ADMIN)) {
     return data;
   }
 
-  // Filtrer selon le rôle
   const filtered: any = {};
 
-  if (role === 'zombie' || role === 'survivant') {
-    // Zombie/Survivant : seulement leurs propres achats
-    filtered.purchases = data.purchases?.filter((p: any) => p.participantId === user.participantId) || [];
-    filtered.mealPurchases = data.mealPurchases?.filter((p: any) => p.participantId === user.participantId) || [];
-  } else if (role === 'staff') {
-    // Staff : check-in/check-out (participants avec arrivedAt/returnedAt)
+  if (roles.includes(USER_ROLES.STAFF_ZOMBIE) || roles.includes(USER_ROLES.STAFF_SURVIVANT)) {
+    // Staff zombie/survivant : check-in/check-out (participants)
     filtered.participants = data.participants || [];
-  } else if (role === 'boutique') {
-    // Boutique : produits et achats boutique
+  } else if (roles.includes(USER_ROLES.STAFF_BOUTIQUE)) {
     filtered.shopItems = data.shopItems || [];
     filtered.purchases = data.purchases || [];
-  } else if (role === 'repas') {
-    // Repas : produits repas et achats repas
+  } else if (roles.includes(USER_ROLES.STAFF_REPAS)) {
     filtered.mealItems = data.mealItems || [];
     filtered.mealPurchases = data.mealPurchases || [];
   }
@@ -42,17 +52,19 @@ export function registerSyncPushPullRoutes(app: Express) {
         return res.status(401).json({ message: "Non authentifié" });
       }
 
-      // Récupérer les données locales selon le rôle
+      const roles = parseRoles(user?.roles);
+      if (roles.length === 0) {
+        return res.status(403).json({ message: "Accès refusé : aucun rôle valide" });
+      }
+
       const allData: any = {};
 
-      if (user.role === 'admin') {
-        // Admin : tout
+      if (roles.includes(USER_ROLES.ADMIN)) {
         allData.participants = await storage.getParticipants();
         allData.timeSlots = await storage.getTimeSlots();
         allData.squads = await storage.getSquads();
         allData.shopItems = await storage.getShopItems();
         allData.mealItems = await storage.getMealItems();
-        // Récupérer tous les achats (pas de méthode getAll, donc on récupère par participant)
         const allParticipants = await storage.getParticipants();
         allData.purchases = [];
         allData.mealPurchases = [];
@@ -62,17 +74,10 @@ export function registerSyncPushPullRoutes(app: Express) {
           allData.purchases.push(...purchases);
           allData.mealPurchases.push(...mealPurchases);
         }
-      } else if (user.role === 'zombie' || user.role === 'survivant') {
-        // Leurs achats seulement
-        if (user.participantId) {
-          allData.purchases = await storage.getPurchases(user.participantId);
-          allData.mealPurchases = await storage.getMealPurchases(user.participantId);
-        }
-      } else if (user.role === 'staff') {
-        // Participants (check-in/out)
+      } else if (roles.includes(USER_ROLES.STAFF_ZOMBIE) || roles.includes(USER_ROLES.STAFF_SURVIVANT)) {
+        // Staff zombie/survivant : participants (check-in/out)
         allData.participants = await storage.getParticipants();
-      } else if (user.role === 'boutique') {
-        // Produits et achats boutique
+      } else if (roles.includes(USER_ROLES.STAFF_BOUTIQUE)) {
         allData.shopItems = await storage.getShopItems();
         const allParticipants = await storage.getParticipants();
         allData.purchases = [];
@@ -80,8 +85,7 @@ export function registerSyncPushPullRoutes(app: Express) {
           const purchases = await storage.getPurchases(p.id);
           allData.purchases.push(...purchases);
         }
-      } else if (user.role === 'repas') {
-        // Produits et achats repas
+      } else if (roles.includes(USER_ROLES.STAFF_REPAS)) {
         allData.mealItems = await storage.getMealItems();
         const allParticipants = await storage.getParticipants();
         allData.mealPurchases = [];
@@ -91,14 +95,12 @@ export function registerSyncPushPullRoutes(app: Express) {
         }
       }
 
-      // TODO: Dans une vraie implémentation, envoyer vers le serveur maître
-      // Pour l'instant, on simule juste le succès
-      const count = Object.values(allData).reduce((sum: number, arr: any) => 
+      const count = Object.values(allData).reduce((sum: number, arr: any) =>
         sum + (Array.isArray(arr) ? arr.length : 0), 0
       );
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         count,
         message: `${count} élément(s) envoyé(s) avec succès`
       });
@@ -116,45 +118,36 @@ export function registerSyncPushPullRoutes(app: Express) {
         return res.status(401).json({ message: "Non authentifié" });
       }
 
-      // TODO: Dans une vraie implémentation, récupérer depuis le serveur maître
-      // Pour l'instant, on simule avec les données locales déjà présentes
-      
+      const roles = parseRoles(user?.roles);
+      if (roles.length === 0) {
+        return res.status(403).json({ message: "Accès refusé : aucun rôle valide" });
+      }
+
       const pulledData: any = {};
       let count = 0;
 
-      if (user.role === 'admin') {
-        // Admin : tout
+      if (roles.includes(USER_ROLES.ADMIN)) {
         pulledData.participants = await storage.getParticipants();
         pulledData.timeSlots = await storage.getTimeSlots();
         pulledData.squads = await storage.getSquads();
         pulledData.shopItems = await storage.getShopItems();
         pulledData.mealItems = await storage.getMealItems();
-        count = Object.values(pulledData).reduce((sum: number, arr: any) => 
+        count = Object.values(pulledData).reduce((sum: number, arr: any) =>
           sum + (Array.isArray(arr) ? arr.length : 0), 0
         );
-      } else if (user.role === 'zombie' || user.role === 'survivant') {
-        // Leurs achats seulement
-        if (user.participantId) {
-          pulledData.purchases = await storage.getPurchases(user.participantId);
-          pulledData.mealPurchases = await storage.getMealPurchases(user.participantId);
-          count = (pulledData.purchases?.length || 0) + (pulledData.mealPurchases?.length || 0);
-        }
-      } else if (user.role === 'staff') {
-        // Participants
+      } else if (roles.includes(USER_ROLES.STAFF_ZOMBIE) || roles.includes(USER_ROLES.STAFF_SURVIVANT)) {
         pulledData.participants = await storage.getParticipants();
         count = pulledData.participants?.length || 0;
-      } else if (user.role === 'boutique') {
-        // Produits boutique
+      } else if (roles.includes(USER_ROLES.STAFF_BOUTIQUE)) {
         pulledData.shopItems = await storage.getShopItems();
         count = pulledData.shopItems?.length || 0;
-      } else if (user.role === 'repas') {
-        // Produits repas
+      } else if (roles.includes(USER_ROLES.STAFF_REPAS)) {
         pulledData.mealItems = await storage.getMealItems();
         count = pulledData.mealItems?.length || 0;
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         count,
         message: `${count} élément(s) récupéré(s) avec succès`,
         data: pulledData

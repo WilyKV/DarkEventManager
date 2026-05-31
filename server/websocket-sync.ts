@@ -4,6 +4,7 @@ import dgram from 'dgram';
 import os from 'os';
 import { verifyWebSocketToken, getWebSocketSecret } from './sync-middleware';
 import { storage } from './storage';
+import { validateWebSocketSecret } from './websocket-secret-config';
 
 interface SyncClient {
   ws: WebSocket;
@@ -24,6 +25,13 @@ export class WebSocketSyncServer {
   start(httpServer: Server) {
     this.httpServer = httpServer;
     this.wsSecret = getWebSocketSecret();
+
+    const secretCheck = validateWebSocketSecret(process.env as Record<string, string | undefined>);
+    if (secretCheck.mode === 'fail') {
+      throw new Error(secretCheck.message);
+    } else if (secretCheck.mode === 'warn') {
+      console.warn('[WebSocket] ' + secretCheck.message);
+    }
 
     // Create WebSocket server on the same HTTP server (no separate port)
     this.wss = new WebSocketServer({

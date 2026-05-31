@@ -89,7 +89,7 @@ export function SyncPushPullButtons() {
   };
 
   const getRoleDescription = () => {
-    switch (user?.role) {
+    switch (user?.rolesList?.[0]) {
       case 'zombie':
       case 'survivant':
         return 'Synchronise vos achats personnels uniquement';

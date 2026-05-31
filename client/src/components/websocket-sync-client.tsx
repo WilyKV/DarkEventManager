@@ -560,7 +560,7 @@ export function WebSocketSyncClient({ isMaster, deviceId, deviceName }: WebSocke
                 <div className="text-sm font-mono bg-muted p-3 rounded">
                   <div className="font-bold text-green-600 mb-1">Adresse IP :</div>
                   <div className="text-lg">{serverInfo.ip}</div>
-                  {serverInfo.port && serverInfo.port !== '80' && (
+                  {serverInfo.port && serverInfo.port !== 80 && (
                     <>
                       <div className="font-bold text-blue-600 mt-2 mb-1">Port :</div>
                       <div className="text-lg">{serverInfo.port}</div>

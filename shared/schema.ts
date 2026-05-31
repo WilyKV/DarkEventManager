@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, json, jsonb, bigint, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -90,6 +90,7 @@ export const purchases = pgTable("purchases", {
   totalPrice: text("total_price").notNull(), // unit_price * quantity
   isPaid: boolean("is_paid").default(false),
   purchasedAt: timestamp("purchased_at").defaultNow(),
+  clientEventId: text("client_event_id"), // UUID v4 from client for idempotency (nullable for retro-compat)
 });
 
 // Meal Items Table
@@ -150,7 +151,27 @@ export const appConfig = pgTable("app_config", {
   masterDeviceName: text("master_device_name"), // Friendly name of the master device
   lastSyncAt: timestamp("last_sync_at"),
   updatedAt: timestamp("updated_at").defaultNow(),
+  serverLamportTs: integer("server_lamport_ts").notNull().default(0),
 });
+
+// Server Events Table - For event sourcing / bulk-ingest
+export const serverEvents = pgTable("server_events", {
+  eventUuid:     text("event_uuid").primaryKey(),
+  aggregateId:   text("aggregate_id").notNull(),
+  aggregateType: text("aggregate_type").notNull(),
+  eventType:     text("event_type").notNull(),
+  payload:       jsonb("payload").notNull(),
+  clientEventId: text("client_event_id"),
+  deviceId:      text("device_id").notNull(),
+  lamportTs:     integer("lamport_ts").notNull(),
+  wallClockTs:   bigint("wall_clock_ts", { mode: "number" }).notNull(),
+  schemaVersion: integer("schema_version").notNull().default(1),
+  correlationId: text("correlation_id"),
+  receivedAt:    timestamp("received_at").defaultNow().notNull(),
+}, (table) => ({
+  aggregateLamportIdx: index("server_events_aggregate_lamport_idx").on(table.aggregateId, table.lamportTs),
+  clientEventIdIdx:    index("server_events_client_event_id_idx").on(table.clientEventId),
+}));
 
 // Users Table - For authentication
 export const users = pgTable("users", {
@@ -176,6 +197,19 @@ export const auditLogs = pgTable("audit_logs", {
   userAgent: text("user_agent"), // User agent for context
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
+
+// Sessions Table - For connect-pg-simple persistent session store
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid:    text("sid").primaryKey(),
+    sess:   json("sess").notNull(),
+    expire: timestamp("expire", { precision: 6, withTimezone: false }).notNull(),
+  },
+  (table) => [
+    index("sessions_expire_idx").on(table.expire),
+  ],
+);
 
 // Relations
 export const timeSlotsRelations = relations(timeSlots, ({ many }) => ({
@@ -278,6 +312,7 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 }));
 
 // Insert Schemas
+export const insertServerEventSchema = createInsertSchema(serverEvents);
 export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
 export const insertSquadSchema = createInsertSchema(squads).omit({ id: true });
 export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true, arrivedAt: true, returnedAt: true });
@@ -286,7 +321,9 @@ export const insertMealItemSchema = createInsertSchema(mealItems).omit({ id: tru
 export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ id: true, changedAt: true });
 export const insertAppConfigSchema = createInsertSchema(appConfig).omit({ id: true, updatedAt: true });
 export const insertDiscountSchema = createInsertSchema(discounts).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPurchaseSchema = createInsertSchema(purchases).omit({ id: true, purchasedAt: true });
+export const insertPurchaseSchema = createInsertSchema(purchases, {
+  clientEventId: z.string().uuid().nullish(),
+}).omit({ id: true, purchasedAt: true });
 export const insertMealPurchaseSchema = createInsertSchema(mealPurchases).omit({ id: true, purchasedAt: true });
 export const insertMealDiscountSchema = createInsertSchema(mealDiscounts).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
@@ -402,3 +439,6 @@ export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type AuditLogWithUser = AuditLog & {
   user?: User | null;
 };
+
+export type ServerEvent = typeof serverEvents.$inferSelect;
+export type InsertServerEvent = z.infer<typeof insertServerEventSchema>;

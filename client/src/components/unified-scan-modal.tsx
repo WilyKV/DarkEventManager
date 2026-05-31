@@ -35,10 +35,11 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
   const queryClient = useQueryClient();
 
   const checkInMutation = useMutation({
-    mutationFn: async (participantId: number) => {
-      return await apiRequest("PATCH", `/api/participants/${participantId}`, {
+    mutationFn: async (participantId: number): Promise<Participant> => {
+      const res = await apiRequest("PATCH", `/api/participants/${participantId}`, {
         arrivedAt: new Date().toISOString(),
       });
+      return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/participants"] });
@@ -51,10 +52,11 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
   });
 
   const checkOutMutation = useMutation({
-    mutationFn: async (participantId: number) => {
-      return await apiRequest("PATCH", `/api/participants/${participantId}`, {
+    mutationFn: async (participantId: number): Promise<Participant> => {
+      const res = await apiRequest("PATCH", `/api/participants/${participantId}`, {
         returnedAt: new Date().toISOString(),
       });
+      return res.json();
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/participants"] });

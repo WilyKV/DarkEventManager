@@ -1,7 +1,7 @@
 # Roadmap DarkEventManager — Zomb'in The Dark
 
 > Source de vérité de la coordination multi-agent. Mise à jour à chaque jalon par l'orchestrateur.
-> Dernière mise à jour : 2026-05-25 (Vague 2.5 — Hardening sécurité LIVRÉE)
+> Dernière mise à jour : 2026-05-31 (Vague 3 — Plan détaillé ajouté, décomposition npm audit + MOD-* + US-3..US-10)
 
 ## 🎯 Objectif global
 
@@ -301,37 +301,115 @@ Tous les items marqués RÉSOLUS ci-dessus. 4 chains parallèles complétées (S
 
 #### Vague 3 (post-événement) — npm audit + refactoring MOD-* dettes code
 
-**Objectif : Finir npm audit 3 HIGH et dettes CRIT-REV-1/2.**
+**Objectif : Clore les 3 npm audit HIGH restants et les dettes code-review CRIT-REV-1/2 + MOD-*. 🟢 atteint quand `npm audit` ne remonte plus de HIGH et que `npm run check && npm run build && npm test` passent.**
 
-- [ ] **npm audit fixes** (2h breaking)
-  - Upgrade `drizzle-orm` 0.39.3 → 0.45.2 (breaking)
-  - Upgrade `nodemailer` 6.10.1 → 8.0.8 (major breaking)
-  - Replace `xlsx@0.18.5` → `exceljs@4.4.0` (ESM)
-  - Test : `npm run check && npm run build && npm test` (532+ tests pass)
+> ⚠️ État vérifié 2026-05-31 : `drizzle-orm@^0.39.1`, `nodemailer@^6.9.16`, `xlsx@^0.18.5` toujours en place ; `exceljs`, `pino`/`winston`, `server/config/limits.ts`, `server/logger.ts`, `docs/adr/` **absents**. Modules sécurité Vague 2.5 présents.
 
-- [ ] **US-Refactor-1** (CRIT-REV-1) : éliminer doublon `requireAuth`
-  - Fichiers affectés : `server/auth-routes.ts`, `server/routes.ts`
-  - Centraliser en un export unique depuis `server/auth-middleware.ts`
+##### Chain V3-DEPS — npm audit 3 HIGH (séquentiel, ~3h, breaking)
 
-- [ ] **US-Refactor-2** (CRIT-REV-2) : logger structuré
-  - Intégrer pino ou winston pour remplacer `console.error`
-  - Standardiser sur `server/logger.ts`
+- [ ] **V3-DEPS-1** — Upgrade `drizzle-orm` `^0.39.1` → `0.45.2+` (GHSA-gpj5-g38j-94v9, SQL injection)
+  - Bumper aussi `drizzle-kit` à la version compatible.
+  - Vérifier les ruptures d'API dans `server/storage.ts`, `shared/schema.ts`, `drizzle.config.ts` (signatures `sql`, `.$inferSelect`, `relations`).
+  - `npm run check` : ne PAS aggraver les 74 erreurs TS baseline (idéalement les réduire).
+  - Acceptation : `npm run build` OK + suite serveur verte.
 
-- [ ] **US-Refactor-3** : découper `IStorage` god-interface (MOD-1)
+- [ ] **V3-DEPS-2** — Upgrade `nodemailer` `^6.9.16` → `8.0.8+` (GHSA-rcmh-qjqh-p98v, DoS + domain confusion)
+  - Impact : `server/email-service.ts` (création transport Outlook SMTP). Revalider `createTransport`, options TLS, redirection `DEV_EMAIL_OVERRIDE`.
+  - Acceptation : test d'envoi mocké vert (nodemailer mock), aucun import cassé.
 
-- [ ] **US-Refactor-4** : découper `WebSocketSyncServer` god class (MOD-11)
+- [ ] **V3-DEPS-3** — Remplacer `xlsx@0.18.5` (paquet abandonné, GHSA-4r6h-8v6p-xvw6) par `exceljs@4.4.0`
+  - Sites d'usage à migrer : import participants (`server/routes.ts` `POST /api/participants/import`), exports (`GET /api/export/*`), et tout usage client (`client/src/**` imports `xlsx`).
+  - `exceljs` est async (streaming) : adapter les lectures/écritures de workbook.
+  - Acceptation : round-trip import→export d'un fichier de test identique à l'ancien comportement.
 
-- [ ] **US-Connectivity-1** : toggle 3 modes connectivité (Cloud / Pi / Auto)
-  - Nouveau UI composant dans `client/src/components/` (mode selector modal)
-  - Endpoint `PATCH /api/admin/connectivity-mode` (admin-only)
-  - Config persiste dans `appConfig.connectivityMode` (enum)
-  - Tests : 6 cas d'usage (Cloud→Pi, Pi→Auto, etc.)
+- [ ] **V3-DEPS-4** — Garde-fou : `npm audit --omit=dev` = 0 HIGH ; figer dans CI (`npm run check && npm run build && npm test`, 532+ tests).
 
-- [ ] **Code health cleanup** sur Vague 2/2.5 tech debt (MOD-*)
-  - Réduire cyclomatic complexity dans `server/storage.ts`
-  - Centraliser magic numbers dans `server/config/limits.ts` (MOD-3)
-  - Validation `aggregateType` enum (MOD-4)
-  - Tests : ajouter 20+ cas limites
+##### Chain V3-REFACTOR — dettes code-review (parallélisable après V3-DEPS)
+
+- [ ] **V3-REFACTOR-1** (CRIT-REV-1, MOD-7) — Source unique pour `requireAuth`/`requireRole`
+  - Supprimer le doublon `server/auth-routes.ts:16-40` ; ré-exporter depuis `server/auth-middleware.ts`.
+  - Centraliser l'appel `checkSyncPermissions` dupliqué dans `sync-routes.ts`.
+  - Acceptation : un seul lieu de définition, imports mis à jour, tests auth/sync verts.
+
+- [ ] **V3-REFACTOR-2** (CRIT-REV-2, MOD-12) — Logger structuré `server/logger.ts`
+  - Intégrer `pino` (préféré : faible overhead, JSON). Niveau via `LOG_LEVEL`.
+  - Remplacer `console.*` + emojis/français mélangés dans `server/websocket-sync.ts`, `server/sync-middleware.ts`, `server/routes.ts::createAuditLog`.
+  - Corriger le commentaire "fail-secure" trompeur (`sync-middleware.ts:55-62`).
+  - Acceptation : aucun `console.log` résiduel côté serveur (hors bootstrap), logs JSON parsables.
+
+- [ ] **V3-REFACTOR-3** (MOD-3) — Centraliser les magic numbers dans `server/config/limits.ts`
+  - WS token TTL (15min), batch size (500), payload limit (100MB), seuils rate-limit, ping interval (30s).
+  - Acceptation : valeurs importées, plus de littéraux dispersés ; 1 test snapshot des constantes.
+
+- [ ] **V3-REFACTOR-4** (MOD-4, MOD-5) — Typage fort `aggregateType` / sémantique `eventUuid` vs `clientEventId`
+  - Extraire `AGGREGATE_TYPES as const` dans `shared/`, valider via Zod côté ingest.
+  - JSDoc explicite + tests d'intégration distinguant `eventUuid` (identité serveur) et `clientEventId` (idempotence client).
+
+- [ ] **V3-REFACTOR-5** (MOD-1) — Découper l'IStorage god-interface (~90 méthodes)
+  - Sous-interfaces : `IParticipantStorage`, `IInventoryStorage`, `IPurchaseStorage`, `IDiscountStorage`, `IAuditStorage`, `ISyncStorage`, `IEventStorage`.
+  - `storage` reste l'agrégat concret (compose les sous-interfaces) — pas de cassure d'appelants.
+
+- [ ] **V3-REFACTOR-6** (MOD-11) — Découper `WebSocketSyncServer` (509 LOC)
+  - Extraire `EventValidator`, `MessageRouter`, `StateReconciler`.
+
+- [ ] **V3-REFACTOR-7** (MOD-2, MOD-8, MOD-9/10) — Hygiène divers
+  - MOD-2 : injecter `storage` via factory de route dans `event-ingest-routes.ts` (DIP, testabilité).
+  - MOD-8 : supprimer le mort-code `getOrCreateDeviceId()` (`sync-routes.ts:21-24`).
+  - MOD-9/10 : envelopper `appendEvents + bumpServerLamportTs` dans une transaction `BEGIN…COMMIT` (atomicité).
+  - MOD-6 : normaliser la réponse `roles` du login (ne pas exposer le JSON brut).
+
+##### Chain V3-CONNECTIVITY — toggle 3 modes (dépend de ADR-002)
+
+- [ ] **US-Connectivity-1** — Toggle 3 modes connectivité (Cloud / Pi / Auto)
+  - Schéma : `appConfig.connectivityMode` enum (`'cloud' | 'pi' | 'auto'`) → **nécessite `make db-push`**.
+  - Endpoint `PATCH /api/admin/connectivity-mode` (admin-only, audit-loggé).
+  - UI : modal sélecteur de mode dans `client/src/components/` + indicateur d'état dans le header.
+  - Changement à chaud (no restart), guard-rails sur scope de sync / cible d'endpoint / règles auth.
+  - Tests : 6 transitions (Cloud→Pi, Pi→Auto, Auto→Cloud, etc.) + refus si non-admin.
+
+##### Definition of Done Vague 3
+
+- [ ] `npm audit --omit=dev` : 0 HIGH
+- [ ] `npm run check` : ≤ 74 erreurs TS (baseline, idéalement en baisse)
+- [ ] `npm run build` OK + `npm test` 532+ verts (objectif +40 tests)
+- [ ] ADR-002 et ADR-004 rédigés dans `docs/adr/` (cf. section ADR)
+
+#### Vague 4 (offline-first) — PWA + projection + reconciliation
+
+**Objectif : rendre l'app utilisable hors-ligne sur tablette en cave et fiabiliser la synchro retour. Séquence US-3 → US-6 (le cœur offline-first ; US-7..US-10 = Pi/scaling en Vague 5).**
+
+- [ ] **US-3** — PWA installable (`vite-plugin-pwa` + Workbox)
+  - `public/manifest.json` (icônes, `display: standalone`, thème zombie), service worker auto-généré.
+  - Stratégie cache : app-shell `CacheFirst`, API GET `StaleWhileRevalidate`, mutations jamais cachées.
+  - Prompt d'installation tablette-friendly. Acceptation : Lighthouse PWA installable + app charge offline après 1er load.
+
+- [ ] **US-4** — Projection events → tables métier (replay)
+  - Réducteurs SQL `purchase_event` → `purchases`, `discount_event` → `discounts`, etc.
+  - `POST /api/admin/replay-from-lamport` (admin-only, **guard dev-only** : refuse en prod sans flag explicite).
+  - Tests : 10+ types d'événements, idempotence du replay (rejouer 2× = même état).
+
+- [ ] **US-5** — Réconciliation de conflits (Lamport + LWW)
+  - Décision Lamport vs vector clocks → **ADR-003** à trancher avant implémentation.
+  - Stratégie de résolution par table (LWW par défaut, override documenté).
+  - Tests : écritures concurrentes 2 tablettes, vérifier sélection déterministe du gagnant.
+
+- [ ] **US-6** — File de synchronisation UI
+  - Badge "X events pending" dans le header (lire `pendingEvents` du store Dexie).
+  - Retry exponentiel (1s → 5s → 30s) + bouton sync manuel (réutiliser `sync-push-pull-buttons.tsx`).
+  - Tests : 5 scénarios de timeout / reconnexion.
+
+**DoD Vague 4 :** app installable + fonctionnelle offline ; replay idempotent ; 1 scénario E2E offline→ingest→reconcile vert.
+
+#### Vague 5 (scaling cave-local) — Pi hub + résilience LAN
+
+**Objectif : topologie Pi cave-local opérationnelle. Séquence US-7 → US-10. Dépend de ADR-001.**
+
+- [ ] **US-7** — Event-store côté Pi (hub Raspberry Pi) : SQLite event log, API `/events/sync` (Pi ↔ tablette), tests via émulateur supertest.
+- [ ] **US-8** — Découverte LAN (UDP broadcast port 8888) : ping tablette au boot, réponse Pi (IP + endpoint WS), hook `useDiscovery()` React, tests sockets UDP mockés.
+- [ ] **US-9** — Compression batch events : zlib/gzip sur payload `serverEvents` + headers réponse `/api/events/bulk-ingest`, benchmark 1000 events, tests décompression client.
+- [ ] **US-10** — Monitoring + heartbeat : dashboard admin (status Pi, nb tablettes, profondeur de file, replica lag), heartbeat WS 30s (déjà en place), tests d'injection de perte réseau.
+
+**DoD Vague 5 :** 2 tablettes + 1 Pi en LAN sans internet, découverte auto, sync bidirectionnelle, dashboard temps réel.
 
 ### Track 2 — Event-sourcing + offline-first
 

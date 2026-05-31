@@ -2,42 +2,37 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { checkSyncPermissions } from "./sync-middleware";
+import { registerEventIngestRoutes } from "./event-ingest-routes";
+import { requireAuth, requireRole } from "./auth-middleware";
 import multer from "multer";
 import xlsx from "xlsx";
 import crypto from "crypto";
 import pako from "pako";
-import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema } from "@shared/schema";
+import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema, insertPurchaseSchema } from "@shared/schema";
 import { generateParticipantPDF } from "./pdf-service";
+import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Encryption key and IV for QR codes (should be in env vars in production)
-const ENCRYPTION_KEY = process.env.QR_ENCRYPTION_KEY || "darkevent2025secretkey1234567890"; // 32 chars
-const ENCRYPTION_IV = process.env.QR_ENCRYPTION_IV || "darkevent123456"; // 16 chars
+// QR encryption key derived from environment variable
+let qrKey: Buffer;
+try {
+  qrKey = deriveKeyFromEnv(process.env.QR_ENCRYPTION_KEY);
+} catch {
+  // Fallback for development: generate a temporary key
+  qrKey = crypto.randomBytes(32);
+}
 
 function encryptQRData(participantId: number, secretCode: string): string {
-  const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
-  const iv = Buffer.from(ENCRYPTION_IV.padEnd(16, '0').slice(0, 16));
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-
   const data = JSON.stringify({ id: participantId, code: secretCode });
-  let encrypted = cipher.update(data, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-
-  return encrypted;
+  return encryptQRPayload(data, qrKey);
 }
 
 function decryptQRData(encryptedData: string): { id: number; code: string } | null {
   try {
-    const key = Buffer.from(ENCRYPTION_KEY.padEnd(32, '0').slice(0, 32));
-    const iv = Buffer.from(ENCRYPTION_IV.padEnd(16, '0').slice(0, 16));
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
-
-    let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-
+    const decrypted = decryptQRPayload(encryptedData, qrKey);
     return JSON.parse(decrypted);
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -73,6 +68,9 @@ async function createAuditLog(
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
+  // Register event ingest routes (auth required, no sync middleware)
+  registerEventIngestRoutes(app);
+
   // Apply sync permissions middleware to main API routes (not sync routes)
   app.use('/api/participants', checkSyncPermissions);
   app.use('/api/time-slots', checkSyncPermissions);
@@ -80,6 +78,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/shop-items', checkSyncPermissions);
   app.use('/api/meal-items', checkSyncPermissions);
   app.use('/api/dashboard', checkSyncPermissions);
+  app.use('/api/purchases', checkSyncPermissions);
+  app.use('/api/meal-purchases', checkSyncPermissions);
+  app.use('/api/discounts', checkSyncPermissions);
+  app.use('/api/meal-discounts', checkSyncPermissions);
 
   // ===== PARTICIPANTS =====
 
@@ -276,22 +278,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import participants from Excel
-  app.post("/api/participants/import", upload.single("file"), async (req, res) => {
+  app.post("/api/participants/import", requireAuth, requireRole('admin'), upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const type = req.body.type as "zombie" | "survivant";
-      if (!type) {
-        return res.status(400).json({ message: "Type is required" });
-      }
+      const type = (req.body.type as "zombie" | "survivant") || undefined;
 
       // Parse Excel file
       const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
       const sheetName = workbook.SheetNames[0];
       const sheet = workbook.Sheets[sheetName];
-      const data = xlsx.utils.sheet_to_json<any>(sheet, { header: ["firstName", "lastName", "timeSlotName"] });
+      const data = xlsx.utils.sheet_to_json<any>(sheet ?? {}, { header: ["firstName", "lastName", "timeSlotName"] });
 
       let count = 0;
 
@@ -569,8 +568,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create purchase
   app.post("/api/purchases", async (req, res) => {
     try {
-      const purchase = await storage.createPurchase(req.body);
-      res.status(201).json(purchase);
+      const parsed = insertPurchaseSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ message: "Données invalides", errors: parsed.error.errors });
+      }
+      const result = await storage.createPurchase(parsed.data);
+      if (result.idempotent) {
+        return res.status(200).json(result);
+      }
+      res.status(201).json(result);
     } catch (error) {
       res.status(500).json({ message: "Error creating purchase" });
     }
@@ -881,7 +887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== EXPORT REPORTS =====
-  app.get("/api/export/participants", async (req, res) => {
+  app.get("/api/export/participants", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const timeSlotId = req.query.timeSlotId ? parseInt(req.query.timeSlotId as string) : undefined;
@@ -942,7 +948,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export time slots to Excel
-  app.get("/api/export/time-slots", async (req, res) => {
+  app.get("/api/export/time-slots", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const timeSlots = await storage.getTimeSlots(type);
@@ -973,7 +979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export squads to Excel
-  app.get("/api/export/squads", async (req, res) => {
+  app.get("/api/export/squads", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const squads = await storage.getSquadsWithParticipants(type);
@@ -1003,7 +1009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export ALL data (participants + time slots + squads) to Excel
-  app.get("/api/export/all-data", async (req, res) => {
+  app.get("/api/export/all-data", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       
@@ -1070,7 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== QR CODE GENERATION & SCANNING =====
-  app.get("/api/qr/generate/:participantId", async (req, res) => {
+  app.get("/api/qr/generate/:participantId", requireAuth, async (req, res) => {
     try {
       const participantId = parseInt(req.params.participantId);
       const participant = await storage.getParticipant(participantId);
@@ -1123,7 +1129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== DATA MANAGEMENT (RESET, EXPORT, IMPORT) =====
 
   // Reset data by type
-  app.post("/api/data/reset", async (req, res) => {
+  app.post("/api/data/reset", requireAuth, requireRole('admin'), async (req, res) => {
     try {
       const { module, type } = req.body;
 
@@ -1141,7 +1147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export all data as Excel
-  app.get("/api/data/export-all", async (req, res) => {
+  app.get("/api/data/export-all", requireAuth, requireRole('admin'), async (req, res) => {
     try {
       const participants = await storage.getParticipants();
       const timeSlots = await storage.getTimeSlots();
@@ -1335,7 +1341,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import all data from Excel
-  app.post("/api/data/import-all", upload.single("file"), async (req, res) => {
+  app.post("/api/data/import-all", requireAuth, requireRole('admin'), upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });

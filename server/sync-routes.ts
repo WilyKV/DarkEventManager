@@ -3,6 +3,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import crypto from "crypto";
 import { generateWebSocketToken, getWebSocketSecret } from "./sync-middleware";
+import { requireAuth, requireRole } from "./auth-middleware";
 
 // Schema for updating sync config
 const updateSyncConfigSchema = z.object({
@@ -46,7 +47,7 @@ export function registerSyncRoutes(app: Express) {
   });
 
   // Get current sync configuration
-  app.get("/api/sync/config", async (req, res) => {
+  app.get("/api/sync/config", requireAuth, async (req, res) => {
     try {
       const config = await storage.getSyncConfig();
       res.json(config);
@@ -57,7 +58,7 @@ export function registerSyncRoutes(app: Express) {
   });
 
   // Update sync configuration (toggle online/offline mode)
-  app.post("/api/sync/config", async (req, res) => {
+  app.post("/api/sync/config", requireAuth, requireRole('admin'), async (req, res) => {
     try {
       const body = updateSyncConfigSchema.parse(req.body);
       const config = await storage.updateSyncConfig(body);
@@ -73,7 +74,7 @@ export function registerSyncRoutes(app: Express) {
   });
 
   // Check if current device is the master device
-  app.post("/api/sync/check-master", async (req, res) => {
+  app.post("/api/sync/check-master", requireAuth, async (req, res) => {
     try {
       const { deviceId } = req.body;
       if (!deviceId) {
@@ -96,7 +97,7 @@ export function registerSyncRoutes(app: Express) {
   });
 
   // Sync endpoint - only allowed for master device in offline mode
-  app.post("/api/sync/data", async (req, res) => {
+  app.post("/api/sync/data", requireAuth, async (req, res) => {
     try {
       const { deviceId, syncData } = req.body;
 
@@ -131,7 +132,7 @@ export function registerSyncRoutes(app: Express) {
   });
 
   // Simple sync trigger endpoint - for manual sync button
-  app.post("/api/sync/trigger", async (req, res) => {
+  app.post("/api/sync/trigger", requireAuth, async (req, res) => {
     try {
       const { timestamp, source } = req.body;
       

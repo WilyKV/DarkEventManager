@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
-import { storage } from "./storage";
 import crypto from "crypto";
+import { signDeviceToken, verifyDeviceToken } from "./ws-token";
 
 /**
  * Middleware to check if the current device can perform write operations
@@ -22,6 +22,7 @@ export async function checkSyncPermissions(req: Request, res: Response, next: Ne
   }
 
   try {
+    const { storage } = await import("./storage");
     const config = await storage.getSyncConfig();
 
     // In online mode, everyone can sync
@@ -72,62 +73,36 @@ export function addDeviceIdHeader(deviceId: string) {
 }
 
 /**
- * Generate a secure WebSocket authentication token
- * Token format: {deviceId}.{timestamp}.{signature}
+ * Generate a secure WebSocket authentication token.
+ * Délègue à signDeviceToken (server/ws-token.ts).
  */
 export function generateWebSocketToken(deviceId: string, secret: string): string {
-  const timestamp = Date.now().toString();
-  const data = `${deviceId}.${timestamp}`;
-  const signature = crypto
-    .createHmac('sha256', secret)
-    .update(data)
-    .digest('hex');
-
-  return `${data}.${signature}`;
+  return signDeviceToken(deviceId, secret);
 }
 
 /**
- * Verify WebSocket authentication token
- * Returns deviceId if valid, null otherwise
+ * Verify WebSocket authentication token.
+ * Délègue à verifyDeviceToken (server/ws-token.ts).
+ * Returns deviceId if valid, null otherwise.
  */
 export function verifyWebSocketToken(token: string, secret: string): string | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-
-    const [deviceId, timestamp, signature] = parts;
-
-    // Verify token is not too old (15 minutes)
-    const tokenAge = Date.now() - parseInt(timestamp);
-    if (tokenAge > 15 * 60 * 1000) {
-      console.log('Token expired');
-      return null;
-    }
-
-    // Verify signature
-    const data = `${deviceId}.${timestamp}`;
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(data)
-      .digest('hex');
-
-    if (signature !== expectedSignature) {
-      console.log('Invalid signature');
-      return null;
-    }
-
-    return deviceId;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
+  const result = verifyDeviceToken(token, secret);
+  return result.valid && result.deviceId ? result.deviceId : null;
 }
 
 /**
- * Get or create WebSocket secret key
- * This should be stored securely, for now we use environment variable
+ * Module-scope cache for the WebSocket secret.
+ * Initialized on first call to getWebSocketSecret() and reused for the lifetime of the process.
+ */
+let _cachedSecret: string | null = null;
+
+/**
+ * Get or create WebSocket secret key.
+ * Memoized: the value is computed once and reused on subsequent calls.
  */
 export function getWebSocketSecret(): string {
-  // Use environment variable or generate a random secret
-  return process.env.WEBSOCKET_SECRET || crypto.randomBytes(32).toString('hex');
+  if (!_cachedSecret) {
+    _cachedSecret = process.env.WEBSOCKET_SECRET || crypto.randomBytes(32).toString('hex');
+  }
+  return _cachedSecret;
 }

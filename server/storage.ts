@@ -7,6 +7,7 @@ import {
   mealItems,
   squadAuditLog,
   appConfig,
+  serverEvents,
   discounts,
   purchases,
   mealPurchases,
@@ -43,9 +44,10 @@ import {
   type AuditLog,
   type InsertAuditLog,
   type AuditLogWithUser,
+  type InsertServerEvent,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, desc } from "drizzle-orm";
+import { eq, and, isNull, desc, isNotNull, sql } from "drizzle-orm";
 
 export interface DashboardStats {
   participants: {
@@ -130,7 +132,7 @@ export interface IStorage {
   // Purchases
   getPurchases(participantId?: number): Promise<PurchaseWithRelations[]>;
   getPurchase(id: number): Promise<PurchaseWithRelations | undefined>;
-  createPurchase(purchase: InsertPurchase): Promise<Purchase>;
+  createPurchase(purchase: InsertPurchase): Promise<Purchase & { idempotent?: boolean }>;
   updatePurchase(id: number, purchase: Partial<InsertPurchase>): Promise<Purchase>;
   deletePurchase(id: number): Promise<void>;
 
@@ -156,6 +158,11 @@ export interface IStorage {
 
   // Data Management
   resetData(module: string, type?: string): Promise<void>;
+
+  // Event Ingest
+  appendEvents(events: InsertServerEvent[]): Promise<{ inserted: number; duplicates: number }>;
+  getServerLamportTs(): Promise<number>;
+  bumpServerLamportTs(min: number): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -448,7 +455,7 @@ export class DatabaseStorage implements IStorage {
     const completedChecklist = allParticipants.filter(p => p.checklistCompleted).length;
 
     const squadStats = allSquads.map(squad => ({
-      name: squad.name,
+      name: `Squad ${squad.number}`,
       type: squad.type,
       currentMembers: allParticipants.filter(p => p.squadId === squad.id).length,
       maxMembers: squad.maxMembers ?? 0,
@@ -796,7 +803,18 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async createPurchase(insertPurchase: InsertPurchase): Promise<Purchase> {
+  async createPurchase(insertPurchase: InsertPurchase): Promise<Purchase & { idempotent?: boolean }> {
+    const { clientEventId } = insertPurchase;
+    if (clientEventId != null) {
+      const [existing] = await db
+        .select()
+        .from(purchases)
+        .where(eq(purchases.clientEventId, clientEventId))
+        .limit(1);
+      if (existing) {
+        return { ...existing, idempotent: true };
+      }
+    }
     const [purchase] = await db
       .insert(purchases)
       .values(insertPurchase)
@@ -1060,6 +1078,33 @@ export class DatabaseStorage implements IStorage {
       ...row.audit_logs,
       user: row.users || undefined,
     }));
+  }
+
+  // ===== EVENT INGEST =====
+
+  async appendEvents(events: InsertServerEvent[]): Promise<{ inserted: number; duplicates: number }> {
+    if (events.length === 0) return { inserted: 0, duplicates: 0 };
+    const inserted = await db
+      .insert(serverEvents)
+      .values(events)
+      .onConflictDoNothing({ target: serverEvents.eventUuid })
+      .returning({ eventUuid: serverEvents.eventUuid });
+    return { inserted: inserted.length, duplicates: events.length - inserted.length };
+  }
+
+  async getServerLamportTs(): Promise<number> {
+    const config = await this.getSyncConfig();
+    return config.serverLamportTs ?? 0;
+  }
+
+  async bumpServerLamportTs(min: number): Promise<number> {
+    const config = await this.getSyncConfig();
+    const [updated] = await db
+      .update(appConfig)
+      .set({ serverLamportTs: sql`GREATEST(server_lamport_ts, ${min}) + 1` })
+      .where(eq(appConfig.id, config.id))
+      .returning();
+    return updated.serverLamportTs ?? min + 1;
   }
 }
 

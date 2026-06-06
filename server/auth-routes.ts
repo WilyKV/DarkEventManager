@@ -1,4 +1,4 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request } from "express";
 import { sessionLogger } from "./session-logger";
 import { db } from "./db";
 import { users } from "@shared/schema";
@@ -9,6 +9,9 @@ import { participants } from "@shared/schema";
 import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, isLegacyHash } from "./password-hashing";
+import { requireAuth, requireRole } from "./auth-middleware";
+
+export { requireAuth, requireRole };
 
 // Resolve client IP from X-Forwarded-For header or req.ip
 function resolveIp(req: Request): string {
@@ -17,33 +20,6 @@ function resolveIp(req: Request): string {
     return String(forwarded).split(',')[0].trim();
   }
   return req.ip ?? 'unknown';
-}
-
-// Middleware to check if user is authenticated
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.session?.user) {
-    return res.status(401).json({ message: "Non authentifié" });
-  }
-  next();
-}
-
-// Middleware to check if user has required role
-export function requireRole(...roles: string[]) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session?.user) {
-      return res.status(401).json({ message: "Non authentifié" });
-    }
-
-    // Check if user has at least one of the required roles
-    const userRoles = req.session.user.roles || [];
-    const hasRole = roles.some(role => userRoles.includes(role));
-
-    if (!hasRole) {
-      return res.status(403).json({ message: "Accès refusé - Permissions insuffisantes" });
-    }
-
-    next();
-  };
 }
 
 export function registerAuthRoutes(app: Express) {

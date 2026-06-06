@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { requireRole } from "./auth-routes";
+import { requireRole } from "./auth-middleware";
 import { storage } from "./storage";
 import { generateParticipantPDF, encryptPDFFilename } from "./pdf-service";
 import { sendEmail, createEndEventEmailTemplate } from "./email-service";

@@ -1,17 +1,22 @@
 # Roadmap DarkEventManager — Zomb'in The Dark
 
 > Source de vérité de la coordination multi-agent. Mise à jour à chaque jalon par l'orchestrateur.
-> Dernière mise à jour : 2026-06-11 (Vague 4 — code-health + PWA LIVRÉE)
+> Dernière mise à jour : 2026-06-11 (Vagues 3-4 mergées dans main, tag v0.4.0)
 
 ## 🎯 Objectif global
 
 App de gestion d'événement pour Zomb'in The Dark (500-1000 participants, en grotte sans internet, opérée sur tablettes Android par bénévoles non-techniques). Architecture event-sourcing local-first + topologie Pi cave-local (option Cloud/Pi/Auto).
 
+## 🏷️ Releases
+
+- **v0.2.5** — avant merge Vagues 3-4 (post hardening sécurité, 4 chains SEC-*)
+- **v0.4.0** — Vagues 3-4 intégrées : npm audit prod 0 HIGH, sécurisation export, logger pino structuré, PWA offline-first, code-health (MOD-3/7/8/12 résolus)
+
 ---
 
 ## 🚨 VULNÉRABILITÉS CRITIQUES À FIXER AVANT L'ÉVÉNEMENT
 
-**Verdict : 🟡→Presque 🟢 — npm audit prod CLEAN (0 HIGH / 0 CRITICAL). 3 npm HIGH RÉSOLUS en Vague 3. CRIT-REV-1 RÉSOLU. Reste uniquement `make db-push` (devops humain) avant 🟢 complet.**
+**Verdict : 🟢— npm audit prod CLEAN (0 HIGH / 0 CRITICAL). Vagues 3-4 mergées main (v0.4.0). Seul bloquant restant : `make db-push` (devops humain) pour schéma DB.**
 
 ### Failles bloquantes (Scénario d'attaque RÉALISTE en cave)
 

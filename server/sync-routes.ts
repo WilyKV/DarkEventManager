@@ -1,7 +1,6 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
-import crypto from "crypto";
 import { generateWebSocketToken, getWebSocketSecret } from "./sync-middleware";
 import { requireAuth, requireRole } from "./auth-middleware";
 
@@ -16,12 +15,6 @@ const updateSyncConfigSchema = z.object({
 const generateTokenSchema = z.object({
   deviceId: z.string().uuid(),
 });
-
-// Generate a unique device ID if not exists
-function getOrCreateDeviceId(): string {
-  // Check localStorage on client side, this is just for server tracking
-  return crypto.randomUUID();
-}
 
 export function registerSyncRoutes(app: Express) {
 

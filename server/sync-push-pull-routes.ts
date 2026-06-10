@@ -1,6 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { USER_ROLES, type UserRole } from "@shared/schema";
+import { childLogger } from "./logger";
+
+const syncLogger = childLogger('sync');
 
 // Helper défensif : accepte string[] en mémoire OU string JSON-encodée (session legacy)
 function parseRoles(rawRoles: unknown): UserRole[] {
@@ -105,7 +108,7 @@ export function registerSyncPushPullRoutes(app: Express) {
         message: `${count} élément(s) envoyé(s) avec succès`
       });
     } catch (error) {
-      console.error("Erreur Push:", error);
+      syncLogger.error({ err: error }, 'Erreur Push');
       res.status(500).json({ message: "Erreur lors de l'envoi des données" });
     }
   });
@@ -153,7 +156,7 @@ export function registerSyncPushPullRoutes(app: Express) {
         data: pulledData
       });
     } catch (error) {
-      console.error("Erreur Pull:", error);
+      syncLogger.error({ err: error }, 'Erreur Pull');
       res.status(500).json({ message: "Erreur lors de la récupération des données" });
     }
   });

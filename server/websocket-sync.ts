@@ -5,6 +5,9 @@ import os from 'os';
 import { verifyWebSocketToken, getWebSocketSecret } from './sync-middleware';
 import { storage } from './storage';
 import { validateWebSocketSecret } from './websocket-secret-config';
+import { childLogger } from './logger';
+
+const wsLogger = childLogger('websocket');
 
 interface SyncClient {
   ws: WebSocket;
@@ -30,7 +33,7 @@ export class WebSocketSyncServer {
     if (secretCheck.mode === 'fail') {
       throw new Error(secretCheck.message);
     } else if (secretCheck.mode === 'warn') {
-      console.warn('[WebSocket] ' + secretCheck.message);
+      wsLogger.warn(secretCheck.message);
     }
 
     // Create WebSocket server on the same HTTP server (no separate port)
@@ -47,16 +50,13 @@ export class WebSocketSyncServer {
 
     const localIP = this.getLocalIP();
     const port = this.getServerPort();
-    console.log(`WebSocket Sync Server started on /ws path`);
-    console.log(`Server accessible at: ws://${localIP}:${port}/ws`);
-    console.log(`Clients can connect using this address`);
-    console.log(`WebSocket secret initialized (length: ${this.wsSecret.length})`);
+    wsLogger.info({ url: `ws://${localIP}:${port}/ws`, secretLength: this.wsSecret.length }, 'WebSocket Sync Server démarré');
 
     // Start UDP broadcast for auto-discovery
     this.startDiscoveryBroadcast();
 
     this.wss.on('connection', (ws: WebSocket, req) => {
-      console.log('New WebSocket connection from:', req.socket.remoteAddress);
+      wsLogger.debug({ remoteAddress: req.socket.remoteAddress }, 'Nouvelle connexion WebSocket');
 
       // Send ping every 30 seconds to keep connection alive
       const pingInterval = setInterval(() => {
@@ -73,7 +73,7 @@ export class WebSocketSyncServer {
           const message = JSON.parse(data.toString());
           this.handleMessage(ws, message);
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          wsLogger.error({ err: error }, 'Erreur parsing message WebSocket');
           ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
         }
       });
@@ -83,7 +83,7 @@ export class WebSocketSyncServer {
         // Remove client from the list
         for (const [deviceId, client] of this.clients.entries()) {
           if (client.ws === ws) {
-            console.log(`Client ${client.deviceName} (${deviceId}) disconnected`);
+            wsLogger.info({ deviceId, deviceName: client.deviceName }, 'Client déconnecté');
             this.clients.delete(deviceId);
             this.broadcastClientList();
             break;
@@ -92,7 +92,7 @@ export class WebSocketSyncServer {
       });
 
       ws.on('error', (error) => {
-        console.error('WebSocket error:', error);
+        wsLogger.error({ err: error }, 'Erreur WebSocket client');
         clearInterval(pingInterval);
       });
 
@@ -102,7 +102,7 @@ export class WebSocketSyncServer {
     });
 
     this.wss.on('error', (error) => {
-      console.error('WebSocket Server error:', error);
+      wsLogger.error({ err: error }, 'Erreur serveur WebSocket');
     });
   }
 
@@ -111,7 +111,7 @@ export class WebSocketSyncServer {
       this.udpServer = dgram.createSocket({ type: 'udp4', reuseAddr: true });
 
       this.udpServer.on('error', (err) => {
-        console.error('UDP Server error:', err);
+        wsLogger.error({ err }, 'Erreur serveur UDP');
         this.udpServer?.close();
       });
 
@@ -130,9 +130,9 @@ export class WebSocketSyncServer {
           const response = Buffer.from(JSON.stringify(serverInfo));
           this.udpServer?.send(response, rinfo.port, rinfo.address, (err) => {
             if (err) {
-              console.error('Error sending discovery response:', err);
+              wsLogger.error({ err }, 'Erreur envoi réponse découverte UDP');
             } else {
-              console.log(`Discovery response sent to ${rinfo.address}:${rinfo.port}`);
+              wsLogger.debug({ address: rinfo.address, port: rinfo.port }, 'Réponse découverte UDP envoyée');
             }
           });
         }
@@ -140,18 +140,18 @@ export class WebSocketSyncServer {
 
       this.udpServer.on('listening', () => {
         const address = this.udpServer?.address();
-        console.log(`UDP Discovery Server listening on ${address?.address}:${address?.port}`);
+        wsLogger.info({ address: address?.address, port: address?.port }, 'Serveur UDP découverte en écoute');
 
         try {
           this.udpServer?.setBroadcast(true);
         } catch (err) {
-          console.error('Error enabling broadcast:', err);
+          wsLogger.error({ err }, 'Erreur activation broadcast UDP');
         }
       });
 
       this.udpServer.bind(this.broadcastPort, '0.0.0.0');
     } catch (error) {
-      console.error('Failed to start discovery broadcast:', error);
+      wsLogger.error({ err: error }, 'Echec démarrage broadcast découverte');
     }
   }
 
@@ -172,27 +172,27 @@ export class WebSocketSyncServer {
               name.toLowerCase().includes('wifi-direct') ||
               name.toLowerCase().includes('wlan') && ip.startsWith('192.168.49.')) {
             priority = 100;
-            console.log(`Found WiFi Direct IP: ${ip} on ${name}`);
+            wsLogger.debug({ ip, name, type: 'wifi-direct' }, 'IP WiFi Direct trouvée');
           }
           // High priority: Mobile hotspot (usually 192.168.43.x or 192.168.49.x)
           else if (ip.startsWith('192.168.49.') || ip.startsWith('192.168.43.')) {
             priority = 90;
-            console.log(`Found mobile hotspot IP: ${ip} on ${name}`);
+            wsLogger.debug({ ip, name, type: 'hotspot' }, 'IP hotspot mobile trouvée');
           }
           // Medium priority: Standard WiFi/Ethernet (192.168.x.x, 10.x.x.x)
           else if (ip.startsWith('192.168.') || ip.startsWith('10.')) {
             priority = 50;
-            console.log(`Found local network IP: ${ip} on ${name}`);
+            wsLogger.debug({ ip, name, type: 'local' }, 'IP réseau local trouvée');
           }
           // Low priority: Other private networks (172.x.x.x)
           else if (ip.startsWith('172.')) {
             priority = 30;
-            console.log(`Found private network IP: ${ip} on ${name}`);
+            wsLogger.debug({ ip, name, type: 'private' }, 'IP réseau privé trouvée');
           }
           // Lowest priority: Other IPs
           else {
             priority = 10;
-            console.log(`Found other IP: ${ip} on ${name}`);
+            wsLogger.debug({ ip, name, type: 'other' }, 'Autre IP trouvée');
           }
 
           candidates.push({ ip, priority, name });
@@ -205,11 +205,11 @@ export class WebSocketSyncServer {
 
     if (candidates.length > 0) {
       const best = candidates[0];
-      console.log(`Selected IP: ${best.ip} on ${best.name} (priority: ${best.priority})`);
+      wsLogger.debug({ ip: best.ip, name: best.name, priority: best.priority }, 'IP sélectionnée');
       return best.ip;
     }
 
-    console.log('No suitable IP found, using 0.0.0.0');
+    wsLogger.debug('Aucune IP adaptée trouvée, utilisation de 0.0.0.0');
     return '0.0.0.0';
   }
 
@@ -233,7 +233,7 @@ export class WebSocketSyncServer {
     // For all other messages, verify client is authenticated
     const client = Array.from(this.clients.values()).find(c => c.ws === ws);
     if (!client || !client.isAuthenticated) {
-      console.log('Unauthorized message attempt from unauthenticated client');
+      wsLogger.warn('Tentative de message non autorisé par un client non authentifié');
       ws.send(JSON.stringify({ type: 'error', message: 'Not authenticated' }));
       ws.close(4004, 'Not authenticated');
       return;
@@ -272,7 +272,7 @@ export class WebSocketSyncServer {
 
     // Verify authentication token
     if (!authToken) {
-      console.log(`Registration denied: No auth token provided by ${deviceName}`);
+      wsLogger.warn({ deviceName }, 'Enregistrement refusé : token absent');
       ws.send(JSON.stringify({ type: 'error', message: 'Authentication required' }));
       ws.close(4002, 'Missing auth token');
       return;
@@ -280,7 +280,7 @@ export class WebSocketSyncServer {
 
     const verifiedDeviceId = verifyWebSocketToken(authToken, this.wsSecret);
     if (!verifiedDeviceId || verifiedDeviceId !== deviceId) {
-      console.log(`Registration denied: Invalid token for ${deviceName} (${deviceId})`);
+      wsLogger.warn({ deviceName, deviceId }, 'Enregistrement refusé : token invalide');
       ws.send(JSON.stringify({ type: 'error', message: 'Invalid authentication token' }));
       ws.close(4003, 'Invalid token');
       return;
@@ -294,14 +294,13 @@ export class WebSocketSyncServer {
       if (!config.isOnlineMode) {
         const isMaster = config.masterDeviceId === deviceId;
 
-        // Log connection attempt
-        console.log(`Connection attempt in offline mode: ${deviceName} (${deviceId}), Master: ${isMaster}`);
+        wsLogger.info({ deviceName, deviceId, isMaster }, 'Tentative connexion en mode hors ligne');
 
         // For now, allow all authenticated devices to connect
         // They can receive data, but only master can send modifications
       }
     } catch (error) {
-      console.error('Error checking sync config:', error);
+      wsLogger.error({ err: error }, 'Erreur vérification configuration sync');
     }
 
     // Register the client
@@ -313,7 +312,7 @@ export class WebSocketSyncServer {
       isAuthenticated: true,
     });
 
-    console.log(`✅ Client authenticated and registered: ${deviceName} (${deviceId})`);
+    wsLogger.info({ deviceName, deviceId }, 'Client authentifié et enregistré');
 
     // Send confirmation with server info
     ws.send(JSON.stringify({
@@ -386,7 +385,7 @@ export class WebSocketSyncServer {
         const isMaster = config.masterDeviceId === sourceClient.deviceId;
 
         if (!isMaster) {
-          console.log(`Sync data rejected: ${sourceClient.deviceName} is not the master device`);
+          wsLogger.warn({ deviceName: sourceClient.deviceName }, 'Données sync refusées : appareil non maître');
           ws.send(JSON.stringify({
             type: 'error',
             message: 'Seul l\'appareil maître peut envoyer des données en mode hors ligne',
@@ -395,7 +394,7 @@ export class WebSocketSyncServer {
         }
       }
     } catch (error) {
-      console.error('Error checking sync permissions:', error);
+      wsLogger.error({ err: error }, 'Erreur vérification permissions sync');
       ws.send(JSON.stringify({ type: 'error', message: 'Permission check failed' }));
       return;
     }
@@ -414,7 +413,7 @@ export class WebSocketSyncServer {
       return;
     }
 
-    console.log(`📤 Sync data from ${sourceClient.deviceName}: type=${dataType}, size=${payloadSize} bytes`);
+    wsLogger.info({ deviceName: sourceClient.deviceName, dataType, payloadSize }, 'Données sync reçues');
 
     if (targetDeviceId) {
       // Send to specific device
@@ -427,7 +426,7 @@ export class WebSocketSyncServer {
           dataType,
           data: syncData,
         }));
-        console.log(`📩 Sync data sent to ${targetClient.deviceName}`);
+        wsLogger.info({ targetDeviceName: targetClient.deviceName }, 'Données sync envoyées');
       } else {
         ws.send(JSON.stringify({ type: 'error', message: 'Target device not found' }));
       }
@@ -446,7 +445,7 @@ export class WebSocketSyncServer {
           sentCount++;
         }
       });
-      console.log(`📡 Sync data broadcast to ${sentCount} clients`);
+      wsLogger.info({ sentCount }, 'Données sync diffusées en broadcast');
     }
   }
 
@@ -494,13 +493,13 @@ export class WebSocketSyncServer {
     if (this.udpServer) {
       this.udpServer.close();
       this.udpServer = null;
-      console.log('UDP Discovery Server stopped');
+      wsLogger.info('Serveur UDP découverte arrêté');
     }
 
     if (this.wss) {
       this.wss.close();
       this.clients.clear();
-      console.log('WebSocket Sync Server stopped');
+      wsLogger.info('Serveur WebSocket Sync arrêté');
     }
   }
 }

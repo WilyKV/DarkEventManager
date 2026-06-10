@@ -14,6 +14,9 @@ import { sessionLogger } from "./session-logger";
 import { pool } from "./db";
 import { getSessionCookieOptions } from "./session-cookie-config";
 import { applySecurityHeaders } from "./security-headers";
+import { childLogger } from "./logger";
+
+const appLogger = childLogger('app');
 
 const app = express();
 applySecurityHeaders(app);
@@ -75,7 +78,7 @@ app.use((req, res, next) => {
   if (wsSecretCheck.mode === 'fail') {
     throw new Error(wsSecretCheck.message);
   } else if (wsSecretCheck.mode === 'warn') {
-    console.warn('[WebSocket] ' + wsSecretCheck.message);
+    appLogger.warn({ module: 'websocket' }, wsSecretCheck.message);
   }
 
   // Register auth routes FIRST (no middleware needed)

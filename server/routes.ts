@@ -11,6 +11,10 @@ import pako from "pako";
 import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema, insertPurchaseSchema, type InsertTimeSlot, type InsertSquad, type InsertShopItem, type InsertMealItem, type InsertPurchase } from "@shared/schema";
 import { generateParticipantPDF } from "./pdf-service";
 import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
+import { childLogger } from "./logger";
+
+const routesLogger = childLogger('routes');
+const qrLogger = childLogger('qr-import');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -61,7 +65,7 @@ async function createAuditLog(
       userAgent: req.get('user-agent') || null,
     });
   } catch (error) {
-    console.error('Failed to create audit log:', error);
+    routesLogger.error({ err: error }, 'Echec création audit log');
     // Ne pas bloquer l'opération si le logging échoue
   }
 }
@@ -158,7 +162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(participant);
     } catch (error) {
-      console.error("Create participant error:", error);
+      routesLogger.error({ err: error }, 'Erreur création participant');
       res.status(500).json({ message: "Error creating participant" });
     }
   });
@@ -208,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(participant);
     } catch (error) {
-      console.error("Update participant error:", error);
+      routesLogger.error({ err: error }, 'Erreur mise à jour participant');
       res.status(500).json({ message: "Error updating participant", error: error instanceof Error ? error.message : String(error) });
     }
   });
@@ -235,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ success: true, secretCode: updated.secretCode });
     } catch (error) {
-      console.error("Regenerate code error:", error);
+      routesLogger.error({ err: error }, 'Erreur régénération code secret');
       res.status(500).json({ message: "Error regenerating code" });
     }
   });
@@ -272,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({ success: true, updated: results.length, participants: results });
     } catch (error) {
-      console.error("Batch update error:", error);
+      routesLogger.error({ err: error }, 'Erreur mise à jour batch');
       res.status(500).json({ message: "Error updating participants", error: error instanceof Error ? error.message : String(error) });
     }
   });
@@ -357,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Import successful", count });
     } catch (error) {
-      console.error("Import error:", error);
+      routesLogger.error({ err: error }, "Erreur import Excel");
       res.status(500).json({ message: "Error importing participants" });
     }
   });
@@ -818,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(item);
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Shop item validation error:", error.message);
+        routesLogger.error({ message: error.message }, 'Erreur validation article boutique');
         res.status(400).json({ message: "Invalid shop item data", error: error.message });
       } else {
         res.status(400).json({ message: "Invalid shop item data" });
@@ -864,7 +868,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(item);
     } catch (error) {
       if (error instanceof Error) {
-        console.error("Meal item validation error:", error.message);
+        routesLogger.error({ message: error.message }, 'Erreur validation article repas');
         res.status(400).json({ message: "Invalid meal item data", error: error.message });
       } else {
         res.status(400).json({ message: "Invalid meal item data" });
@@ -1178,7 +1182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: `${module} data reset successfully`, module, type });
     } catch (error) {
-      console.error("Reset error:", error);
+      routesLogger.error({ err: error }, 'Erreur reset données');
       res.status(500).json({ message: "Error resetting data" });
     }
   });
@@ -1289,7 +1293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.send(excelBuffer);
     } catch (error) {
-      console.error("Export all error:", error);
+      routesLogger.error({ err: error }, 'Erreur export Excel complet');
       res.status(500).json({ message: "Error exporting all data" });
     }
   });
@@ -1395,7 +1399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.send(excelBuffer);
     } catch (error) {
-      console.error("Export module error:", error);
+      routesLogger.error({ err: error }, 'Erreur export Excel module');
       res.status(500).json({ message: "Error exporting module data" });
     }
   });
@@ -1464,7 +1468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             timeSlotMap.set(`${name}-${type}`, timeSlot.id);
             stats.imported++;
           } catch (error) {
-            console.error("Error importing time slot:", error);
+            routesLogger.error({ err: error }, 'Erreur import créneaux horaires Excel');
             stats.errors++;
           }
         }
@@ -1493,7 +1497,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             squadMap.set(`${row.number}-${type}`, squad.id);
             stats.imported++;
           } catch (error) {
-            console.error("Error importing squad:", error);
+            routesLogger.error({ err: error }, 'Erreur import squad Excel');
             stats.errors++;
           }
         }
@@ -1503,16 +1507,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (sheetNames.includes("Participants")) {
         const ws = workbook.getWorksheet("Participants");
         const data = ws ? sheetToJson(ws) : [];
-        
+
         for (const row of data) {
           try {
             // Convert to string and check if valid
             const firstName = String(row.firstName || "").trim();
             const lastName = String(row.lastName || "").trim();
             const type = String(row.type || "").trim() as "zombie" | "survivant";
-            
+
             if (!firstName || !lastName || !type) continue;
-            
+
             // Find time slot ID if time slot name provided
             let timeSlotId: number | null = null;
             if (row.timeSlotName) {
@@ -1540,7 +1544,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             stats.imported++;
           } catch (error) {
-            console.error("Error importing participant:", error);
+            routesLogger.error({ err: error }, 'Erreur import participant Excel');
             stats.errors++;
           }
         }
@@ -1548,7 +1552,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ message: "Import completed", stats });
     } catch (error) {
-      console.error("Import all error:", error);
+      routesLogger.error({ err: error }, "Erreur import Excel complet");
       res.status(500).json({ message: "Error importing data" });
     }
   });
@@ -1586,7 +1590,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ qrData: encoded, size: encoded.length, originalSize: jsonData.length });
     } catch (error) {
-      console.error("QR share error:", error);
+      qrLogger.error({ err: error }, 'Erreur génération QR partage');
       res.status(500).json({ message: "Error generating QR share data" });
     }
   });
@@ -1600,7 +1604,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "QR data is required" });
       }
 
-      console.log("QR Import - Data length:", qrData.length);
+      qrLogger.debug({ dataLength: qrData.length }, 'Début import QR');
 
       let data: any;
 
@@ -1609,7 +1613,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const parsed = JSON.parse(qrData);
         if (parsed.t) {
           // New minimal format detected
-          console.log("QR Import - Minimal format detected, type:", parsed.t);
+          qrLogger.debug({ type: parsed.t }, 'Format minimal QR détecté');
           
           // Convert minimal format to standard format
           if (parsed.t === "T") {
@@ -1647,21 +1651,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             throw new Error("Unknown minimal format type: " + parsed.t);
           }
-          console.log("QR Import - Converted data structure:", Object.keys(data));
+          qrLogger.debug({ keys: Object.keys(data) }, 'Structure données QR convertie');
         } else {
           throw new Error("Not minimal format");
         }
       } catch (parseError) {
         // Old compressed format
-        console.log("QR Import - Compressed format detected");
+        qrLogger.debug('Format compressé QR détecté');
         const decoded = Buffer.from(qrData, 'base64');
-        console.log("QR Import - Decoded size:", decoded.length);
-        
+        qrLogger.debug({ decodedSize: decoded.length }, 'QR décodé base64');
         const decompressed = pako.ungzip(decoded, { to: 'string' });
-        console.log("QR Import - Decompressed size:", decompressed.length);
-        
+        qrLogger.debug({ decompressedSize: decompressed.length }, 'QR décompressé');
         data = JSON.parse(decompressed);
-        console.log("QR Import - Data structure:", Object.keys(data));
+        qrLogger.debug({ keys: Object.keys(data) }, 'Structure données QR');
       }
 
       const stats = { imported: 0, errors: 0 };
@@ -1672,7 +1674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Step 1: Import time slots first and create ID mapping
       if (data.timeSlots && Array.isArray(data.timeSlots)) {
-        console.log(`QR Import - Processing ${data.timeSlots.length} time slots`);
+        qrLogger.debug({ count: data.timeSlots.length }, 'Import créneaux horaires QR');
         
         // Get existing time slots to check for duplicates
         const existingTimeSlots = await storage.getTimeSlots();
@@ -1691,25 +1693,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
             
             if (duplicate) {
-              console.log(`Time slot "${timeSlotData.name}" already exists, using existing ID ${duplicate.id}`);
+              qrLogger.debug({ name: timeSlotData.name, existingId: duplicate.id }, 'Créneau horaire déjà existant, réutilisé');
               timeSlotIdMap.set(oldId, duplicate.id);
               stats.imported++;
             } else {
               const newTimeSlot = await storage.createTimeSlot(timeSlotData);
               timeSlotIdMap.set(oldId, newTimeSlot.id);
               stats.imported++;
-              console.log(`Created time slot ${oldId} -> ${newTimeSlot.id}`);
+              qrLogger.debug({ oldId, newId: newTimeSlot.id }, 'Créneau horaire créé');
             }
           } catch (error) {
             stats.errors++;
-            console.error("Error importing time slot:", error);
+            qrLogger.error({ err: error }, 'Erreur import créneau horaire QR');
           }
         }
       }
 
       // Step 2: Import squads with updated timeSlotId references
       if (data.squads && Array.isArray(data.squads)) {
-        console.log(`QR Import - Processing ${data.squads.length} squads`);
+        qrLogger.debug({ count: data.squads.length }, 'Import squads QR');
         
         // Get existing squads to check for duplicates
         const existingSquads = await storage.getSquads();
@@ -1723,7 +1725,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Map old timeSlotId to new one
             const newTimeSlotId = timeSlotIdMap.get(oldTimeSlotId);
             if (!newTimeSlotId && oldTimeSlotId) {
-              console.warn(`Warning: Squad ${oldId} references non-existent timeSlot ${oldTimeSlotId}, skipping timeSlotId`);
+              qrLogger.warn({ squadId: oldId, oldTimeSlotId }, 'Squad référence un créneau horaire inexistant, ignoré');
             }
             
             // Check if squad already exists (by number, type, and timeSlotId)
@@ -1734,7 +1736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             );
             
             if (duplicate) {
-              console.log(`Squad ${squadData.number} (${squadData.type}) already exists, using existing ID ${duplicate.id}`);
+              qrLogger.debug({ number: squadData.number, type: squadData.type, existingId: duplicate.id }, 'Squad déjà existante, réutilisée');
               squadIdMap.set(oldId, duplicate.id);
               stats.imported++;
             } else {
@@ -1744,18 +1746,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               });
               squadIdMap.set(oldId, newSquad.id);
               stats.imported++;
-              console.log(`Created squad ${oldId} -> ${newSquad.id} (timeSlot: ${oldTimeSlotId} -> ${newTimeSlotId})`);
+              qrLogger.debug({ oldId, newId: newSquad.id, oldTimeSlotId, newTimeSlotId }, 'Squad créée');
             }
           } catch (error) {
             stats.errors++;
-            console.error("Error importing squad:", error);
+            qrLogger.error({ err: error }, 'Erreur import squad QR');
           }
         }
       }
 
       // Step 3: Import participants with updated timeSlotId and squadId references
       if (data.participants && Array.isArray(data.participants)) {
-        console.log(`QR Import - Processing ${data.participants.length} participants`);
+        qrLogger.debug({ count: data.participants.length }, 'Import participants QR');
         for (const participant of data.participants) {
           try {
             const oldTimeSlotId = participant.timeSlotId;
@@ -1767,10 +1769,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const newSquadId = oldSquadId ? squadIdMap.get(oldSquadId) : null;
             
             if (oldTimeSlotId && !newTimeSlotId) {
-              console.warn(`Warning: Participant ${participant.firstName} references non-existent timeSlot ${oldTimeSlotId}`);
+              qrLogger.warn({ firstName: participant.firstName, oldTimeSlotId }, 'Participant référence un créneau horaire inexistant');
             }
             if (oldSquadId && !newSquadId) {
-              console.warn(`Warning: Participant ${participant.firstName} references non-existent squad ${oldSquadId}`);
+              qrLogger.warn({ firstName: participant.firstName, oldSquadId }, 'Participant référence une squad inexistante');
             }
             
             await storage.createParticipant({
@@ -1781,14 +1783,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             stats.imported++;
           } catch (error) {
             stats.errors++;
-            console.error("Error importing participant:", error);
+            qrLogger.error({ err: error }, 'Erreur import participant QR');
           }
         }
       }
 
       // Import shop items if present
       if (data.shopItems && Array.isArray(data.shopItems)) {
-        console.log(`QR Import - Processing ${data.shopItems.length} shop items`);
+        qrLogger.debug({ count: data.shopItems.length }, 'Import articles boutique QR');
         for (const item of data.shopItems) {
           try {
             // Remove id to let the database generate a new one
@@ -1797,14 +1799,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
             stats.imported++;
           } catch (error) {
             stats.errors++;
-            console.error("Error importing shop item:", error);
+            qrLogger.error({ err: error }, 'Erreur import article boutique QR');
           }
         }
       }
 
       // Import meal items if present
       if (data.mealItems && Array.isArray(data.mealItems)) {
-        console.log(`QR Import - Processing ${data.mealItems.length} meal items`);
+        qrLogger.debug({ count: data.mealItems.length }, 'Import articles repas QR');
         for (const item of data.mealItems) {
           try {
             // Remove id to let the database generate a new one
@@ -1813,16 +1815,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             stats.imported++;
           } catch (error) {
             stats.errors++;
-            console.error("Error importing meal item:", error);
+            qrLogger.error({ err: error }, 'Erreur import article repas QR');
           }
         }
       }
 
-      console.log("QR Import - Stats:", stats);
+      qrLogger.info({ stats }, 'Import QR terminé');
       res.json({ message: "QR import completed", stats });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error("QR import error:", error);
+      qrLogger.error({ err: error }, 'Erreur import QR');
       res.status(500).json({ message: "Error importing QR data", error: errorMessage });
     }
   });
@@ -1861,7 +1863,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(pdfBuffer);
     } catch (error) {
-      console.error("Error generating participant PDF:", error);
+      routesLogger.error({ err: error }, 'Erreur génération PDF participant');
       res.status(500).json({ message: "Erreur lors de la génération du PDF" });
     }
   });
@@ -1881,7 +1883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const logs = await storage.getAuditLogs(filters);
       res.json(logs);
     } catch (error) {
-      console.error("Error fetching audit logs:", error);
+      routesLogger.error({ err: error }, 'Erreur récupération audit logs');
       res.status(500).json({ message: "Erreur lors de la récupération des logs" });
     }
   });

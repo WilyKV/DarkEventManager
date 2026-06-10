@@ -10,6 +10,7 @@ import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { hashPassword, verifyPassword, isLegacyHash } from "./password-hashing";
 import { requireAuth, requireRole } from "./auth-middleware";
+import { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_VISITOR_MAX, RATE_LIMIT_STAFF_MAX } from "./config/limits";
 
 export { requireAuth, requireRole };
 
@@ -26,8 +27,8 @@ export function registerAuthRoutes(app: Express) {
 
   // Rate limiter for visitor login: 10 attempts per 15 min per IP
   const visitorLoginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: RATE_LIMIT_VISITOR_MAX,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Trop de tentatives, réessayez plus tard.' },
@@ -36,8 +37,8 @@ export function registerAuthRoutes(app: Express) {
 
   // Rate limiter for staff login: 5 attempts per 15 min per IP+username
   const staffLoginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 5,
+    windowMs: RATE_LIMIT_WINDOW_MS,
+    max: RATE_LIMIT_STAFF_MAX,
     standardHeaders: true,
     legacyHeaders: false,
     message: { message: 'Trop de tentatives, réessayez plus tard.' },

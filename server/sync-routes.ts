@@ -4,6 +4,7 @@ import { z } from "zod";
 import { generateWebSocketToken, getWebSocketSecret } from "./sync-middleware";
 import { requireAuth, requireRole } from "./auth-middleware";
 import { childLogger } from "./logger";
+import { WS_TOKEN_TTL_MS } from "./ws-token";
 
 const syncLogger = childLogger('sync');
 
@@ -30,7 +31,7 @@ export function registerSyncRoutes(app: Express) {
 
       res.json({
         token,
-        expiresIn: 900000, // 15 minutes in milliseconds
+        expiresIn: WS_TOKEN_TTL_MS,
       });
     } catch (error: any) {
       if (error.name === "ZodError") {

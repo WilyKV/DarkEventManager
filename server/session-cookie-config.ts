@@ -1,3 +1,5 @@
+import { SESSION_COOKIE_MAX_AGE_MS } from './config/limits';
+
 export function getSessionCookieOptions(env: NodeJS.ProcessEnv): {
   secure: boolean;
   httpOnly: boolean;
@@ -8,6 +10,6 @@ export function getSessionCookieOptions(env: NodeJS.ProcessEnv): {
     secure: env.NODE_ENV === 'production',
     httpOnly: true,
     sameSite: 'lax',
-    maxAge: 86400000,
+    maxAge: SESSION_COOKIE_MAX_AGE_MS,
   };
 }

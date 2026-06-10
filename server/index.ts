@@ -15,12 +15,13 @@ import { pool } from "./db";
 import { getSessionCookieOptions } from "./session-cookie-config";
 import { applySecurityHeaders } from "./security-headers";
 import { childLogger } from "./logger";
+import { BULK_INGEST_BODY_LIMIT } from "./config/limits";
 
 const appLogger = childLogger('app');
 
 const app = express();
 applySecurityHeaders(app);
-app.use("/api/events/bulk-ingest", express.json({ limit: "10mb" }));
+app.use("/api/events/bulk-ingest", express.json({ limit: BULK_INGEST_BODY_LIMIT }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

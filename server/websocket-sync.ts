@@ -6,6 +6,12 @@ import { verifyWebSocketToken, getWebSocketSecret } from './sync-middleware';
 import { storage } from './storage';
 import { validateWebSocketSecret } from './websocket-secret-config';
 import { childLogger } from './logger';
+import {
+  WS_MAX_PAYLOAD_BYTES,
+  WS_PING_INTERVAL_MS,
+  WS_SYNC_DATA_MAX_BYTES,
+  UDP_DISCOVERY_PORT,
+} from './config/limits';
 
 const wsLogger = childLogger('websocket');
 
@@ -21,7 +27,7 @@ export class WebSocketSyncServer {
   private wss: WebSocketServer | null = null;
   private clients: Map<string, SyncClient> = new Map();
   private udpServer: dgram.Socket | null = null;
-  private broadcastPort: number = 8888;
+  private broadcastPort: number = UDP_DISCOVERY_PORT;
   private httpServer: Server | null = null;
   private wsSecret: string;
 
@@ -45,7 +51,7 @@ export class WebSocketSyncServer {
       // We'll verify authentication via token in the register message
       verifyClient: () => true,
       // Increase max payload size for data sync
-      maxPayload: 100 * 1024 * 1024, // 100MB
+      maxPayload: WS_MAX_PAYLOAD_BYTES,
     });
 
     const localIP = this.getLocalIP();
@@ -65,7 +71,7 @@ export class WebSocketSyncServer {
         } else {
           clearInterval(pingInterval);
         }
-      }, 30000);
+      }, WS_PING_INTERVAL_MS);
 
       // Handle client messages
       ws.on('message', (data: Buffer) => {
@@ -401,7 +407,7 @@ export class WebSocketSyncServer {
 
     // Validate payload size (max 10MB per message)
     const payloadSize = JSON.stringify(syncData).length;
-    if (payloadSize > 10 * 1024 * 1024) {
+    if (payloadSize > WS_SYNC_DATA_MAX_BYTES) {
       ws.send(JSON.stringify({ type: 'error', message: 'Payload too large (max 10MB)' }));
       return;
     }

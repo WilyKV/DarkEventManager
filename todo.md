@@ -1,7 +1,7 @@
 # Roadmap DarkEventManager — Zomb'in The Dark
 
 > Source de vérité de la coordination multi-agent. Mise à jour à chaque jalon par l'orchestrateur.
-> Dernière mise à jour : 2026-05-25 (Vague 2.5 — Hardening sécurité LIVRÉE)
+> Dernière mise à jour : 2026-06-11 (Vague 3 + hotfix sécurité export LIVRÉ)
 
 ## 🎯 Objectif global
 
@@ -11,7 +11,7 @@ App de gestion d'événement pour Zomb'in The Dark (500-1000 participants, en gr
 
 ## 🚨 VULNÉRABILITÉS CRITIQUES À FIXER AVANT L'ÉVÉNEMENT
 
-**Verdict : 🟡 ORANGE — Vague 2.5 résolue (9/10 failles). 3 npm audit HIGH restants + db-push devops bloquant. 🟢 atteint quand npm audit + db-push fait.**
+**Verdict : 🟡→Presque 🟢 — npm audit prod CLEAN (0 HIGH / 0 CRITICAL). 3 npm HIGH RÉSOLUS en Vague 3. CRIT-REV-1 RÉSOLU. Reste uniquement `make db-push` (devops humain) avant 🟢 complet.**
 
 ### Failles bloquantes (Scénario d'attaque RÉALISTE en cave)
 
@@ -23,9 +23,9 @@ App de gestion d'événement pour Zomb'in The Dark (500-1000 participants, en gr
 | **HIGH-SEC-2** | IDOR event-ingest | `server/event-ingest-routes.ts:91-95,170` | ✅ **RÉSOLU** — Check IDOR ajouté : `event.deviceId === header X-Device-ID`. Mismatch → rejected `device_id_mismatch`. (Chain SEC-SYNC) |
 | **HIGH-SEC-3** | QR encryption hardcodée | `server/routes.ts:16-17` | ✅ **RÉSOLU** — AES-256-GCM migrée (nouveau module `server/qr-encryption.ts`). IV random par chiffrement (12 bytes), authTag intégré. Format `<iv_hex>:<authTag_hex>:<ciphertext_hex>`. Tamper detection automatique. (Chain SEC-CRYPTO) |
 | **HIGH-SEC-4** | Passwords SHA-256 sans sel | `server/auth-routes.ts:11` | ✅ **RÉSOLU** — Bcrypt cost 12 intégré (nouveau module `server/password-hashing.ts`). Migration lazy : user SHA-256 legacy se re-hashe en bcrypt au prochain login. Pas de cassure. (Chain SEC-CRYPTO) |
-| **npm-HIGH-1** | drizzle-orm SQL injection | `drizzle-orm@0.39.3` | 🟠 **NON RÉSOLUE** — À faire Vague 3 (breaking, 2h). GHSA-gpj5-g38j-94v9. Upgrade to 0.45.2+ requis. |
-| **npm-HIGH-2** | nodemailer DoS + domain confusion | `nodemailer@6.10.1` | 🟠 **NON RÉSOLUE** — À faire Vague 3 (breaking, 2h). GHSA-rcmh-qjqh-p98v. Upgrade to 8.0.8+ requis. |
-| **npm-HIGH-3** | xlsx Prototype Pollution + ReDoS | `xlsx@0.18.5` | 🟠 **NON RÉSOLUE** — À faire Vague 3 (breaking, 2h). GHSA-4r6h-8v6p-xvw6. Remplacer par `exceljs@4.4.0`. Paquet abandonné. |
+| **npm-HIGH-1** | drizzle-orm SQL injection | `drizzle-orm@0.39.3` | ✅ **RÉSOLU Vague 3** — Upgrade to 0.45.2 (GHSA-gpj5-g38j-94v9). Types Insert* redéfinis via `typeof table.$inferInsert`. Casts ajoutés dans auth-routes.ts et routes.ts. Validation zod runtime préservée. Aucun db:push requis (DDL inchangé). |
+| **npm-HIGH-2** | nodemailer DoS + domain confusion | `nodemailer@6.10.1` | ✅ **RÉSOLU Vague 3** — Upgrade to 8.0.11, @types/nodemailer@8.0.1. API createTransport/sendMail stable. 4 CVE résolues (GHSA-mm7p-fcc7-pg87, GHSA-rcmh-qjqh-p98v, GHSA-c7w3-x93f-qmm8, GHSA-vvjj-xcjg-gr5g). Aucun changement de code. |
+| **npm-HIGH-3** | xlsx Prototype Pollution + ReDoS | `xlsx@0.18.5` | ✅ **RÉSOLU Vague 3** — Migration xlsx@0.18.5 → exceljs@^4.4.0 en prod (server/routes.ts, ~30 appels). xlsx déplacé en devDependencies (tests). Comportement Excel préservé (noms feuilles, colonnes, content-type). 58 tests caractérisation ajoutés. API exceljs asynchrone (await writeBuffer/load). |
 
 ### Vulnérabilités MOYENNES (patchées en Vague 2.5)
 
@@ -41,8 +41,8 @@ App de gestion d'événement pour Zomb'in The Dark (500-1000 participants, en gr
 
 | ID | Faille | Fichier:Ligne | Remédiation |
 |---|---|---|---|
-| CRIT-REV-1 | Duplication `requireAuth`/`requireRole` | `server/auth-middleware.ts:7-34` vs `server/auth-routes.ts:16-40` | Reporté Vague 3 (MOD-* refactor) — centraliser en un seul export. |
-| CRIT-REV-2 | Commentaire "fail-secure" trompeur | `server/sync-middleware.ts:55-62` | Reporté Vague 3 (MOD-* refactor) — utiliser logger structuré. |
+| CRIT-REV-1 | Duplication `requireAuth`/`requireRole` | `server/auth-middleware.ts:7-34` vs `server/auth-routes.ts:16-40` | ✅ **RÉSOLU Vague 3** — Définitions dupliquées supprimées de auth-routes.ts. Re-export depuis auth-middleware.ts (source unique canonique). Import corrigé dans end-event-routes.ts (pointait encore vers auth-routes). |
+| CRIT-REV-2 | Commentaire "fail-secure" trompeur | `server/sync-middleware.ts:55-62` | 🟠 **REPORTÉ** — À faire Vague 4 (MOD-12 logger structuré). Nécessite pino/winston pour standardiser logs. |
 | CRIT-REV-4 | `insertBeforeGlobalJsonParser` API privée | `server/event-ingest-routes.ts:56-71` | ✅ **RÉSOLU** — Hack supprimé. Body parser 10mb monté path-scoped sur `/api/events/bulk-ingest` AVANT le parser global dans `server/index.ts` (pattern Express natif). (Chain SEC-HARDENING) |
 
 ### Priorité de fix
@@ -145,6 +145,28 @@ App de gestion d'événement pour Zomb'in The Dark (500-1000 participants, en gr
 
 **4 chains parallèles, tous verts. +230 tests (302 → 532). Dépendances installées : `express-rate-limit`, `bcryptjs`, `helmet`.**
 
+### Vague 3 — npm audit + refactoring LIVRÉE
+
+**npm audit 3 HIGH RÉSOLUS. CRIT-REV-1 RÉSOLU. +58 tests caractérisation Excel (532 → 590). Hotfix export authentification : +5 tests (590 → 595). Erreurs TS : 74 → 48 (-26).**
+
+#### npm audit fixes ✅
+Tous les 3 HIGH résolus (voir tableau "Failles bloquantes" ci-dessus) :
+- ✅ **npm-HIGH-1** : Upgrade drizzle-orm 0.39.3 → 0.45.2. Types Insert* redéfinis via `typeof table.$inferInsert` (natif drizzle). Validation zod runtime préservée. Casts ajoutés dans `server/auth-routes.ts` et `server/routes.ts`. 2 bugs pré-existants révélés (timeSlotId requis, hasMerch inexistant) et corrigés dans import Excel.
+- ✅ **npm-HIGH-2** : Upgrade nodemailer 6.10.1 → 8.0.11. API stable (createTransport/sendMail), aucun changement de code. 4 CVE résolues.
+- ✅ **npm-HIGH-3** : Migration xlsx@0.18.5 → exceljs@^4.4.0. 30 appels prod convertis dans `server/routes.ts` (writeBuffer/load asynchrone). xlsx déplacé en devDependencies. Comportement Excel préservé (noms feuilles, colonnes, content-type, disposition). 58 tests caractérisation créés : `tests/server/excel-export-import.characterization.test.ts`.
+
+#### CRIT-REV-1 : dédup requireAuth/requireRole ✅
+- ✅ Définitions dupliquées supprimées de `server/auth-routes.ts`
+- ✅ Re-export unique depuis `server/auth-middleware.ts` (source canonique)
+- ✅ Import corrigé dans `server/end-event-routes.ts` (pointait vers auth-routes)
+
+**Métriques Vague 3 :**
+- 590 tests passent (532 + 58 caractérisation Excel)
+- Erreurs TS : 74 → 48 (-26 ; upgrade drizzle + redéfinition types Insert)
+- `npm audit --omit=dev` : **0 HIGH / 0 CRITICAL** (était 3 HIGH). Reste 2 moderate transitives (uuid < 11.1.1 via exceljs, non-bloquant).
+- Build OK (vite + esbuild ~179KB)
+- Seul rouge : `tests/client/smoke.test.tsx` (JSX preserve, pré-existant)
+
 #### Chain SEC-AUTH (63 tests) ✅
 Fichiers modifiés : `server/routes.ts`, `server/auth-routes.ts`.
 - ✅ **CRIT-SEC-1** : Auth guards ajoutées sur `POST /api/data/reset`, `POST /api/data/import-all`, `POST /api/participants/import`, `GET /api/data/export-all`, `GET /api/export/*` (staff), `GET /api/qr/generate/:id` (staff)
@@ -183,7 +205,7 @@ Nouveaux modules : `server/session-cookie-config.ts`, `server/security-headers.t
 
 - [x] **(priorité CRIT) Routes destructrices sans auth** : ✅ RÉSOLU Vague 2.5 (SEC-AUTH chain).
 - [x] **(priorité CRIT) Brute-force visitor login** : ✅ RÉSOLU Vague 2.5 (rate-limit SEC-AUTH chain).
-- [ ] **(priorité CRIT) npm audits 3 HIGH** : drizzle-orm, nodemailer, xlsx — 🟠 À faire Vague 3 (breaking changes, 2h estimée).
+- [x] **(priorité CRIT) npm audits 3 HIGH** : ✅ RÉSOLU Vague 3 (drizzle-orm, nodemailer, xlsx).
 
 ### Modérées (refactor + code health)
 
@@ -222,13 +244,20 @@ Nouveaux modules : `server/session-cookie-config.ts`, `server/security-headers.t
 
 ### Basses (non-bloquants, tech debt)
 
+- [ ] **(priorité B) uuid < 11.1.1 moderate** : via exceljs (transitif). Non-bloquant. Fix nécessiterait downgrade exceljs vers 3.4.0 (breaking change). À surveiller pour futures mises à jour.
+
+- [x] **(priorité HIGH-SEC nouveau) `GET /api/data/export/:module` SANS authentification** : ✅ **RÉSOLU** — `requireAuth` ajouté dans `server/routes.ts`. Contrat : tout rôle authentifié (cohérent avec `GET /api/export/*` voisines). Réponse 401 si non-authentifié. Tests : filet caractérisation Excel étendu à 63 cas (dont 401 non-auth + 200 auth). Suite : 595 tests verts (590 → 595).
+
+- [ ] **(priorité B) Ambiguïté noms de feuilles Excel** : Incohérence "Creneaux" (sans accent, exports) vs "Créneaux" (avec accent, import-all). Fichiers exportés ne sont pas tous ré-importables. Comportement PRÉSERVÉ par migration xlsx→exceljs. À clarifier avec PO.
+
 - [ ] **(priorité B) smoke.test.tsx client** : conflit `jsx: preserve` (Vite Tailwind plugin) ↔ Vitest jsdom. Empêche actuellement l'exécution des tests client React. Nécessite refactor tsconfig ou bypass JSX transform.
 
 - [ ] **(priorité B) Body parser reorder** dans `server/event-ingest-routes.ts` : utilise `insertBeforeGlobalJsonParser()` (workaround InjectedRoute). Légitime pour accepter multipart avant JSON global, mais à documenter en commentaire pour les futurs devs.
 
-- [ ] **(priorité B) 74 erreurs TS pré-existantes** :
-  - `server/storage.ts` (~28) : faux positifs drizzle-zod, annotations manquantes
-  - `shared/schema.ts` (~13) : union types Drizzle non-résolues
+- [ ] **(priorité B) 48 erreurs TS restantes** (était 74 pré-Vague 3, -26 via drizzle upgrade) :
+  - `server/storage.ts` (~12) : annotations manquantes post-drizzle
+  - `shared/schema.ts` (~10) : union types Drizzle, boolean/never lignes 316-378
+  - `client components` (~15) : SquadWithRelations.name manquant
   - `server/websocket-sync.ts` (2) : types WebSocket implicites
   - À nettoyer en chantier dédié code-health.
 
@@ -299,22 +328,25 @@ Tous les items marqués RÉSOLUS ci-dessus. 4 chains parallèles complétées (S
 
 ---
 
-#### Vague 3 (post-événement) — npm audit + refactoring MOD-* dettes code
+#### Vague 3 — npm audit + refactoring MOD-* dettes code — ✅ PARTIELLEMENT LIVRÉE
 
-**Objectif : Finir npm audit 3 HIGH et dettes CRIT-REV-1/2.**
+**Objectif : Finir npm audit 3 HIGH et dettes CRIT-REV-1. PARTIELLEMENT ATTEINT.**
 
-- [ ] **npm audit fixes** (2h breaking)
-  - Upgrade `drizzle-orm` 0.39.3 → 0.45.2 (breaking)
-  - Upgrade `nodemailer` 6.10.1 → 8.0.8 (major breaking)
-  - Replace `xlsx@0.18.5` → `exceljs@4.4.0` (ESM)
-  - Test : `npm run check && npm run build && npm test` (532+ tests pass)
+Livré :
+- [x] **npm audit fixes** — ✅ FAIT
+  - Upgrade `drizzle-orm` 0.39.3 → 0.45.2 ✅
+  - Upgrade `nodemailer` 6.10.1 → 8.0.11 ✅
+  - Replace `xlsx@0.18.5` → `exceljs@4.4.0` ✅
+  - Tests : `npm run check` (48 TS errors, -26 vs Vague 2.5), `npm run build` OK (179KB), `npm test` 590 verts ✅
 
-- [ ] **US-Refactor-1** (CRIT-REV-1) : éliminer doublon `requireAuth`
-  - Fichiers affectés : `server/auth-routes.ts`, `server/routes.ts`
-  - Centraliser en un export unique depuis `server/auth-middleware.ts`
+- [x] **US-Refactor-1** (CRIT-REV-1) — ✅ FAIT : éliminer doublon `requireAuth`/`requireRole`
+  - Fichiers affectés : `server/auth-routes.ts`, `server/routes.ts`, `server/end-event-routes.ts`
+  - Centraliser en export unique depuis `server/auth-middleware.ts` ✅
+
+À faire (reporté Vague 4) :
 
 - [ ] **US-Refactor-2** (CRIT-REV-2) : logger structuré
-  - Intégrer pino ou winston pour remplacer `console.error`
+  - Intégrer pino ou winston pour remplacer `console.error` (~105 appels server/)
   - Standardiser sur `server/logger.ts`
 
 - [ ] **US-Refactor-3** : découper `IStorage` god-interface (MOD-1)
@@ -482,9 +514,11 @@ Tous les items marqués RÉSOLUS ci-dessus. 4 chains parallèles complétées (S
 
 | Metrique | Target | Current |
 |----------|--------|---------|
-| Tests passent | 100% (302+) | 302/302 ✅ |
-| Erreurs TS | 0 (cleanup path) | 74 (dette, inchangée Vague 2.5) |
-| Build success | 100% | ✅ |
+| Tests passent | 100% (595+) | 595/595 ✅ (Vague 3 + hotfix) |
+| Erreurs TS | 0 (cleanup path) | 48 (dette, -26 vs Vague 2.5) |
+| Build success | 100% | ✅ (179KB) |
+| npm audit HIGH/CRITICAL | 0 | 0/0 ✅ (Vague 3) |
+| npm audit Moderate | <= 2 (transitif OK) | 2 (uuid via exceljs) ✅ |
 | Coverage client | > 60% | ~45% |
 | Coverage server | > 70% | ~70% ✅ |
 | DB schema idempotence | ✅ | Pending (make db-push) |

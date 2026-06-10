@@ -3,6 +3,7 @@ import { z } from "zod";
 import { storage } from "./storage";
 import type { InsertServerEvent } from "@shared/schema";
 import { requireAuth } from "./auth-middleware";
+import { BULK_INGEST_BATCH_MAX } from "./config/limits";
 
 // ---------------------------------------------------------------------------
 // Types & Validation
@@ -70,7 +71,7 @@ export function registerEventIngestRoutes(app: Express): void {
       const rawEvents = bodyResult.data.events;
 
       // 3. Taille max 500
-      if (rawEvents.length > 500) {
+      if (rawEvents.length > BULK_INGEST_BATCH_MAX) {
         res.status(413).json({ message: "Trop d'events : max 500 par batch" });
         return;
       }

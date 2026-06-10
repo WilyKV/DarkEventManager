@@ -3,6 +3,9 @@ import { requireRole } from "./auth-middleware";
 import { storage } from "./storage";
 import { generateParticipantPDF, encryptPDFFilename } from "./pdf-service";
 import { sendEmail, createEndEventEmailTemplate } from "./email-service";
+import { childLogger } from "./logger";
+
+const endEventLogger = childLogger('end-event');
 
 export function setupEndEventRoute(app: Express) {
   // End event endpoint - Send summary PDFs to all participants
@@ -85,7 +88,7 @@ export function setupEndEventRoute(app: Express) {
           await new Promise(resolve => setTimeout(resolve, 500));
 
         } catch (error) {
-          console.error(`Failed to process participant ${participant.id}:`, error);
+          endEventLogger.error({ err: error, participantId: participant.id }, 'Echec traitement participant');
           failed++;
           processed++;
 
@@ -113,7 +116,7 @@ export function setupEndEventRoute(app: Express) {
       res.end();
 
     } catch (error) {
-      console.error('End event error:', error);
+      endEventLogger.error({ err: error }, 'Erreur fin événement');
       
       // Send error status
       res.write(`data: ${JSON.stringify({

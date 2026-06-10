@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { signDeviceToken, verifyDeviceToken } from "./ws-token";
+import { childLogger } from "./logger";
+
+const syncLogger = childLogger('sync');
 
 /**
  * Middleware to check if the current device can perform write operations
@@ -53,7 +56,7 @@ export async function checkSyncPermissions(req: Request, res: Response, next: Ne
     // This is the master device, allow the operation
     next();
   } catch (error) {
-    console.error('Error checking sync permissions:', error);
+    syncLogger.error({ err: error }, 'Erreur vérification permissions sync');
     // In case of error, DENY the operation in offline mode (fail-secure)
     return res.status(500).json({
       message: "Erreur lors de la vérification des permissions",

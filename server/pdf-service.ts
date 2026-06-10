@@ -2,6 +2,9 @@ import PDFDocument from 'pdfkit';
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 import type { ParticipantWithRelations, PurchaseWithRelations, MealPurchaseWithRelations } from '@shared/schema';
+import { childLogger } from './logger';
+
+const pdfLogger = childLogger('pdf');
 
 interface PDFGenerationData {
   participant: ParticipantWithRelations;
@@ -557,7 +560,7 @@ export function encryptPDFBuffer(pdfBuffer: Buffer, secretCode: string): Buffer 
     // Retourner IV + données chiffrées
     return Buffer.concat([iv, encrypted]);
   } catch (error) {
-    console.error('[PDF] Erreur lors du chiffrement:', error);
+    pdfLogger.error({ err: error }, 'Erreur lors du chiffrement PDF');
     // En cas d'erreur, retourner le PDF non chiffré
     return pdfBuffer;
   }
@@ -576,7 +579,7 @@ export function decryptPDFBuffer(encryptedBuffer: Buffer, secretCode: string): B
     
     return decrypted;
   } catch (error) {
-    console.error('[PDF] Erreur lors du déchiffrement:', error);
+    pdfLogger.error({ err: error }, 'Erreur lors du déchiffrement PDF');
     throw new Error('Impossible de déchiffrer le PDF. Code secret incorrect.');
   }
 }

@@ -1,5 +1,8 @@
 import nodemailer from 'nodemailer';
 import type { Transporter } from 'nodemailer';
+import { childLogger } from './logger';
+
+const emailLogger = childLogger('email');
 
 // Configuration du transporteur SMTP
 export function createEmailTransporter(): Transporter {
@@ -15,9 +18,9 @@ export function createEmailTransporter(): Transporter {
     },
   });
 
-  console.log(`[Email] Transporter créé en mode ${isDevelopment ? 'DÉVELOPPEMENT' : 'PRODUCTION'}`);
+  emailLogger.info({ mode: isDevelopment ? 'DÉVELOPPEMENT' : 'PRODUCTION' }, 'Transporter email créé');
   if (isDevelopment) {
-    console.log(`[Email] Tous les emails seront redirigés vers: ${process.env.DEV_EMAIL_OVERRIDE}`);
+    emailLogger.info({ redirect: process.env.DEV_EMAIL_OVERRIDE }, 'Tous les emails seront redirigés');
   }
 
   return transporter;
@@ -62,12 +65,10 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
 
     const info = await transporter.sendMail(mailOptions);
     
-    console.log(`[Email] Email envoyé avec succès à ${actualTo}`);
-    console.log(`[Email] Message ID: ${info.messageId}`);
-    
+    emailLogger.info({ to: actualTo, messageId: info.messageId }, 'Email envoyé avec succès');
     return true;
   } catch (error) {
-    console.error('[Email] Erreur lors de l\'envoi de l\'email:', error);
+    emailLogger.error({ err: error }, "Erreur lors de l'envoi de l'email");
     return false;
   }
 }

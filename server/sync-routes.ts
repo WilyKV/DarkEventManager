@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
-import crypto from "crypto";
 import { generateWebSocketToken, getWebSocketSecret } from "./sync-middleware";
 import { requireAuth, requireRole } from "./auth-middleware";
+import { childLogger } from "./logger";
+import { WS_TOKEN_TTL_MS } from "./ws-token";
+
+const syncLogger = childLogger('sync');
 
 // Schema for updating sync config
 const updateSyncConfigSchema = z.object({
@@ -17,12 +20,6 @@ const generateTokenSchema = z.object({
   deviceId: z.string().uuid(),
 });
 
-// Generate a unique device ID if not exists
-function getOrCreateDeviceId(): string {
-  // Check localStorage on client side, this is just for server tracking
-  return crypto.randomUUID();
-}
-
 export function registerSyncRoutes(app: Express) {
 
   // Generate WebSocket authentication token (NO AUTH REQUIRED - this is the auth endpoint!)
@@ -34,13 +31,13 @@ export function registerSyncRoutes(app: Express) {
 
       res.json({
         token,
-        expiresIn: 900000, // 15 minutes in milliseconds
+        expiresIn: WS_TOKEN_TTL_MS,
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
         res.status(400).json({ message: "Invalid device ID format", errors: error.errors });
       } else {
-        console.error("Error generating WebSocket token:", error);
+        syncLogger.error({ err: error }, 'Erreur génération token WebSocket');
         res.status(500).json({ message: "Failed to generate token" });
       }
     }
@@ -52,7 +49,7 @@ export function registerSyncRoutes(app: Express) {
       const config = await storage.getSyncConfig();
       res.json(config);
     } catch (error) {
-      console.error("Error fetching sync config:", error);
+      syncLogger.error({ err: error }, 'Erreur récupération configuration sync');
       res.status(500).json({ message: "Failed to fetch sync configuration" });
     }
   });
@@ -67,7 +64,7 @@ export function registerSyncRoutes(app: Express) {
       if (error.name === "ZodError") {
         res.status(400).json({ message: "Invalid request data", errors: error.errors });
       } else {
-        console.error("Error updating sync config:", error);
+        syncLogger.error({ err: error }, 'Erreur mise à jour configuration sync');
         res.status(500).json({ message: "Failed to update sync configuration" });
       }
     }
@@ -91,7 +88,7 @@ export function registerSyncRoutes(app: Express) {
         canSync: isOnlineMode || isMaster
       });
     } catch (error) {
-      console.error("Error checking master status:", error);
+      syncLogger.error({ err: error }, 'Erreur vérification statut maître');
       res.status(500).json({ message: "Failed to check master status" });
     }
   });
@@ -126,7 +123,7 @@ export function registerSyncRoutes(app: Express) {
 
       res.json({ success: true, message: "Sync completed successfully" });
     } catch (error) {
-      console.error("Error syncing data:", error);
+      syncLogger.error({ err: error }, 'Erreur synchronisation données');
       res.status(500).json({ message: "Failed to sync data" });
     }
   });
@@ -152,7 +149,7 @@ export function registerSyncRoutes(app: Express) {
         mode: config.isOnlineMode ? "online" : "offline"
       });
     } catch (error) {
-      console.error("Error triggering sync:", error);
+      syncLogger.error({ err: error }, 'Erreur déclenchement sync');
       res.status(500).json({ message: "Failed to trigger sync" });
     }
   });

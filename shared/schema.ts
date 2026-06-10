@@ -339,25 +339,25 @@ export const createParticipantSchema = z.object({
 
 // Types
 export type TimeSlot = typeof timeSlots.$inferSelect;
-export type InsertTimeSlot = z.infer<typeof insertTimeSlotSchema>;
+export type InsertTimeSlot = typeof timeSlots.$inferInsert;
 
 export type Squad = typeof squads.$inferSelect;
-export type InsertSquad = z.infer<typeof insertSquadSchema>;
+export type InsertSquad = typeof squads.$inferInsert;
 
 export type Participant = typeof participants.$inferSelect;
-export type InsertParticipant = z.infer<typeof insertParticipantSchema>;
+export type InsertParticipant = typeof participants.$inferInsert;
 
 export type ShopItem = typeof shopItems.$inferSelect;
-export type InsertShopItem = z.infer<typeof insertShopItemSchema>;
+export type InsertShopItem = typeof shopItems.$inferInsert;
 
 export type MealItem = typeof mealItems.$inferSelect;
-export type InsertMealItem = z.infer<typeof insertMealItemSchema>;
+export type InsertMealItem = typeof mealItems.$inferInsert;
 
 export type SquadAuditLog = typeof squadAuditLog.$inferSelect;
-export type InsertSquadAuditLog = z.infer<typeof insertSquadAuditLogSchema>;
+export type InsertSquadAuditLog = typeof squadAuditLog.$inferInsert;
 
 export type AppConfig = typeof appConfig.$inferSelect;
-export type InsertAppConfig = z.infer<typeof insertAppConfigSchema>;
+export type InsertAppConfig = typeof appConfig.$inferInsert;
 
 // User roles definition
 export const USER_ROLES = {
@@ -388,7 +388,7 @@ export const visitorLoginSchema = z.object({
 });
 
 export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertUser = typeof users.$inferInsert;
 
 // Extended User type with parsed roles
 export type UserWithRoles = User & {
@@ -412,10 +412,10 @@ export type SquadAuditLogWithRelations = SquadAuditLog & {
 };
 
 export type Discount = typeof discounts.$inferSelect;
-export type InsertDiscount = z.infer<typeof insertDiscountSchema>;
+export type InsertDiscount = typeof discounts.$inferInsert;
 
 export type Purchase = typeof purchases.$inferSelect;
-export type InsertPurchase = z.infer<typeof insertPurchaseSchema>;
+export type InsertPurchase = typeof purchases.$inferInsert;
 
 export type PurchaseWithRelations = Purchase & {
   participant?: Participant | null;
@@ -423,7 +423,7 @@ export type PurchaseWithRelations = Purchase & {
 };
 
 export type MealPurchase = typeof mealPurchases.$inferSelect;
-export type InsertMealPurchase = z.infer<typeof insertMealPurchaseSchema>;
+export type InsertMealPurchase = typeof mealPurchases.$inferInsert;
 
 export type MealPurchaseWithRelations = MealPurchase & {
   participant?: Participant | null;
@@ -431,14 +431,14 @@ export type MealPurchaseWithRelations = MealPurchase & {
 };
 
 export type MealDiscount = typeof mealDiscounts.$inferSelect;
-export type InsertMealDiscount = z.infer<typeof insertMealDiscountSchema>;
+export type InsertMealDiscount = typeof mealDiscounts.$inferInsert;
 
 export type AuditLog = typeof auditLogs.$inferSelect;
-export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
 
 export type AuditLogWithUser = AuditLog & {
   user?: User | null;
 };
 
 export type ServerEvent = typeof serverEvents.$inferSelect;
-export type InsertServerEvent = z.infer<typeof insertServerEventSchema>;
+export type InsertServerEvent = typeof serverEvents.$inferInsert;

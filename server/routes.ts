@@ -5,10 +5,10 @@ import { checkSyncPermissions } from "./sync-middleware";
 import { registerEventIngestRoutes } from "./event-ingest-routes";
 import { requireAuth, requireRole } from "./auth-middleware";
 import multer from "multer";
-import xlsx from "xlsx";
+import ExcelJS from "exceljs";
 import crypto from "crypto";
 import pako from "pako";
-import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema, insertPurchaseSchema } from "@shared/schema";
+import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema, insertPurchaseSchema, type InsertTimeSlot, type InsertSquad, type InsertShopItem, type InsertMealItem, type InsertPurchase } from "@shared/schema";
 import { generateParticipantPDF } from "./pdf-service";
 import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
 
@@ -286,15 +286,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const type = (req.body.type as "zombie" | "survivant") || undefined;
 
-      // Parse Excel file
-      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const data = xlsx.utils.sheet_to_json<any>(sheet ?? {}, { header: ["firstName", "lastName", "timeSlotName"] });
+      // Parse Excel file with exceljs
+      const wb = new ExcelJS.Workbook();
+      let loadError = false;
+      try {
+        await wb.xlsx.load(req.file.buffer);
+      } catch {
+        loadError = true;
+      }
+      const rows: Array<{ firstName: string; lastName: string; timeSlotName: string }> = [];
+      if (!loadError) {
+        const ws = wb.worksheets[0];
+        if (ws) {
+          ws.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return; // Skip header row
+            const firstName = String(row.getCell(1).value ?? "");
+            const lastName = String(row.getCell(2).value ?? "");
+            const timeSlotName = String(row.getCell(3).value ?? "");
+            rows.push({ firstName, lastName, timeSlotName });
+          });
+        }
+      }
 
       let count = 0;
 
-      for (const row of data.slice(1)) { // Skip header row
+      for (const row of rows) {
         // Convert to string and check if valid
         const firstName = String(row.firstName || "").trim();
         const lastName = String(row.lastName || "").trim();
@@ -371,7 +387,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/time-slots", async (req, res) => {
     try {
-      const data = insertTimeSlotSchema.parse(req.body);
+      const data = insertTimeSlotSchema.parse(req.body) as InsertTimeSlot;
       const timeSlot = await storage.createTimeSlot(data);
       res.json(timeSlot);
     } catch (error) {
@@ -424,7 +440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/squads", async (req, res) => {
     try {
-      const data = insertSquadSchema.parse(req.body);
+      const data = insertSquadSchema.parse(req.body) as InsertSquad;
       const squad = await storage.createSquad(data);
       res.json(squad);
     } catch (error) {
@@ -572,7 +588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ message: "Données invalides", errors: parsed.error.errors });
       }
-      const result = await storage.createPurchase(parsed.data);
+      const result = await storage.createPurchase(parsed.data as InsertPurchase);
       if (result.idempotent) {
         return res.status(200).json(result);
       }
@@ -797,7 +813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/shop-items", async (req, res) => {
     try {
-      const data = insertShopItemSchema.parse(req.body);
+      const data = insertShopItemSchema.parse(req.body) as InsertShopItem;
       const item = await storage.createShopItem(data);
       res.json(item);
     } catch (error) {
@@ -843,7 +859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/meal-items", async (req, res) => {
     try {
-      const data = insertMealItemSchema.parse(req.body);
+      const data = insertMealItemSchema.parse(req.body) as InsertMealItem;
       const item = await storage.createMealItem(data);
       res.json(item);
     } catch (error) {
@@ -917,11 +933,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Repas réclamé": p.freeMealClaimed ? "Oui" : "Non",
       }));
 
-      const ws = xlsx.utils.json_to_sheet(exportData);
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "Participants");
-
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Participants");
+      const headers = ["Prénom", "Nom", "Type", "Créneau", "Squad", "Arrivé", "Code Secret", "Checklist", "Repas gratuit", "Repas réclamé"];
+      ws.addRow(headers);
+      for (const row of exportData) {
+        ws.addRow(headers.map(h => (row as Record<string, unknown>)[h]));
+      }
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
 
       const sanitizeFilename = (str: string): string => {
         return str
@@ -960,11 +979,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Heure Jeu": ts.gameTime,
       }));
 
-      const ws = xlsx.utils.json_to_sheet(exportData);
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "Creneaux");
-
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Creneaux");
+      const headers = ["Nom", "Type", "Heure Briefing", "Heure Jeu"];
+      ws.addRow(headers);
+      for (const row of exportData) {
+        ws.addRow(headers.map(h => (row as Record<string, unknown>)[h]));
+      }
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
 
       const date = new Date().toISOString().split('T')[0];
       const baseFilename = type || "creneaux";
@@ -990,11 +1012,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Nombre de participants": squad.participants?.length || 0,
       }));
 
-      const ws = xlsx.utils.json_to_sheet(exportData);
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "Squads");
-
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet("Squads");
+      const headers = ["Numéro", "Type", "Nombre de participants"];
+      ws.addRow(headers);
+      for (const row of exportData) {
+        ws.addRow(headers.map(h => (row as Record<string, unknown>)[h]));
+      }
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
 
       const date = new Date().toISOString().split('T')[0];
       const baseFilename = type || "squads";
@@ -1048,20 +1073,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       // Create workbook with multiple sheets
-      const wb = xlsx.utils.book_new();
-      
-      const wsParticipants = xlsx.utils.json_to_sheet(participantsData);
-      xlsx.utils.book_append_sheet(wb, wsParticipants, "Participants");
-      
-      const wsTimeSlots = xlsx.utils.json_to_sheet(timeSlotsData);
-      xlsx.utils.book_append_sheet(wb, wsTimeSlots, "Creneaux");
-      
-      if (type !== 'staff') {
-        const wsSquads = xlsx.utils.json_to_sheet(squadsData);
-        xlsx.utils.book_append_sheet(wb, wsSquads, "Squads");
+      const wb = new ExcelJS.Workbook();
+
+      const partHeaders = ["Prénom", "Nom", "Type", "Créneau", "Squad", "Arrivé", "Code Secret", "Checklist", "Repas gratuit", "Repas réclamé"];
+      const wsParticipants = wb.addWorksheet("Participants");
+      wsParticipants.addRow(partHeaders);
+      for (const row of participantsData) {
+        wsParticipants.addRow(partHeaders.map(h => (row as Record<string, unknown>)[h]));
       }
 
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const tsHeaders = ["Nom", "Type", "Heure Briefing", "Heure Jeu"];
+      const wsTimeSlots = wb.addWorksheet("Creneaux");
+      wsTimeSlots.addRow(tsHeaders);
+      for (const row of timeSlotsData) {
+        wsTimeSlots.addRow(tsHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
+
+      if (type !== 'staff') {
+        const sqHeaders = ["Numéro", "Type", "Nombre de participants"];
+        const wsSquads = wb.addWorksheet("Squads");
+        wsSquads.addRow(sqHeaders);
+        for (const row of squadsData) {
+          wsSquads.addRow(sqHeaders.map(h => (row as Record<string, unknown>)[h]));
+        }
+      }
+
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
 
       const date = new Date().toISOString().split('T')[0];
       const baseFilename = type || "toutes_donnees";
@@ -1155,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const shopItems = await storage.getShopItems();
       const mealItems = await storage.getMealItems();
 
-      const wb = xlsx.utils.book_new();
+      const wb = new ExcelJS.Workbook();
 
       // Participants sheet
       const participantsData = participants.map(p => ({
@@ -1175,8 +1212,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Repas gratuit": p.hasFreemeal ? "Oui" : "Non",
         "Repas réclamé": p.freeMealClaimed ? "Oui" : "Non",
       }));
-      const wsParticipants = xlsx.utils.json_to_sheet(participantsData);
-      xlsx.utils.book_append_sheet(wb, wsParticipants, "Participants");
+      const partHeaders = ["ID", "Prénom", "Nom", "Email", "Type", "Créneau", "Squad", "Code Secret", "Arrivé", "Heure arrivée", "Retourné", "Heure retour", "Checklist", "Repas gratuit", "Repas réclamé"];
+      const wsParticipants = wb.addWorksheet("Participants");
+      wsParticipants.addRow(partHeaders);
+      for (const row of participantsData) {
+        wsParticipants.addRow(partHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
 
       // Time slots sheet
       const timeSlotsData = timeSlots.map(ts => ({
@@ -1188,8 +1229,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Heure jeu": ts.gameTime,
         "Heure sortie": ts.exitTime,
       }));
-      const wsTimeSlots = xlsx.utils.json_to_sheet(timeSlotsData);
-      xlsx.utils.book_append_sheet(wb, wsTimeSlots, "Créneaux");
+      const tsHeaders = ["ID", "Nom", "Type", "Heure repas", "Heure briefing", "Heure jeu", "Heure sortie"];
+      const wsTimeSlots = wb.addWorksheet("Créneaux");
+      wsTimeSlots.addRow(tsHeaders);
+      for (const row of timeSlotsData) {
+        wsTimeSlots.addRow(tsHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
 
       // Squads sheet
       const squadsData = squads.map(s => ({
@@ -1199,8 +1244,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Créneau ID": s.timeSlotId || "",
         "Max membres": s.maxMembers,
       }));
-      const wsSquads = xlsx.utils.json_to_sheet(squadsData);
-      xlsx.utils.book_append_sheet(wb, wsSquads, "Squads");
+      const sqHeaders = ["ID", "Numéro", "Type", "Créneau ID", "Max membres"];
+      const wsSquads = wb.addWorksheet("Squads");
+      wsSquads.addRow(sqHeaders);
+      for (const row of squadsData) {
+        wsSquads.addRow(sqHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
 
       // Shop items sheet
       const shopData = shopItems.map(i => ({
@@ -1210,8 +1259,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Prix": i.price,
         "Stock": i.stock,
       }));
-      const wsShop = xlsx.utils.json_to_sheet(shopData);
-      xlsx.utils.book_append_sheet(wb, wsShop, "Boutique");
+      const shopHeaders = ["ID", "Nom", "Catégorie", "Prix", "Stock"];
+      const wsShop = wb.addWorksheet("Boutique");
+      wsShop.addRow(shopHeaders);
+      for (const row of shopData) {
+        wsShop.addRow(shopHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
 
       // Meal items sheet
       const mealData = mealItems.map(i => ({
@@ -1221,10 +1274,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         "Prix": i.price,
         "Stock": i.stock,
       }));
-      const wsMeal = xlsx.utils.json_to_sheet(mealData);
-      xlsx.utils.book_append_sheet(wb, wsMeal, "Repas");
+      const mealHeaders = ["ID", "Nom", "Catégorie", "Prix", "Stock"];
+      const wsMeal = wb.addWorksheet("Repas");
+      wsMeal.addRow(mealHeaders);
+      for (const row of mealData) {
+        wsMeal.addRow(mealHeaders.map(h => (row as Record<string, unknown>)[h]));
+      }
 
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
       const date = new Date().toISOString().split('T')[0];
       const filename = `darkevent_export_complet_${date}.xlsx`;
 
@@ -1238,19 +1295,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Export data by module
-  app.get("/api/data/export/:module", async (req, res) => {
+  app.get("/api/data/export/:module", requireAuth, async (req, res) => {
     try {
       const module = req.params.module;
       const type = req.query.type as string | undefined;
 
-      let data: any[] = [];
+      let data: Array<Record<string, unknown>> = [];
       let sheetName = "";
       let filename = "";
+      let headers: string[] = [];
 
       switch (module) {
         case "participants":
-          data = await storage.getParticipants(type);
-          data = data.map(p => ({
+          data = (await storage.getParticipants(type)).map(p => ({
             "ID": p.id,
             "Prénom": p.firstName,
             "Nom": p.lastName,
@@ -1263,13 +1320,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Checklist": p.checklistCompleted ? "Oui" : "Non",
             "Repas gratuit": p.hasFreemeal ? "Oui" : "Non",
           }));
+          headers = ["ID", "Prénom", "Nom", "Email", "Type", "Créneau", "Squad", "Code Secret", "Arrivé", "Checklist", "Repas gratuit"];
           sheetName = "Participants";
           filename = type ? `${type}s_${new Date().toISOString().split('T')[0]}.xlsx` : `participants_${new Date().toISOString().split('T')[0]}.xlsx`;
           break;
 
         case "timeslots":
-          data = await storage.getTimeSlots(type);
-          data = data.map(ts => ({
+          data = (await storage.getTimeSlots(type)).map(ts => ({
             "ID": ts.id,
             "Nom": ts.name,
             "Type": ts.type,
@@ -1278,45 +1335,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
             "Heure jeu": ts.gameTime,
             "Heure sortie": ts.exitTime,
           }));
+          headers = ["ID", "Nom", "Type", "Heure repas", "Heure briefing", "Heure jeu", "Heure sortie"];
           sheetName = "Créneaux";
           filename = `creneaux_${new Date().toISOString().split('T')[0]}.xlsx`;
           break;
 
         case "squads":
-          data = await storage.getSquads(type);
-          data = data.map(s => ({
+          data = (await storage.getSquads(type)).map(s => ({
             "ID": s.id,
             "Numéro": s.number,
             "Type": s.type,
             "Créneau ID": s.timeSlotId || "",
             "Max membres": s.maxMembers,
           }));
+          headers = ["ID", "Numéro", "Type", "Créneau ID", "Max membres"];
           sheetName = "Squads";
           filename = `squads_${new Date().toISOString().split('T')[0]}.xlsx`;
           break;
 
         case "shop":
-          data = await storage.getShopItems();
-          data = data.map(i => ({
+          data = (await storage.getShopItems()).map(i => ({
             "ID": i.id,
             "Nom": i.name,
             "Catégorie": i.category,
             "Prix": i.price,
             "Stock": i.stock,
           }));
+          headers = ["ID", "Nom", "Catégorie", "Prix", "Stock"];
           sheetName = "Boutique";
           filename = `boutique_${new Date().toISOString().split('T')[0]}.xlsx`;
           break;
 
         case "meals":
-          data = await storage.getMealItems();
-          data = data.map(i => ({
+          data = (await storage.getMealItems()).map(i => ({
             "ID": i.id,
             "Nom": i.name,
             "Catégorie": i.category,
             "Prix": i.price,
             "Stock": i.stock,
           }));
+          headers = ["ID", "Nom", "Catégorie", "Prix", "Stock"];
           sheetName = "Repas";
           filename = `repas_${new Date().toISOString().split('T')[0]}.xlsx`;
           break;
@@ -1325,11 +1383,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "Invalid module" });
       }
 
-      const ws = xlsx.utils.json_to_sheet(data);
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, sheetName);
-
-      const excelBuffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
+      const wb = new ExcelJS.Workbook();
+      const ws = wb.addWorksheet(sheetName);
+      ws.addRow(headers);
+      for (const row of data) {
+        ws.addRow(headers.map(h => row[h]));
+      }
+      const excelBuffer = Buffer.from(await wb.xlsx.writeBuffer());
 
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -1347,24 +1407,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const workbook = new ExcelJS.Workbook();
+      try {
+        await workbook.xlsx.load(req.file.buffer);
+      } catch {
+        // Buffer vide ou fichier corrompu — traité comme workbook vide
+      }
+      const sheetNames = workbook.worksheets.map(ws => ws.name);
       const stats = { imported: 0, errors: 0 };
+
+      // Helper: convert an ExcelJS worksheet to array of row objects using first row as header
+      const sheetToJson = (ws: ExcelJS.Worksheet): Array<Record<string, unknown>> => {
+        const result: Array<Record<string, unknown>> = [];
+        let headers: string[] = [];
+        ws.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) {
+            headers = row.values as string[];
+            // ExcelJS row.values is 1-indexed (index 0 is empty)
+            headers = Array.isArray(headers) ? headers.slice(1).map(h => String(h ?? "")) : [];
+            return;
+          }
+          const obj: Record<string, unknown> = {};
+          const cells = row.values as unknown[];
+          const cellArr = Array.isArray(cells) ? cells.slice(1) : [];
+          headers.forEach((h, i) => {
+            obj[h] = cellArr[i] ?? "";
+          });
+          result.push(obj);
+        });
+        return result;
+      }
 
       // Map to track time slots by name for reference
       const timeSlotMap = new Map<string, number>();
 
       // Import time slots first (needed for participants)
-      if (workbook.SheetNames.includes("Créneaux")) {
-        const sheet = workbook.Sheets["Créneaux"];
-        const data = xlsx.utils.sheet_to_json<any>(sheet);
-        
+      if (sheetNames.includes("Créneaux")) {
+        const ws = workbook.getWorksheet("Créneaux");
+        const data = ws ? sheetToJson(ws) : [];
+
         for (const row of data) {
           try {
             const name = String(row.name || "").trim();
             const type = String(row.type || "").trim() as "zombie" | "survivant";
-            
+
             if (!name || !type) continue;
-            
+
             const timeSlot = await storage.createTimeSlot({
               name,
               type,
@@ -1386,19 +1474,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const squadMap = new Map<string, number>();
 
       // Import squads (needed for participants)
-      if (workbook.SheetNames.includes("Squads")) {
-        const sheet = workbook.Sheets["Squads"];
-        const data = xlsx.utils.sheet_to_json<any>(sheet);
-        
+      if (sheetNames.includes("Squads")) {
+        const ws = workbook.getWorksheet("Squads");
+        const data = ws ? sheetToJson(ws) : [];
+
         for (const row of data) {
           try {
             const type = String(row.type || "").trim() as "zombie" | "survivant";
-            
+
             if (row.number === undefined || row.number === null || row.number === "" || !type) continue;
-            
+
             const squad = await storage.createSquad({
               number: Number(row.number),
               type,
+              timeSlotId: row.timeSlotId ? Number(row.timeSlotId) : 0,
               maxMembers: row.maxMembers ? Number(row.maxMembers) : 10,
             });
             squadMap.set(`${row.number}-${type}`, squad.id);
@@ -1411,9 +1500,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Import participants
-      if (workbook.SheetNames.includes("Participants")) {
-        const sheet = workbook.Sheets["Participants"];
-        const data = xlsx.utils.sheet_to_json<any>(sheet);
+      if (sheetNames.includes("Participants")) {
+        const ws = workbook.getWorksheet("Participants");
+        const data = ws ? sheetToJson(ws) : [];
         
         for (const row of data) {
           try {
@@ -1447,8 +1536,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timeSlotId,
               squadId,
               hasFreemeal: row.hasFreemeal === true || row.hasFreemeal === "true" || type === "zombie",
-              hasMerch: row.hasMerch === true || row.hasMerch === "true",
-              hasArrived: row.hasArrived === true || row.hasArrived === "true",
               secretCode,
             });
             stats.imported++;

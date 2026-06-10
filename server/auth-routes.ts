@@ -2,7 +2,7 @@ import type { Express, Request } from "express";
 import { sessionLogger } from "./session-logger";
 import { db } from "./db";
 import { users } from "@shared/schema";
-import { loginSchema, visitorLoginSchema, insertUserSchema } from "@shared/schema";
+import { loginSchema, visitorLoginSchema, insertUserSchema, type InsertUser } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { participants } from "@shared/schema";
@@ -262,7 +262,7 @@ export function registerAuthRoutes(app: Express) {
   // Create user (admin only)
   app.post("/api/auth/users", requireRole('admin'), async (req, res) => {
     try {
-      const body = insertUserSchema.parse(req.body);
+      const body = insertUserSchema.parse(req.body) as InsertUser;
       const passwordHash = await hashPassword(body.passwordHash); // passwordHash is the password from client
 
       // Check if username already exists
@@ -277,7 +277,7 @@ export function registerAuthRoutes(app: Express) {
       }
 
       // Parse roles if it's a string, or use it as is if it's already valid
-      let rolesValue = body.roles;
+      let rolesValue: string | string[] = body.roles ?? '[]';
       if (typeof body.roles === 'string') {
         try {
           rolesValue = JSON.parse(body.roles);

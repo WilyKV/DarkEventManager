@@ -90,7 +90,14 @@ export const purchases = pgTable("purchases", {
   totalPrice: text("total_price").notNull(), // unit_price * quantity
   isPaid: boolean("is_paid").default(false),
   purchasedAt: timestamp("purchased_at").defaultNow(),
-  clientEventId: text("client_event_id"), // UUID v4 from client for idempotency (nullable for retro-compat)
+  /**
+   * Identifiant d'IDEMPOTENCE attaché à cette mutation métier spécifique.
+   * UUID v4 généré côté client : un achat émis en boucle de retry réseau
+   * ne crée qu'une ligne grâce à ce champ (nullable pour rétro-compatibilité).
+   * Distinct de `serverEvents.eventUuid` : ce champ est propre à un achat,
+   * alors que `eventUuid` identifie l'event de synchronisation global.
+   */
+  clientEventId: text("client_event_id"),
 });
 
 // Meal Items Table
@@ -156,11 +163,26 @@ export const appConfig = pgTable("app_config", {
 
 // Server Events Table - For event sourcing / bulk-ingest
 export const serverEvents = pgTable("server_events", {
+  /**
+   * Identifiant GLOBAL de l'event dans le log de synchronisation.
+   * UUID v4 généré côté client, clé primaire de la table.
+   * Utilisé comme clé de déduplication via `onConflictDoNothing` :
+   * rejouer le même event ne crée pas de doublon.
+   * Distinct de `clientEventId` : `eventUuid` identifie l'enveloppe
+   * de synchronisation, `clientEventId` identifie la mutation métier portée.
+   */
   eventUuid:     text("event_uuid").primaryKey(),
   aggregateId:   text("aggregate_id").notNull(),
   aggregateType: text("aggregate_type").notNull(),
   eventType:     text("event_type").notNull(),
   payload:       jsonb("payload").notNull(),
+  /**
+   * Identifiant d'IDEMPOTENCE de la mutation métier transportée par cet event.
+   * Permet à un achat (ou toute mutation) émis en boucle de retry réseau
+   * de n'être appliqué qu'une seule fois, même si plusieurs events arrivent.
+   * Peut coexister avec `eventUuid` dans un même event : `eventUuid` déduplique
+   * l'event de sync, `clientEventId` déduplique l'effet métier en aval.
+   */
   clientEventId: text("client_event_id"),
   deviceId:      text("device_id").notNull(),
   lamportTs:     integer("lamport_ts").notNull(),

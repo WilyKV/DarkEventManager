@@ -298,7 +298,7 @@ export function ParticipantListByTimeslot({
                           variant={participant.arrived ? "outline" : "default"}
                           onClick={() => setSelectedParticipant(participant)}
                           title="Enregistrement"
-                          disabled={participant.returned}
+                          disabled={participant.returned ?? false}
                         >
                           <LogIn className="w-4 h-4" />
                         </Button>

@@ -156,7 +156,7 @@ export function ParticipantTypeSection({
               <h3 className={`text-lg font-semibold text-${color}-500`}>Créneaux {title}</h3>
               <p className="text-sm text-muted-foreground">{timeSlots.length} créneau(x)</p>
             </div>
-            <AddTimeSlotDialog participantType={type} />
+            <AddTimeSlotDialog type={type} />
           </div>
 
           {/* Import/Export Excel */}
@@ -166,10 +166,10 @@ export function ParticipantTypeSection({
               <CardDescription>Importez ou exportez les créneaux via Excel</CardDescription>
             </CardHeader>
             <CardContent>
-              <ExcelImport type={type} module="timeslots" />
+              <ExcelImport type={type} module="time-slots" />
             </CardContent>
             <CardContent>
-              <ExcelExport type={type} module="timeslots" />
+              <ExcelExport type={type} module="time-slots" />
             </CardContent>
           </Card>
 
@@ -191,10 +191,10 @@ export function ParticipantTypeSection({
                           <div className="flex-1">
                             <p className="font-semibold text-sm">{slot.name}</p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {slot.startTime} - {slot.endTime}
+                              Jeu: {slot.gameTime} — Sortie: {slot.exitTime}
                             </p>
                             <p className="text-xs text-muted-foreground">
-                              Capacité: {slot.maxCapacity}
+                              Repas: {slot.mealTime}
                             </p>
                           </div>
                           <div className="flex gap-1">
@@ -232,22 +232,31 @@ export function ParticipantTypeSection({
               <h3 className={`text-lg font-semibold text-${color}-500`}>Squads {title}</h3>
               <p className="text-sm text-muted-foreground">{squads.length} squad(s)</p>
             </div>
-            <AddSquadDialog participantType={type} />
+            {type !== "staff" && <AddSquadDialog type={type} />}
           </div>
 
-          <SquadList
-            squads={squads}
-            onEditSquad={setEditingSquad}
-            onDeleteSquad={setDeletingSquadId}
-          />
+          {type !== "staff" && <SquadList type={type} showActions />}
         </TabsContent>
 
         {/* Tout Tab */}
         <TabsContent value="tout" className="space-y-4 mt-4">
           <h3 className={`text-lg font-semibold text-${color}-500`}>Vue d'ensemble {title}</h3>
 
-          <ParticipantList participants={participants} />
-          <ParticipantListByTimeslot participants={participants} />
+          {type !== "staff" && (
+            <ParticipantList
+              participants={participants}
+              timeSlots={timeSlots}
+              squads={squads}
+              type={type}
+              onUpdate={() => undefined}
+            />
+          )}
+          <ParticipantListByTimeslot
+            participants={participants}
+            timeSlots={timeSlots}
+            type={type}
+            onUpdate={() => undefined}
+          />
         </TabsContent>
       </Tabs>
 
@@ -255,8 +264,8 @@ export function ParticipantTypeSection({
       {editingParticipant && (
         <EditParticipantDialog
           participant={editingParticipant}
-          open={!!editingParticipant}
-          onOpenChange={(open) => !open && setEditingParticipant(null)}
+          onClose={() => setEditingParticipant(null)}
+          onSuccess={() => setEditingParticipant(null)}
         />
       )}
 

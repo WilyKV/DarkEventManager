@@ -118,6 +118,9 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        oxc: {
+          jsx: { runtime: "automatic" },
+        },
         test: {
           name: "client",
           environment: "jsdom",

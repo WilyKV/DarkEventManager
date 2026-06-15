@@ -12,6 +12,7 @@ interface ManagementLayoutProps {
   children: React.ReactNode;
   actions?: React.ReactNode;
   showScanButton?: boolean;
+  showHomeButton?: boolean; // Unused: kept for compatibility with boutique/repas pages
   scanLink?: string; // Deprecated: kept for compatibility
   useHistoryBack?: boolean; // Nouveau prop pour utiliser l'historique du navigateur
 }

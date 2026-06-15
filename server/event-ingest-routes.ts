@@ -1,26 +1,20 @@
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
 import { storage } from "./storage";
+import type { IEventStorage } from "./storage-interfaces";
 import type { InsertServerEvent } from "@shared/schema";
 import { requireAuth } from "./auth-middleware";
 import { BULK_INGEST_BATCH_MAX } from "./config/limits";
+import { AGGREGATE_TYPES } from "@shared/aggregate-types";
 
 // ---------------------------------------------------------------------------
 // Types & Validation
 // ---------------------------------------------------------------------------
 
-const ALLOWED_AGGREGATE_TYPES = [
-  "participant",
-  "purchase",
-  "meal_purchase",
-  "squad",
-  "discount",
-] as const;
-
 const appEventSchema = z.object({
   eventUuid:     z.string().uuid(),
   aggregateId:   z.string(),
-  aggregateType: z.enum(ALLOWED_AGGREGATE_TYPES),
+  aggregateType: z.enum(AGGREGATE_TYPES),
   eventType:     z.string(),
   payload:       z.record(z.unknown()),
   clientEventId: z.string(),
@@ -48,7 +42,10 @@ const seenEventUuids = new Set<string>();
 // Route registration
 // ---------------------------------------------------------------------------
 
-export function registerEventIngestRoutes(app: Express): void {
+export function registerEventIngestRoutes(
+  app: Express,
+  storageDep: Pick<IEventStorage, "ingestEvents" | "getServerLamportTs" | "appendEvents" | "bumpServerLamportTs"> = storage,
+): void {
 
   app.post(
     "/api/events/bulk-ingest",
@@ -131,8 +128,13 @@ export function registerEventIngestRoutes(app: Express): void {
         validNewEvents.push(event);
       }
 
-      // 5. Persistence batch avec fallback best-effort par event
+      // 5 + 6. Persistence atomique (insert + bump Lamport) via ingestEvents
       let ingestedCount = 0;
+      const allValidLamportTs = validNewEvents.map((e) => e.lamportTs);
+      const minLamport =
+        allValidLamportTs.length > 0 ? Math.max(...allValidLamportTs) : 0;
+
+      let serverLamportTs: number;
 
       if (validNewEvents.length > 0) {
         const records: InsertServerEvent[] = validNewEvents.map((event) => ({
@@ -150,16 +152,16 @@ export function registerEventIngestRoutes(app: Express): void {
         }));
 
         try {
-          const result = await storage.appendEvents(records);
-          const dbInserted = result?.inserted ?? records.length;
-          const dbDuplicates = result?.duplicates ?? 0;
+          // Transaction atomique : insert ON CONFLICT DO NOTHING + bump Lamport
+          const result = await storageDep.ingestEvents(records, minLamport);
           for (const event of validNewEvents) {
             seenEventUuids.add(event.eventUuid);
           }
-          ingestedCount = dbInserted;
-          duplicateCount += dbDuplicates;
+          ingestedCount = result.inserted;
+          duplicateCount += result.duplicates;
+          serverLamportTs = result.serverLamportTs;
         } catch {
-          // Fallback : persistence best-effort event par event
+          // Fallback best-effort : persistence event par event si la transaction échoue
           for (const event of validNewEvents) {
             const record: InsertServerEvent = {
               eventUuid:     event.eventUuid,
@@ -175,24 +177,23 @@ export function registerEventIngestRoutes(app: Express): void {
               correlationId: event.correlationId ?? null,
             };
             try {
-              await storage.appendEvents([record]);
+              await storageDep.appendEvents([record]);
               seenEventUuids.add(event.eventUuid);
               ingestedCount++;
             } catch {
               rejected.push({ eventUuid: event.eventUuid, reason: "persistence_error" });
             }
           }
+          // Bump Lamport en best-effort également
+          const currentServerTs = await storageDep.getServerLamportTs();
+          const maxLamport = Math.max(currentServerTs, minLamport);
+          serverLamportTs = await storageDep.bumpServerLamportTs(maxLamport);
         }
+      } else {
+        // Aucun événement valide : bump Lamport seul
+        const currentServerTs = await storageDep.getServerLamportTs();
+        serverLamportTs = await storageDep.bumpServerLamportTs(currentServerTs);
       }
-
-      // 6. Compteur Lamport
-      const allValidLamportTs = validNewEvents.map((e) => e.lamportTs);
-      const currentServerTs = await storage.getServerLamportTs();
-      const maxLamport =
-        allValidLamportTs.length > 0
-          ? Math.max(currentServerTs, ...allValidLamportTs)
-          : currentServerTs;
-      const serverLamportTs = await storage.bumpServerLamportTs(maxLamport);
 
       res.status(200).json({
         ingested: ingestedCount,

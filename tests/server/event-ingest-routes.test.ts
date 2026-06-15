@@ -46,12 +46,31 @@ interface BulkIngestResponse {
 const mockAppendEvents = vi.fn().mockResolvedValue(undefined);
 const mockGetServerLamportTs = vi.fn().mockResolvedValue(0);
 const mockBumpServerLamportTs = vi.fn().mockImplementation(async (min: number) => min + 1);
+/**
+ * mockIngestEvents délègue à mockAppendEvents + mockBumpServerLamportTs pour
+ * que les assertions sur ces deux mocks restent valides dans les sections 1-8.
+ * Il reproduit le comportement GREATEST(serverTs, minLamport) de la transaction SQL.
+ * La section 9 reconfigure ce mock directement pour tester le nouveau contrat.
+ */
+const mockIngestEvents = vi.fn().mockImplementation(
+  async (events: unknown[], minLamport: number) => {
+    const result = await mockAppendEvents(events);
+    // Reproduit le GREATEST(server_lamport_ts, minLamport) de la transaction SQL
+    const currentServerTs: number = await mockGetServerLamportTs();
+    const effectiveMin = Math.max(currentServerTs, minLamport);
+    const serverLamportTs = await mockBumpServerLamportTs(effectiveMin);
+    const inserted = result?.inserted ?? (events as unknown[]).length;
+    const duplicates = result?.duplicates ?? 0;
+    return { inserted, duplicates, serverLamportTs };
+  }
+);
 
 vi.mock("../../server/storage", () => ({
   storage: {
     appendEvents: mockAppendEvents,
     getServerLamportTs: mockGetServerLamportTs,
     bumpServerLamportTs: mockBumpServerLamportTs,
+    ingestEvents: mockIngestEvents,
   },
 }));
 

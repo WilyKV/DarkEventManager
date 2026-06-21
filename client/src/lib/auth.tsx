@@ -162,7 +162,7 @@ export function RequireAuth({ children, roles }: { children: ReactNode; roles?: 
     if (!isLoading && !user && !visitor) {
       setLocation("/login");
     } else if (!isLoading && user && roles && roles.length > 0 && !hasAnyRole(roles)) {
-      setLocation("/home");
+      setLocation("/overview");
     }
   }, [user, visitor, isLoading, roles, setLocation, hasAnyRole]);
 

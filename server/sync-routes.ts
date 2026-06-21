@@ -11,8 +11,8 @@ const syncLogger = childLogger('sync');
 // Schema for updating sync config
 const updateSyncConfigSchema = z.object({
   isOnlineMode: z.boolean(),
-  masterDeviceId: z.string().optional(),
-  masterDeviceName: z.string().optional(),
+  masterDeviceId: z.string().nullable().optional(),
+  masterDeviceName: z.string().nullable().optional(),
 });
 
 // Schema for WebSocket auth token request

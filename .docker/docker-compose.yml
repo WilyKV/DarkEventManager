@@ -1,3 +1,5 @@
+name: darkeventmanager
+
 services:
   db:
     image: postgres:17-alpine
@@ -25,6 +27,10 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    # Secrets (WEBSOCKET_SECRET, SESSION_SECRET, QR_*, SMTP_*) injectés depuis .env
+    env_file:
+      - ../.env
+    # NODE_ENV et DATABASE_URL specifiques au conteneur (prioritaires sur .env)
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://darkevent:darkevent@db:5432/darkevent
@@ -36,3 +42,4 @@ services:
 
 volumes:
   postgres_data:
+    name: docker_postgres_data

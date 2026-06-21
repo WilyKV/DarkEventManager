@@ -36,7 +36,7 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      setLocation("/home");
+      setLocation("/overview");
     } else if (!isLoading && visitor) {
       setLocation("/visitor");
     }
@@ -97,8 +97,8 @@ export default function LoginPage() {
         }
       }
       
-      // Sinon, rediriger vers la page d'accueil
-      window.location.href = "/home";
+      // Sinon, rediriger vers l'overview
+      window.location.href = "/overview";
     },
     onError: (error: Error) => {
       toast({
@@ -246,6 +246,8 @@ export default function LoginPage() {
                       {...visitorForm.register("secretCode")}
                       placeholder="12345"
                       maxLength={5}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="text-center text-2xl tracking-widest font-mono"
                     />
                     {visitorForm.formState.errors.secretCode && (

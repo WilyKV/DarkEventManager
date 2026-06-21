@@ -99,7 +99,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <div className="min-h-screen bg-gradient-to-br from-gray-900 via-red-900 to-gray-900">
+          <div className="min-h-screen bg-background text-foreground">
             <Toaster />
             <Router />
           </div>

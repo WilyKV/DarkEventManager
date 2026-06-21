@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -130,8 +130,8 @@
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: 'Roboto Mono', 'Courier New', monospace;
-  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  --radius: .5rem;
+  --font-display: 'Space Grotesk', sans-serif;
+  --radius: 0.75rem;
   --shadow-2xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.02);
   --shadow-xs: 0px 2px 0px 0px hsl(0 0% 0% / 0.03);
   --shadow-sm: 0px 2px 0px 0px hsl(0 0% 0% / 0.04), 0px 1px 2px -1px hsl(0 0% 0% / 0.05);
@@ -176,76 +176,77 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 20 18% 9%;
+  /* Charbon + vert toxique minimal */
+  --background: 150 8% 7%;
 
-  --foreground: 30 10% 96%;
+  --foreground: 150 8% 95%;
 
-  --border: 20 15% 18%;
+  --border: 150 8% 16%;
 
-  --card: 20 16% 12%;
+  --card: 150 7% 11%;
 
-  --card-foreground: 30 10% 96%;
+  --card-foreground: 150 8% 95%;
 
-  --card-border: 20 15% 15%;
+  --card-border: 150 7% 14%;
 
-  --sidebar: 20 16% 10%;
+  --sidebar: 150 7% 9%;
 
-  --sidebar-foreground: 30 10% 96%;
+  --sidebar-foreground: 150 8% 95%;
 
-  --sidebar-border: 20 15% 14%;
+  --sidebar-border: 150 8% 14%;
 
-  --sidebar-primary: 220 18% 50%;
+  --sidebar-primary: 142 72% 45%;
 
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary-foreground: 150 30% 6%;
 
-  --sidebar-accent: 0 0% 18%;
+  --sidebar-accent: 142 50% 22%;
 
-  --sidebar-accent-foreground: 0 0% 96%;
+  --sidebar-accent-foreground: 150 8% 95%;
 
-  --sidebar-ring: 220 18% 50%;
+  --sidebar-ring: 142 72% 45%;
 
-  --popover: 0 0% 13%;
+  --popover: 150 7% 10%;
 
-  --popover-foreground: 0 0% 96%;
+  --popover-foreground: 150 8% 95%;
 
-  --popover-border: 0 0% 18%;
+  --popover-border: 150 8% 16%;
 
-  --primary: 220 18% 50%;
+  --primary: 142 72% 45%;
 
-  --primary-foreground: 0 0% 100%;
+  --primary-foreground: 150 30% 6%;
 
-  --secondary: 20 15% 20%;
+  --secondary: 150 6% 16%;
 
-  --secondary-foreground: 30 10% 96%;
+  --secondary-foreground: 150 8% 95%;
 
-  --muted: 20 15% 16%;
+  --muted: 150 6% 16%;
 
-  --muted-foreground: 30 10% 68%;
+  --muted-foreground: 150 6% 65%;
 
-  --accent: 20 15% 18%;
+  --accent: 142 50% 22%;
 
-  --accent-foreground: 30 10% 96%;
+  --accent-foreground: 150 8% 95%;
 
-  --destructive: 0 70% 50%;
+  --destructive: 0 72% 52%;
 
-  --destructive-foreground: 0 0% 100%;
+  --destructive-foreground: 0 0% 98%;
 
-  --input: 20 15% 24%;
-  --ring: 220 18% 50%;
-  --chart-1: 220 18% 50%;
-  --chart-2: 0 70% 50%;
+  --input: 150 8% 18%;
+  --ring: 142 72% 45%;
+  --chart-1: 142 72% 45%;
+  --chart-2: 0 72% 52%;
   --chart-3: 210 75% 55%;
-  --chart-4: 142 70% 45%;
-  --chart-5: 45 75% 56%;
+  --chart-4: 45 75% 56%;
+  --chart-5: 280 60% 55%;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(220 15% 0% / 0.15);
-  --shadow-xs: 0px 2px 0px 0px hsl(220 15% 0% / 0.20);
-  --shadow-sm: 0px 2px 0px 0px hsl(220 15% 0% / 0.25), 0px 1px 2px -1px hsl(220 15% 0% / 0.30);
-  --shadow: 0px 2px 0px 0px hsl(220 15% 0% / 0.30), 0px 1px 2px -1px hsl(220 15% 0% / 0.35);
-  --shadow-md: 0px 2px 0px 0px hsl(140 8% 0% / 0.35), 0px 2px 4px -1px hsl(140 8% 0% / 0.40);
-  --shadow-lg: 0px 2px 0px 0px hsl(140 8% 0% / 0.40), 0px 4px 6px -1px hsl(140 8% 0% / 0.45);
-  --shadow-xl: 0px 2px 0px 0px hsl(140 8% 0% / 0.45), 0px 8px 10px -1px hsl(140 8% 0% / 0.50);
-  --shadow-2xl: 0px 2px 0px 0px hsl(140 8% 0% / 0.55);
+  --shadow-2xs: 0px 2px 0px 0px hsl(150 8% 0% / 0.20);
+  --shadow-xs: 0px 2px 0px 0px hsl(150 8% 0% / 0.25);
+  --shadow-sm: 0px 2px 0px 0px hsl(150 8% 0% / 0.30), 0px 1px 2px -1px hsl(150 8% 0% / 0.35);
+  --shadow: 0px 2px 0px 0px hsl(150 8% 0% / 0.35), 0px 1px 2px -1px hsl(150 8% 0% / 0.40);
+  --shadow-md: 0px 2px 0px 0px hsl(150 8% 0% / 0.40), 0px 2px 4px -1px hsl(150 8% 0% / 0.45);
+  --shadow-lg: 0px 2px 0px 0px hsl(150 8% 0% / 0.45), 0px 4px 6px -1px hsl(150 8% 0% / 0.50);
+  --shadow-xl: 0px 2px 0px 0px hsl(150 8% 0% / 0.50), 0px 8px 10px -1px hsl(150 8% 0% / 0.55);
+  --shadow-2xl: 0px 2px 0px 0px hsl(150 8% 0% / 0.60);
 
   --sidebar-primary-border: hsl(var(--sidebar-primary));
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);

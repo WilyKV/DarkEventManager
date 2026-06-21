@@ -1,3 +1,7 @@
+// Charge les variables d'environnement d'un fichier .env s'il existe.
+// DOIT rester en premier, avant tout module lisant process.env (ex: ./db).
+// dotenv n'écrase pas les variables déjà définies (Docker Compose, shell…).
+import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";

@@ -13,6 +13,13 @@ import {
 import type { MealItem, Participant } from "@shared/schema";
 import { QrScanner } from "@/components/qr-scanner";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -46,6 +53,8 @@ export default function RepasPage() {
   const [discount, setDiscount] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [freeMealDishId, setFreeMealDishId] = useState<string>("");
+  const [freeMealDrinkId, setFreeMealDrinkId] = useState<string>("");
 
   // Fetch meal items
   const { data: mealItems = [], isLoading } = useQuery<MealItem[]>({
@@ -56,6 +65,20 @@ export default function RepasPage() {
       return res.json();
     },
   });
+
+  // Computed lists for free meal selectors
+  const dishesInStock = mealItems.filter((i) => i.category === "Plats" && i.stock > 0);
+  const drinksInStock = mealItems.filter((i) => i.category === "Boissons" && i.stock > 0);
+
+  // Initialize selectors when items load or participant changes
+  useEffect(() => {
+    if (dishesInStock.length > 0 && !freeMealDishId) {
+      setFreeMealDishId(String(dishesInStock[0].id));
+    }
+    if (drinksInStock.length > 0 && !freeMealDrinkId) {
+      setFreeMealDrinkId(String(drinksInStock[0].id));
+    }
+  }, [mealItems, scannedParticipant]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scan participant and get discount
   const handleScan = async (qrData: string) => {
@@ -161,6 +184,71 @@ export default function RepasPage() {
   };
 
   const { originalTotal, subtotal, discountAmount } = calculateTotals();
+
+  // Free meal mutation
+  const claimFreeMealMutation = useMutation({
+    mutationFn: async () => {
+      if (!scannedParticipant) throw new Error("Aucun participant scanné");
+
+      const dish = mealItems.find((i) => i.id === Number(freeMealDishId));
+      const drink = mealItems.find((i) => i.id === Number(freeMealDrinkId));
+
+      const purchases = [dish, drink].filter((item): item is MealItem => item !== undefined);
+
+      if (purchases.length === 0) throw new Error("Aucun article sélectionné");
+
+      await Promise.all(
+        purchases.map(async (item) => {
+          const purchaseRes = await fetch("/api/meal-purchases", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              participantId: scannedParticipant.id,
+              mealItemId: item.id,
+              quantity: 1,
+              unitPrice: "0",
+              originalPrice: item.price,
+              discountApplied: 0,
+              totalPrice: "0",
+              isPaid: true,
+            }),
+          });
+          if (!purchaseRes.ok) throw new Error("Impossible de créer l'achat offert");
+
+          const stockRes = await fetch(`/api/meal-items/${item.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stock: item.stock - 1 }),
+          });
+          if (!stockRes.ok) throw new Error("Impossible de mettre à jour le stock");
+        }),
+      );
+
+      const participantRes = await fetch(`/api/participants/${scannedParticipant.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ freeMealClaimed: true, hasFreemeal: true }),
+      });
+      if (!participantRes.ok) throw new Error("Impossible de mettre à jour le participant");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/participants"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meal-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/meal-items"] });
+      toast({ title: "Repas offert servi" });
+      // Refresh scanned participant data
+      if (scannedParticipant) {
+        setScannedParticipant((prev) => prev ? { ...prev, freeMealClaimed: true } : prev);
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible de servir le repas offert",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Create meal purchases mutation
   const createPurchasesMutation = useMutation({
@@ -307,6 +395,91 @@ export default function RepasPage() {
               </CardContent>
             )}
           </Card>
+
+          {/* Free meal panel — zombies only */}
+          {scannedParticipant?.type === "zombie" && (
+            scannedParticipant.freeMealClaimed ? (
+              <Card className="border-green-500/40 bg-green-500/5">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 text-green-600 dark:text-green-400 font-semibold">
+                    <Check className="w-5 h-5" />
+                    Repas offert déjà servi
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-amber-500/40 bg-amber-500/5">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                    <Gift className="w-5 h-5" />
+                    Repas offert (1 plat + 1 boisson)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Plat offert</label>
+                      {dishesInStock.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">Aucun plat en stock</p>
+                      ) : (
+                        <Select value={freeMealDishId} onValueChange={setFreeMealDishId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choisir un plat" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {dishesInStock.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.name} (stock: {item.stock})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium">Boisson offerte</label>
+                      {drinksInStock.length === 0 ? (
+                        <p className="text-sm text-muted-foreground italic">Aucune boisson en stock</p>
+                      ) : (
+                        <Select value={freeMealDrinkId} onValueChange={setFreeMealDrinkId}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Choisir une boisson" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {drinksInStock.map((item) => (
+                              <SelectItem key={item.id} value={String(item.id)}>
+                                {item.name} (stock: {item.stock})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      if (dishesInStock.length === 0 && drinksInStock.length === 0) {
+                        toast({ title: "Aucun article disponible", description: "Stock épuisé pour les plats et les boissons" });
+                        return;
+                      }
+                      if (dishesInStock.length === 0) {
+                        toast({ title: "Info", description: "Pas de plat en stock — seule la boisson sera servie" });
+                      }
+                      if (drinksInStock.length === 0) {
+                        toast({ title: "Info", description: "Pas de boisson en stock — seul le plat sera servi" });
+                      }
+                      claimFreeMealMutation.mutate();
+                    }}
+                    disabled={claimFreeMealMutation.isPending}
+                  >
+                    <Check className="w-4 h-4 mr-2" />
+                    {claimFreeMealMutation.isPending ? "Enregistrement..." : "Valider le repas offert"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          )}
 
           {/* Products Grid */}
           {isLoading ? (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import QRCode from "qrcode";
 import { Check } from "lucide-react";
-import { ParticipantWithRelations, MealPurchaseWithRelations } from "@shared/schema";
+import { ParticipantWithRelations } from "@shared/schema";
 
 interface ParticipantBadgeProps {
   participant: ParticipantWithRelations;
@@ -22,21 +22,7 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
   // Use updated participant data if available, otherwise use prop
   const currentParticipant = updatedParticipant || participant;
 
-  // Fetch meal purchases to know if participant has taken their meal
-  const { data: mealPurchases } = useQuery<MealPurchaseWithRelations[]>({
-    queryKey: ["/api/meal-purchases", currentParticipant.id],
-    queryFn: async () => {
-      const res = await fetch(`/api/meal-purchases?participantId=${currentParticipant.id}`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Failed to fetch meal purchases");
-      return res.json();
-    },
-    enabled: !!currentParticipant.id,
-    refetchInterval: 5000,
-  });
-
-  const mealTaken = Array.isArray(mealPurchases) && mealPurchases.length > 0;
+  const mealTaken = currentParticipant.freeMealClaimed === true;
 
   // Fetch encrypted QR data
   const { data: qrResponse } = useQuery<{ qrData: string }>({

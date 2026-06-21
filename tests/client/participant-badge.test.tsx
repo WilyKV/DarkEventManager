@@ -128,3 +128,30 @@ describe("ParticipantBadge — case Repas", () => {
     expect(repasRow?.querySelector(".bg-white")).toBeTruthy();
   });
 });
+
+describe("ParticipantBadge — case Goodies", () => {
+  it("affiche une coche verte quand returnedAt est défini", () => {
+    const participant = buildParticipant({
+      returnedAt: new Date("2026-06-22T18:00:00Z"),
+    });
+
+    renderBadge(participant);
+
+    const goodiesLabel = screen.getByText("Goodies");
+    const goodiesRow = goodiesLabel.closest("div[class*='flex items-center']");
+    expect(goodiesRow).not.toBeNull();
+    const greenBox = goodiesRow?.querySelector(".bg-green-600");
+    expect(greenBox).toBeTruthy();
+  });
+
+  it("affiche un carré blanc sans coche quand returnedAt est null", () => {
+    const participant = buildParticipant({ returnedAt: null });
+
+    renderBadge(participant);
+
+    const goodiesLabel = screen.getByText("Goodies");
+    const goodiesRow = goodiesLabel.closest("div[class*='flex items-center']");
+    expect(goodiesRow?.querySelector(".bg-green-600")).toBeFalsy();
+    expect(goodiesRow?.querySelector(".bg-white")).toBeTruthy();
+  });
+});

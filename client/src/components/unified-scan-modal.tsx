@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeScanner } from "@/components/qr-code-scanner";
-import { UserCheck, LogOut, Info, QrCode, CheckCircle2, Users } from "lucide-react";
+import { UserCheck, LogOut, Info, QrCode, CheckCircle2, Users, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -64,6 +64,11 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
       toast({
         title: "Sortie enregistrée",
         description: `${data.firstName} ${data.lastName} a quitté l'événement`,
+      });
+      toast({
+        title: "🎁 Remettre les goodies !",
+        description: `N'oubliez pas de remettre les goodies à ${data.firstName} ${data.lastName} !`,
+        duration: 8000,
       });
     },
   });
@@ -268,12 +273,18 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
                 </div>
                 <div className="space-y-2">
                   {processedParticipants.map((p, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <div key={index} className="flex items-center gap-2 text-sm flex-wrap">
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                       <span>{p.firstName} {p.lastName}</span>
                       <Badge variant="secondary" className="text-xs">
                         {p.returnedAt ? "Sorti" : "Enregistré"}
                       </Badge>
+                      {p.returnedAt && (
+                        <Badge className="text-xs bg-amber-500 hover:bg-amber-500 gap-1 flex items-center">
+                          <Gift className="w-3 h-3" />
+                          Goodies à remettre
+                        </Badge>
+                      )}
                     </div>
                   ))}
                 </div>

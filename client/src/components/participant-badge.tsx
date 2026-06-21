@@ -258,7 +258,13 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
                 : "bg-blue-900/20 border-blue-500/30"
               }
             `}>
-              <div className="w-4 h-4 border-2 border-white rounded bg-white flex-shrink-0"></div>
+              {currentParticipant.returnedAt != null ? (
+                <div className="w-4 h-4 border-2 border-green-600 rounded bg-green-600 flex-shrink-0 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                </div>
+              ) : (
+                <div className="w-4 h-4 border-2 border-white rounded bg-white flex-shrink-0"></div>
+              )}
               <span className="text-sm text-white font-medium">Goodies</span>
             </div>
           </div>

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import QRCode from "qrcode";
-import { ParticipantWithRelations } from "@shared/schema";
+import { Check } from "lucide-react";
+import { ParticipantWithRelations, MealPurchaseWithRelations } from "@shared/schema";
 
 interface ParticipantBadgeProps {
   participant: ParticipantWithRelations;
@@ -20,6 +21,22 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
 
   // Use updated participant data if available, otherwise use prop
   const currentParticipant = updatedParticipant || participant;
+
+  // Fetch meal purchases to know if participant has taken their meal
+  const { data: mealPurchases } = useQuery<MealPurchaseWithRelations[]>({
+    queryKey: ["/api/meal-purchases", currentParticipant.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/meal-purchases?participantId=${currentParticipant.id}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch meal purchases");
+      return res.json();
+    },
+    enabled: !!currentParticipant.id,
+    refetchInterval: 5000,
+  });
+
+  const mealTaken = Array.isArray(mealPurchases) && mealPurchases.length > 0;
 
   // Fetch encrypted QR data
   const { data: qrResponse } = useQuery<{ qrData: string }>({
@@ -223,7 +240,13 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
                 : "bg-blue-900/20 border-blue-500/30"
               }
             `}>
-              <div className="w-4 h-4 border-2 border-white rounded bg-white flex-shrink-0"></div>
+              {mealTaken ? (
+                <div className="w-4 h-4 border-2 border-green-600 rounded bg-green-600 flex-shrink-0 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                </div>
+              ) : (
+                <div className="w-4 h-4 border-2 border-white rounded bg-white flex-shrink-0"></div>
+              )}
               <span className="text-sm text-white font-medium">Repas</span>
             </div>
             <div className={`

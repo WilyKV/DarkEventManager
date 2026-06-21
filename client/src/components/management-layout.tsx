@@ -19,18 +19,18 @@ interface ManagementLayoutProps {
   actions?: React.ReactNode;
   showScanButton?: boolean;
   showHomeButton?: boolean; // Unused: kept for compatibility with boutique/repas pages
-  scanLink?: string; // Deprecated: kept for compatibility
-  useHistoryBack?: boolean; // Nouveau prop pour utiliser l'historique du navigateur
+  scanLink?: string;        // Deprecated: kept for compatibility
+  useHistoryBack?: boolean; // Prop pour utiliser l'historique du navigateur
 }
 
-export function ManagementLayout({ 
-  title, 
-  subtitle, 
-  children, 
-  actions, 
+export function ManagementLayout({
+  title,
+  subtitle,
+  children,
+  actions,
   showScanButton = false,
-  scanLink = "/scan", // Kept for compatibility but not used
-  useHistoryBack = false
+  scanLink = "/scan",
+  useHistoryBack = false,
 }: ManagementLayoutProps) {
   const { user, visitor, logout } = useAuth();
   const [location] = useLocation();
@@ -54,6 +54,7 @@ export function ManagementLayout({
             {/* Header */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
+                {/* Mobile : bouton retour OU logo "DARK EVENT" cliquable */}
                 {useHistoryBack ? (
                   <Button
                     variant="outline"
@@ -65,10 +66,15 @@ export function ManagementLayout({
                     <ArrowLeft className="w-5 h-5" />
                   </Button>
                 ) : (
-                  <Link href={visitor ? "/visitor" : "/home"}>
-                    <Button variant="outline" size="icon" data-testid="button-back" className="md:hidden">
-                      <ArrowLeft className="w-5 h-5" />
-                    </Button>
+                  <Link href={visitor ? "/visitor" : "/overview"}>
+                    <button
+                      data-testid="button-back"
+                      className="md:hidden flex flex-col items-center justify-center px-2 py-1 rounded-lg hover:bg-muted transition-colors"
+                      title="Vue d'ensemble"
+                    >
+                      <span className="text-primary font-display text-[10px] font-bold leading-tight block">DARK</span>
+                      <span className="text-foreground font-display text-[10px] font-bold leading-tight block">EVENT</span>
+                    </button>
                   </Link>
                 )}
                 <div>

@@ -8,7 +8,7 @@ import { AuthProvider, RequireAuth } from "@/lib/auth";
 import LoginPage from "@/pages/login";
 import VisitorPage from "@/pages/visitor";
 import UsersPage from "@/pages/users";
-import HomePage from "@/pages/home";
+import OverviewPage from "@/pages/overview";
 import DashboardPage from "@/pages/dashboard";
 import ZombiePage from "@/pages/zombie";
 import SurvivantPage from "@/pages/survivant";
@@ -56,20 +56,29 @@ function Router() {
         <VisitorPage />
       </Route>
 
-      {/* Protected routes */}
+      {/* Root → overview */}
       <Route path="/">
-        <Redirect to="/home" />
+        <Redirect to="/overview" />
       </Route>
+      {/* /home → overview (rétro-compat) */}
       <Route path="/home">
+        <Redirect to="/overview" />
+      </Route>
+
+      {/* Overview — page d'atterrissage */}
+      <Route path="/overview">
         <RequireAuth>
-          <HomePage />
+          <OverviewPage />
         </RequireAuth>
       </Route>
+
+      {/* Dashboard analytique complet (accessible mais hors menu) */}
       <Route path="/dashboard">
         <RequireAuth>
           <DashboardPage />
         </RequireAuth>
       </Route>
+
       <Route path="/zombie">
         <RequireAuth>
           <ZombiePage />

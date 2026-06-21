@@ -1,20 +1,20 @@
 import { Link, useLocation } from "wouter";
 import {
-  Home,
   Skull,
   Users,
   ShoppingBag,
   Utensils,
   QrCode,
-  BarChart3,
   UserCog,
   IdCard,
   Settings,
   LogOut,
   UserCheck,
+  LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ConnectionIndicator } from "./connection-indicator";
+import { getSectionColor } from "@/lib/section-colors";
 
 interface NavItem {
   label: string;
@@ -24,17 +24,16 @@ interface NavItem {
 }
 
 const ALL_NAV_ITEMS: NavItem[] = [
-  { label: "Accueil", icon: Home, path: "/home" },
-  { label: "Dashboard", icon: BarChart3, path: "/dashboard", roles: ["admin"] },
-  { label: "Zombies", icon: Skull, path: "/zombie", roles: ["admin", "staff_zombie"] },
-  { label: "Survivants", icon: Users, path: "/survivant", roles: ["admin", "staff_survivant"] },
-  { label: "Staff", icon: UserCog, path: "/staff", roles: ["admin"] },
-  { label: "Boutique", icon: ShoppingBag, path: "/boutique", roles: ["admin", "staff_boutique"] },
-  { label: "Repas", icon: Utensils, path: "/repas", roles: ["admin", "staff_repas"] },
-  { label: "Badges", icon: IdCard, path: "/badges", roles: ["admin"] },
-  { label: "Scanner", icon: QrCode, path: "/scan", roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
-  { label: "Admin", icon: Settings, path: "/admin", roles: ["admin"] },
-  { label: "Utilisateurs", icon: UserCheck, path: "/users", roles: ["admin"] },
+  { label: "Zombies",      icon: Skull,           path: "/zombie",    roles: ["admin", "staff_zombie"] },
+  { label: "Survivants",   icon: Users,           path: "/survivant", roles: ["admin", "staff_survivant"] },
+  { label: "Staff",        icon: UserCog,         path: "/staff",     roles: ["admin"] },
+  { label: "Boutique",     icon: ShoppingBag,     path: "/boutique",  roles: ["admin", "staff_boutique"] },
+  { label: "Repas",        icon: Utensils,        path: "/repas",     roles: ["admin", "staff_repas"] },
+  { label: "Badges",       icon: IdCard,          path: "/badges",    roles: ["admin"] },
+  { label: "Scanner",      icon: QrCode,          path: "/scan",      roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
+  { label: "Analytics",   icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
+  { label: "Admin",        icon: Settings,        path: "/admin",     roles: ["admin"] },
+  { label: "Utilisateurs", icon: UserCheck,       path: "/users",     roles: ["admin"] },
 ];
 
 function useFilteredNavItems(): NavItem[] {
@@ -54,33 +53,45 @@ export function SideRail() {
 
   return (
     <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-20 z-40 bg-card border-r border-border overflow-y-auto">
-      {/* Logo / App title */}
-      <div className="flex flex-col items-center justify-center py-4 px-2 border-b border-border/50 shrink-0 gap-1">
-        <div className="text-center">
-          <span className="text-primary font-display text-xs font-bold leading-tight block">DARK</span>
-          <span className="text-foreground font-display text-xs font-bold leading-tight block">EVENT</span>
+      {/* Logo / App title — cliquable -> /overview */}
+      <Link href="/overview">
+        <div className="flex flex-col items-center justify-center py-4 px-2 border-b border-border/50 shrink-0 gap-1 cursor-pointer hover:bg-muted/50 transition-colors">
+          <div className="text-center">
+            <span className="text-primary font-display text-xs font-bold leading-tight block">DARK</span>
+            <span className="text-foreground font-display text-xs font-bold leading-tight block">EVENT</span>
+          </div>
+          <ConnectionIndicator />
         </div>
-        <ConnectionIndicator />
-      </div>
+      </Link>
 
       {/* Nav items */}
       <nav className="flex flex-col items-center py-3 gap-1 flex-1 px-2">
         {filtered.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
+          const color = getSectionColor(item.path);
+
           return (
             <Link key={item.path} href={item.path}>
               <button
                 className={`relative flex flex-col items-center justify-center gap-1 w-full min-h-[60px] px-1 py-2 rounded-xl transition-all duration-150 group ${
                   active
-                    ? "bg-primary/15 text-primary"
+                    ? ""
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
+                style={
+                  active
+                    ? { color, backgroundColor: `${color}1f` }
+                    : undefined
+                }
                 title={item.label}
               >
-                {/* Active left accent bar */}
+                {/* Barre d'accent gauche (active) */}
                 {active && (
-                  <span className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-primary" />
+                  <span
+                    className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
                 )}
                 <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
                 <span className="text-[10px] font-medium leading-tight text-center line-clamp-2">

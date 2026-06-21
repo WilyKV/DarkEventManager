@@ -150,9 +150,13 @@ export function ParticipantBadge({ participant }: ParticipantBadgeProps) {
                 }
               `}>
                 <p className="text-xs text-white/70 uppercase tracking-wider font-semibold">Squad</p>
-                {/* White box for manual writing */}
+                {/* White box: shows squad number if assigned, empty for manual writing otherwise */}
                 <div className="mx-auto w-14 h-14 bg-white border-2 border-gray-300 rounded flex items-center justify-center">
-                  <span className="text-gray-400 text-xs"></span>
+                  {currentParticipant.squad?.number != null ? (
+                    <span className="text-gray-900 text-3xl font-bold font-mono leading-none">
+                      {currentParticipant.squad.number}
+                    </span>
+                  ) : null}
                 </div>
               </div>
             )}

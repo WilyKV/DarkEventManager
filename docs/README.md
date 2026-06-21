@@ -29,6 +29,7 @@ Cette documentation est destinée aux propriétaires du projet, bénévoles, et 
 6. **[Fin d'événement - PDF et emails](./06-fin-evenement-pdf-email.md)** — Pipeline de génération de récapitulatifs et envoi aux participants
 7. **[Installation et exploitation](./07-installation-exploitation.md)** — Lancer le projet (Docker / local), configuration .env, démarrage
 8. **[Sécurité](./08-securite.md)** — Chiffrement, rate-limiting, audit logs, secrets
+9. **[Guide de déploiement](./09-deploiement.md)** — Déployer en production sur serveur Linux pas à pas (Docker, HTTPS, init, dépannage)
 
 ## Architecture Decision Records (ADR)
 

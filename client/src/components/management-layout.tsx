@@ -8,6 +8,9 @@ import { UnifiedScanModal } from "./unified-scan-modal";
 import { useAuth } from "@/lib/auth";
 import { SideRail } from "./side-rail";
 import { BottomNav } from "./bottom-nav";
+import { ConnectionIndicator } from "./connection-indicator";
+import { SyncPendingBadge } from "./sync-pending-badge";
+import { InstallPrompt } from "./install-prompt";
 
 interface ManagementLayoutProps {
   title: string;
@@ -75,6 +78,8 @@ export function ManagementLayout({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
+                <ConnectionIndicator />
+                <SyncPendingBadge />
                 <NotificationCenter />
                 {showScanButton && (
                   <Button
@@ -111,6 +116,9 @@ export function ManagementLayout({
 
       {/* Bottom nav — mobile only */}
       <BottomNav />
+
+      {/* PWA install prompt */}
+      <InstallPrompt />
 
       {/* Unified Scan Modal */}
       <UnifiedScanModal

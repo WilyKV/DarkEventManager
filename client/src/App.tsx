@@ -1,6 +1,7 @@
-import { Switch, Route, Redirect } from "wouter";
+import React from "react";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, RequireAuth } from "@/lib/auth";
@@ -17,11 +18,39 @@ import RepasPage from "@/pages/repas";
 import BadgesPage from "@/pages/badges";
 import ScanPage from "@/pages/scan";
 import AdminPage from "@/pages/admin";
+import SetupPage from "@/pages/setup";
 import NotFound from "@/pages/not-found";
+
+function SetupGuard({ children }: { children: React.ReactNode }) {
+  const [location, setLocation] = useLocation();
+
+  const { data } = useQuery<{ needsSetup: boolean }>({
+    queryKey: ["/api/setup/status"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/setup/status");
+        if (!res.ok) return { needsSetup: false };
+        return res.json();
+      } catch {
+        return { needsSetup: false };
+      }
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  if (data?.needsSetup === true && location !== "/setup") {
+    setLocation("/setup");
+    return null;
+  }
+
+  return <>{children}</>;
+}
 
 function Router() {
   return (
     <Switch>
+      <Route path="/setup" component={SetupPage} />
       <Route path="/login" component={LoginPage} />
       <Route path="/visitor">
         <VisitorPage />
@@ -101,7 +130,9 @@ function App() {
         <TooltipProvider>
           <div className="min-h-screen bg-background text-foreground">
             <Toaster />
-            <Router />
+            <SetupGuard>
+              <Router />
+            </SetupGuard>
           </div>
         </TooltipProvider>
       </AuthProvider>

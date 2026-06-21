@@ -397,6 +397,16 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
+  // Setup status: public endpoint to check if first-time setup is needed
+  app.get("/api/setup/status", async (_req, res) => {
+    try {
+      const existingUsers = await db.select().from(users).limit(1);
+      res.json({ needsSetup: existingUsers.length === 0 });
+    } catch (error) {
+      res.status(500).json({ message: "Erreur lors de la vérification du statut" });
+    }
+  });
+
   // Initialize admin user if no users exist
   app.post("/api/auth/init", async (req, res) => {
     try {

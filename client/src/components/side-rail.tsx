@@ -14,6 +14,7 @@ import {
   UserCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { ConnectionIndicator } from "./connection-indicator";
 
 interface NavItem {
   label: string;
@@ -54,11 +55,12 @@ export function SideRail() {
   return (
     <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-20 z-40 bg-card border-r border-border overflow-y-auto">
       {/* Logo / App title */}
-      <div className="flex items-center justify-center py-4 px-2 border-b border-border/50 shrink-0">
+      <div className="flex flex-col items-center justify-center py-4 px-2 border-b border-border/50 shrink-0 gap-1">
         <div className="text-center">
           <span className="text-primary font-display text-xs font-bold leading-tight block">DARK</span>
           <span className="text-foreground font-display text-xs font-bold leading-tight block">EVENT</span>
         </div>
+        <ConnectionIndicator />
       </div>
 
       {/* Nav items */}

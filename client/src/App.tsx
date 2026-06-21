@@ -7,7 +7,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, RequireAuth } from "@/lib/auth";
 import LoginPage from "@/pages/login";
 import VisitorPage from "@/pages/visitor";
-import UsersPage from "@/pages/users";
 import OverviewPage from "@/pages/overview";
 import DashboardPage from "@/pages/dashboard";
 import ZombiePage from "@/pages/zombie";
@@ -122,9 +121,7 @@ function Router() {
         </RequireAuth>
       </Route>
       <Route path="/users">
-        <RequireAuth roles={["admin"]}>
-          <UsersPage />
-        </RequireAuth>
+        <Redirect to="/admin" />
       </Route>
 
       <Route component={NotFound} />

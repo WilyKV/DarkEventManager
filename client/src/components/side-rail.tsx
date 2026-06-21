@@ -9,7 +9,6 @@ import {
   IdCard,
   Settings,
   LogOut,
-  UserCheck,
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -33,7 +32,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Scanner",      icon: QrCode,          path: "/scan",      roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
   { label: "Analytics",   icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
   { label: "Admin",        icon: Settings,        path: "/admin",     roles: ["admin"] },
-  { label: "Utilisateurs", icon: UserCheck,       path: "/users",     roles: ["admin"] },
 ];
 
 function useFilteredNavItems(): NavItem[] {

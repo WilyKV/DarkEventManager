@@ -8,7 +8,6 @@ export const SECTION_COLORS: Record<string, string> = {
   "/repas":      "#f97316",
   "/badges":     "#ec4899",
   "/admin":      "#6366f1",
-  "/users":      "#6366f1",
   "/scan":       "#10b981",
   "/dashboard":  "#a855f7",
 };

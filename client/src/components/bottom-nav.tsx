@@ -8,7 +8,6 @@ import {
   UserCog,
   IdCard,
   Settings,
-  UserCheck,
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -31,7 +30,6 @@ const ALL_NAV_ITEMS: NavItem[] = [
   { label: "Badges",       icon: IdCard,          path: "/badges",    roles: ["admin"] },
   { label: "Analytics",   icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
   { label: "Admin",        icon: Settings,        path: "/admin",     roles: ["admin"] },
-  { label: "Utilisateurs", icon: UserCheck,       path: "/users",     roles: ["admin"] },
 ];
 
 const SCAN_ROLES = ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"];

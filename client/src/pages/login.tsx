@@ -246,6 +246,8 @@ export default function LoginPage() {
                       {...visitorForm.register("secretCode")}
                       placeholder="12345"
                       maxLength={5}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       className="text-center text-2xl tracking-widest font-mono"
                     />
                     {visitorForm.formState.errors.secretCode && (

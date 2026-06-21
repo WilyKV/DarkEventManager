@@ -243,7 +243,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 <div className="space-y-4">
                   <div className="p-6 rounded-lg bg-primary/5 border-2 border-primary/20">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-xl font-bold text-primary">{selectedSquadData.name}</h4>
+                      <h4 className="text-xl font-bold text-primary">Squad {selectedSquadData.number}</h4>
                       <Badge className="bg-primary">{selectedSquadData.type}</Badge>
                     </div>
 

@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 interface User {
   id: number;
   username: string;
-  roles: string; // JSON string
+  roles: string | string[]; // JSON string or parsed array
   rolesList?: string[]; // Parsed roles array
 }
 
@@ -28,20 +28,21 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+export function parseUserRoles<T extends { roles: string | string[] }>(userData: T): T & { rolesList: string[] } {
+  try {
+    const rawRoles = userData.roles;
+    const rolesList = Array.isArray(rawRoles) ? rawRoles : JSON.parse((rawRoles as string) || "[]");
+    return { ...userData, rolesList };
+  } catch {
+    return { ...userData, rolesList: [] };
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [visitor, setVisitor] = useState<Visitor | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [, setLocation] = useLocation();
-
-  const parseUserRoles = (userData: User): User => {
-    try {
-      const rolesList = JSON.parse(userData.roles || '[]');
-      return { ...userData, rolesList };
-    } catch {
-      return { ...userData, rolesList: [] };
-    }
-  };
 
   const checkSession = async () => {
     try {
@@ -52,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.user) {
-          setUser(parseUserRoles(data.user));
+          setUser(parseUserRoles(data.user) as User);
           setVisitor(null);
         } else if (data.visitor) {
           setVisitor(data.visitor);

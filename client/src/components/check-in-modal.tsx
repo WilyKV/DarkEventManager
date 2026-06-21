@@ -172,11 +172,11 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1">
                           <span className="text-muted-foreground">
-                            {log.previousSquadId ? log.previousSquad?.name : "Aucune squad"}
+                            {log.previousSquadId ? `Squad ${log.previousSquad?.number}` : "Aucune squad"}
                           </span>
                           <span className="mx-2">→</span>
                           <span className="font-semibold text-primary">
-                            {log.newSquadId ? log.newSquad?.name : "Aucune squad"}
+                            {log.newSquadId ? `Squad ${log.newSquad?.number}` : "Aucune squad"}
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground whitespace-nowrap">

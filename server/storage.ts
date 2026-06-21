@@ -48,122 +48,8 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, isNull, desc, isNotNull, sql } from "drizzle-orm";
-
-export interface DashboardStats {
-  participants: {
-    total: number;
-    zombies: number;
-    survivors: number;
-    arrived: number;
-    pending: number;
-    arrivalRate: number;
-  };
-  squads: {
-    name: string;
-    type: string;
-    currentMembers: number;
-    maxMembers: number;
-  }[];
-  checklist: {
-    totalCompleted: number;
-    totalParticipants: number;
-    completionRate: number;
-  };
-  stock: {
-    shopItems: { name: string; stock: number; category: string }[];
-    mealItems: { name: string; stock: number; category: string }[];
-  };
-}
-
-export interface IStorage {
-  // Participants
-  getParticipants(type?: string): Promise<ParticipantWithRelations[]>;
-  getParticipant(id: number): Promise<ParticipantWithRelations | undefined>;
-  createParticipant(participant: InsertParticipant): Promise<Participant>;
-  updateParticipant(id: number, participant: Partial<InsertParticipant>): Promise<Participant>;
-  batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]>;
-  generateSecretCode(): Promise<string>;
-
-  // Time Slots
-  getTimeSlots(type?: string): Promise<TimeSlot[]>;
-  getTimeSlot(id: number): Promise<TimeSlot | undefined>;
-  createTimeSlot(timeSlot: InsertTimeSlot): Promise<TimeSlot>;
-  updateTimeSlot(id: number, timeSlot: Partial<InsertTimeSlot>): Promise<TimeSlot>;
-  deleteTimeSlot(id: number): Promise<void>;
-
-  // Squads
-  getSquads(type?: string): Promise<Squad[]>;
-  getSquad(id: number): Promise<Squad | undefined>;
-  getSquadsWithParticipants(type?: string, timeSlotId?: number): Promise<SquadWithRelations[]>;
-  createSquad(squad: InsertSquad): Promise<Squad>;
-  updateSquad(id: number, squad: Partial<InsertSquad>): Promise<Squad>;
-  deleteSquad(id: number): Promise<void>;
-
-  // Shop Items
-  getShopItems(): Promise<ShopItem[]>;
-  getShopItem(id: number): Promise<ShopItem | undefined>;
-  createShopItem(item: InsertShopItem): Promise<ShopItem>;
-  updateShopItem(id: number, item: Partial<InsertShopItem>): Promise<ShopItem>;
-  deleteShopItem(id: number): Promise<void>;
-
-  // Meal Items
-  getMealItems(): Promise<MealItem[]>;
-  getMealItem(id: number): Promise<MealItem | undefined>;
-  createMealItem(item: InsertMealItem): Promise<MealItem>;
-  updateMealItem(id: number, item: Partial<InsertMealItem>): Promise<MealItem>;
-  deleteMealItem(id: number): Promise<void>;
-
-  // Dashboard Stats
-  getDashboardStats(): Promise<DashboardStats>;
-
-  // Squad Audit Log
-  createSquadAuditLog(log: InsertSquadAuditLog): Promise<SquadAuditLog>;
-  getSquadAuditLogs(participantId: number): Promise<SquadAuditLogWithRelations[]>;
-
-  // Discounts
-  getGlobalDiscounts(): Promise<Discount | undefined>;
-  updateGlobalDiscounts(data: Partial<InsertDiscount>): Promise<Discount>;
-  getSquadDiscount(squadId: number): Promise<number | undefined>;
-  setSquadDiscount(squadId: number, discount: number): Promise<Discount>;
-  getParticipantDiscount(participantId: number): Promise<number | null | undefined>;
-  setParticipantDiscount(participantId: number, discount: number | null): Promise<Discount>;
-  calculateDiscount(participantId: number): Promise<number>;
-
-  // Purchases
-  getPurchases(participantId?: number): Promise<PurchaseWithRelations[]>;
-  getPurchase(id: number): Promise<PurchaseWithRelations | undefined>;
-  createPurchase(purchase: InsertPurchase): Promise<Purchase & { idempotent?: boolean }>;
-  updatePurchase(id: number, purchase: Partial<InsertPurchase>): Promise<Purchase>;
-  deletePurchase(id: number): Promise<void>;
-
-  // Meal Purchases
-  getMealPurchases(participantId?: number): Promise<MealPurchaseWithRelations[]>;
-  getMealPurchase(id: number): Promise<MealPurchaseWithRelations | undefined>;
-  createMealPurchase(purchase: InsertMealPurchase): Promise<MealPurchase>;
-  updateMealPurchase(id: number, purchase: Partial<InsertMealPurchase>): Promise<MealPurchase>;
-  deleteMealPurchase(id: number): Promise<void>;
-
-  // Meal Discounts
-  getGlobalMealDiscounts(): Promise<MealDiscount | undefined>;
-  updateGlobalMealDiscounts(data: Partial<InsertMealDiscount>): Promise<MealDiscount>;
-  getSquadMealDiscount(squadId: number): Promise<number | undefined>;
-  setSquadMealDiscount(squadId: number, discount: number): Promise<MealDiscount>;
-  getParticipantMealDiscount(participantId: number): Promise<number | null | undefined>;
-  setParticipantMealDiscount(participantId: number, discount: number | null): Promise<MealDiscount>;
-  calculateMealDiscount(participantId: number): Promise<number>;
-
-  // Audit Logs
-  createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
-  getAuditLogs(filters?: { tableName?: string; action?: string; userId?: number; limit?: number }): Promise<AuditLogWithUser[]>;
-
-  // Data Management
-  resetData(module: string, type?: string): Promise<void>;
-
-  // Event Ingest
-  appendEvents(events: InsertServerEvent[]): Promise<{ inserted: number; duplicates: number }>;
-  getServerLamportTs(): Promise<number>;
-  bumpServerLamportTs(min: number): Promise<number>;
-}
+import type { IStorage, DashboardStats } from "./storage-interfaces";
+export type { IStorage, DashboardStats } from "./storage-interfaces";
 
 export class DatabaseStorage implements IStorage {
   // Participants
@@ -1105,6 +991,38 @@ export class DatabaseStorage implements IStorage {
       .where(eq(appConfig.id, config.id))
       .returning();
     return updated.serverLamportTs ?? min + 1;
+  }
+
+  async ingestEvents(
+    events: InsertServerEvent[],
+    minLamport: number,
+  ): Promise<{ inserted: number; duplicates: number; serverLamportTs: number }> {
+    const config = await this.getSyncConfig();
+
+    return await db.transaction(async (tx) => {
+      let insertedCount = 0;
+      let duplicatesCount = 0;
+
+      if (events.length > 0) {
+        const rows = await tx
+          .insert(serverEvents)
+          .values(events)
+          .onConflictDoNothing({ target: serverEvents.eventUuid })
+          .returning({ eventUuid: serverEvents.eventUuid });
+        insertedCount = rows.length;
+        duplicatesCount = events.length - rows.length;
+      }
+
+      const [updated] = await tx
+        .update(appConfig)
+        .set({ serverLamportTs: sql`GREATEST(server_lamport_ts, ${minLamport}) + 1` })
+        .where(eq(appConfig.id, config.id))
+        .returning();
+
+      const serverLamportTs = updated.serverLamportTs ?? minLamport + 1;
+
+      return { inserted: insertedCount, duplicates: duplicatesCount, serverLamportTs };
+    });
   }
 }
 

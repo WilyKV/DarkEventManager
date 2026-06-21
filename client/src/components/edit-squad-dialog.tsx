@@ -57,12 +57,12 @@ export function EditSquadDialog({ squad, open, onOpenChange }: EditSquadDialogPr
     },
   });
 
-  const form = useForm<SquadFormData>({
+  const form = useForm<SquadFormData, unknown, SquadFormData>({
     resolver: zodResolver(squadFormSchema),
     defaultValues: {
       number: squad.number,
       timeSlotId: squad.timeSlotId,
-      maxMembers: squad.maxMembers,
+      maxMembers: squad.maxMembers ?? 8,
     },
   });
 
@@ -71,7 +71,7 @@ export function EditSquadDialog({ squad, open, onOpenChange }: EditSquadDialogPr
     form.reset({
       number: squad.number,
       timeSlotId: squad.timeSlotId,
-      maxMembers: squad.maxMembers,
+      maxMembers: squad.maxMembers ?? 8,
     });
   }, [squad, form]);
 

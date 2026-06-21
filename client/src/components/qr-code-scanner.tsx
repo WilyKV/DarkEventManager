@@ -19,7 +19,7 @@ export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
 
   useEffect(() => {
     // Check if camera is available
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+    if (navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
       setHasCamera(true);
     } else {
       setHasCamera(false);

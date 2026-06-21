@@ -9,9 +9,11 @@ import { childLogger } from './logger';
 import {
   WS_MAX_PAYLOAD_BYTES,
   WS_PING_INTERVAL_MS,
-  WS_SYNC_DATA_MAX_BYTES,
   UDP_DISCOVERY_PORT,
 } from './config/limits';
+import { validateSyncPayload } from './ws/event-validator';
+import { canDeviceSend } from './ws/sync-permission';
+import { routeMessage } from './ws/message-router';
 
 const wsLogger = childLogger('websocket');
 
@@ -29,7 +31,7 @@ export class WebSocketSyncServer {
   private udpServer: dgram.Socket | null = null;
   private broadcastPort: number = UDP_DISCOVERY_PORT;
   private httpServer: Server | null = null;
-  private wsSecret: string;
+  private wsSecret: string = '';
 
   start(httpServer: Server) {
     this.httpServer = httpServer;
@@ -87,7 +89,7 @@ export class WebSocketSyncServer {
       ws.on('close', () => {
         clearInterval(pingInterval);
         // Remove client from the list
-        for (const [deviceId, client] of this.clients.entries()) {
+        for (const [deviceId, client] of Array.from(this.clients.entries())) {
           if (client.ws === ws) {
             wsLogger.info({ deviceId, deviceName: client.deviceName }, 'Client déconnecté');
             this.clients.delete(deviceId);
@@ -245,26 +247,13 @@ export class WebSocketSyncServer {
       return;
     }
 
-    switch (message.type) {
-      case 'sync-request':
-        this.handleSyncRequest(ws, message);
-        break;
-
-      case 'sync-data':
-        this.handleSyncData(ws, message);
-        break;
-
-      case 'get-clients':
-        this.sendClientList(ws);
-        break;
-
-      case 'ping':
-        ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() }));
-        break;
-
-      default:
-        ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
-    }
+    routeMessage(ws, message, {
+      onSyncRequest: (ws, msg) => this.handleSyncRequest(ws, msg),
+      onSyncData: (ws, msg) => this.handleSyncData(ws, msg),
+      onGetClients: (ws) => this.sendClientList(ws),
+      onPing: (ws) => ws.send(JSON.stringify({ type: 'pong', timestamp: Date.now() })),
+      onUnknown: (ws) => ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' })),
+    });
   }
 
   private async handleRegister(ws: WebSocket, message: any) {
@@ -365,14 +354,10 @@ export class WebSocketSyncServer {
   private async handleSyncData(ws: WebSocket, message: any) {
     const { targetDeviceId, syncData, dataType } = message;
 
-    // Validate payload structure
-    if (!dataType || typeof dataType !== 'string') {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid dataType' }));
-      return;
-    }
-
-    if (!syncData || typeof syncData !== 'object') {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid syncData' }));
+    // Validate payload structure (dataType, syncData, size, allowed types)
+    const validation = validateSyncPayload(dataType, syncData);
+    if (!validation.ok) {
+      ws.send(JSON.stringify({ type: 'error', message: validation.message }));
       return;
     }
 
@@ -387,17 +372,13 @@ export class WebSocketSyncServer {
     try {
       const config = await storage.getSyncConfig();
 
-      if (!config.isOnlineMode) {
-        const isMaster = config.masterDeviceId === sourceClient.deviceId;
-
-        if (!isMaster) {
-          wsLogger.warn({ deviceName: sourceClient.deviceName }, 'Données sync refusées : appareil non maître');
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: 'Seul l\'appareil maître peut envoyer des données en mode hors ligne',
-          }));
-          return;
-        }
+      if (!canDeviceSend(config, sourceClient.deviceId)) {
+        wsLogger.warn({ deviceName: sourceClient.deviceName }, 'Données sync refusées : appareil non maître');
+        ws.send(JSON.stringify({
+          type: 'error',
+          message: 'Seul l\'appareil maître peut envoyer des données en mode hors ligne',
+        }));
+        return;
       }
     } catch (error) {
       wsLogger.error({ err: error }, 'Erreur vérification permissions sync');
@@ -405,20 +386,7 @@ export class WebSocketSyncServer {
       return;
     }
 
-    // Validate payload size (max 10MB per message)
     const payloadSize = JSON.stringify(syncData).length;
-    if (payloadSize > WS_SYNC_DATA_MAX_BYTES) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Payload too large (max 10MB)' }));
-      return;
-    }
-
-    // Validate dataType is one of allowed types
-    const allowedDataTypes = ['participants', 'squads', 'timeslots', 'all'];
-    if (!allowedDataTypes.includes(dataType)) {
-      ws.send(JSON.stringify({ type: 'error', message: 'Invalid dataType' }));
-      return;
-    }
-
     wsLogger.info({ deviceName: sourceClient.deviceName, dataType, payloadSize }, 'Données sync reçues');
 
     if (targetDeviceId) {

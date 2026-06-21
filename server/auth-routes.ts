@@ -129,7 +129,7 @@ export function registerAuthRoutes(app: Express) {
         user: {
           id: user.id,
           username: user.username,
-          roles: user.roles,
+          roles: parsedRoles,
         },
       });
     } catch (error: any) {

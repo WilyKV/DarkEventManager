@@ -333,9 +333,9 @@ export default function VisitorPage() {
                             <p className="font-semibold">{purchase.shopItem?.name}</p>
                             <div className="flex items-center gap-3 mt-1">
                               <span className="text-sm text-muted-foreground">
-                                {format(new Date(purchase.purchasedAt), "PPp", { locale: fr })}
+                                {purchase.purchasedAt ? format(new Date(purchase.purchasedAt), "PPp", { locale: fr }) : "—"}
                               </span>
-                              {purchase.discountApplied > 0 && (
+                              {(purchase.discountApplied ?? 0) > 0 && (
                                 <Badge variant="outline" className="text-xs">
                                   -{purchase.discountApplied}%
                                 </Badge>
@@ -350,7 +350,7 @@ export default function VisitorPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-lg">{purchase.totalPrice}€</p>
-                            {purchase.discountApplied > 0 && (
+                            {(purchase.discountApplied ?? 0) > 0 && (
                               <p className="text-sm text-muted-foreground line-through">
                                 {purchase.originalPrice}€
                               </p>
@@ -396,9 +396,9 @@ export default function VisitorPage() {
                             <p className="font-semibold">{purchase.mealItem?.name}</p>
                             <div className="flex items-center gap-3 mt-1">
                               <span className="text-sm text-muted-foreground">
-                                {format(new Date(purchase.purchasedAt), "PPp", { locale: fr })}
+                                {purchase.purchasedAt ? format(new Date(purchase.purchasedAt), "PPp", { locale: fr }) : "—"}
                               </span>
-                              {purchase.discountApplied > 0 && (
+                              {(purchase.discountApplied ?? 0) > 0 && (
                                 <Badge variant="outline" className="text-xs">
                                   -{purchase.discountApplied}%
                                 </Badge>
@@ -413,7 +413,7 @@ export default function VisitorPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-lg">{purchase.totalPrice}€</p>
-                            {purchase.discountApplied > 0 && (
+                            {(purchase.discountApplied ?? 0) > 0 && (
                               <p className="text-sm text-muted-foreground line-through">
                                 {purchase.originalPrice}€
                               </p>

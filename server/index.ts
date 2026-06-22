@@ -13,6 +13,7 @@ import { wsSyncServer } from "./websocket-sync";
 import { checkSyncPermissions } from "./sync-middleware";
 import { setupVite, serveStatic, log } from "./vite";
 import { validateWebSocketSecret } from "./websocket-secret-config";
+import { validateSessionSecret } from "./session-secret-config";
 import { createSessionStore } from "./session-config";
 import { sessionLogger } from "./session-logger";
 import { pool } from "./db";
@@ -23,6 +24,15 @@ import { BULK_INGEST_BODY_LIMIT } from "./config/limits";
 
 const appLogger = childLogger('app');
 
+// Validation du SESSION_SECRET au démarrage (avant toute initialisation)
+const sessionSecretCheck = validateSessionSecret(process.env as Record<string, string | undefined>);
+if (sessionSecretCheck.mode === 'fail') {
+  appLogger.fatal({ module: 'session' }, sessionSecretCheck.message);
+  process.exit(1);
+} else if (sessionSecretCheck.mode === 'warn') {
+  appLogger.warn({ module: 'session' }, sessionSecretCheck.message);
+}
+
 const app = express();
 applySecurityHeaders(app);
 app.use("/api/events/bulk-ingest", express.json({ limit: BULK_INGEST_BODY_LIMIT }));
@@ -32,7 +42,7 @@ app.use(express.urlencoded({ extended: false }));
 // Session configuration
 app.use(session({
   name: 'darkevent.sid',
-  secret: process.env.SESSION_SECRET || 'darkevent-secret-key-change-in-production',
+  secret: sessionSecretCheck.secret,
   resave: false,
   saveUninitialized: false,
   store: createSessionStore(process.env, pool),

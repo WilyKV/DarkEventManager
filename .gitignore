@@ -6,4 +6,7 @@ vite.config.ts.*
 *.tar.gz
 .local
 .vscode
-.env
+.env*
+!.env.example
+backups/
+*.sql

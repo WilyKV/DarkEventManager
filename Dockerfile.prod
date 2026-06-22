@@ -1,0 +1,75 @@
+# =============================================================================
+# Dockerfile.prod — Build multi-stage pour production (arm64 / amd64)
+# NE remplace PAS .docker/Dockerfile (réservé au dev).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: builder — compile le client Vite + bundle le serveur esbuild
+# -----------------------------------------------------------------------------
+FROM node:22-alpine AS builder
+
+WORKDIR /app
+
+# Outils natifs nécessaires pour certaines dépendances (bufferutil optionnel)
+# python3 + make + g++ permettent la compilation native si possible ;
+# bufferutil est en optionalDependencies donc son échec ne bloque pas.
+RUN apk add --no-cache python3 make g++
+
+# Copie des manifestes en premier pour profiter du cache Docker
+COPY package*.json ./
+
+# Installation de TOUTES les dépendances (dev incluses : vite, esbuild, drizzle-kit…)
+# --ignore-scripts évite les post-install non contrôlés ; bufferutil compilera via gyp
+RUN npm ci || npm ci --ignore-scripts
+
+# Copie du code source (le .dockerignore exclut node_modules, dist, .git, etc.)
+COPY . .
+
+# Build client (Vite → dist/public) + serveur (esbuild → dist/index.js)
+RUN npm run build
+
+# -----------------------------------------------------------------------------
+# Stage 2: runner — image finale légère, uniquement ce qui tourne en production
+# -----------------------------------------------------------------------------
+FROM node:22-alpine AS runner
+
+WORKDIR /app
+
+# Outils natifs pour éventuels modules natifs de prod (pg native, etc.)
+RUN apk add --no-cache python3 make g++
+
+# Copie des manifestes pour installer uniquement les dépendances de prod
+COPY package*.json ./
+
+# --omit=dev exclut devDependencies (vite, esbuild, tsx…)
+# drizzle-kit est en devDependency : il est donc absent ici.
+# La migration db:push est lancée par deploy.sh via un conteneur éphémère
+# qui utilise l'image builder (voir docker-compose.prod.yml service db-migrate).
+# --no-optional évite de tenter de compiler bufferutil sans les outils adéquats
+# (le fallback JS de ws est automatique si bufferutil est absent).
+RUN npm ci --omit=dev --no-optional
+
+# Artefacts compilés depuis le builder
+COPY --from=builder /app/dist ./dist
+
+# shared/ est nécessaire si du code runtime l'importe directement
+COPY --from=builder /app/shared ./shared
+
+# Dossier uploads — point de montage pour le volume nommé darkevent_uploads
+RUN mkdir -p /app/uploads
+
+# Utilisateur non-root pour réduire la surface d'attaque
+RUN addgroup -S app && adduser -S app -G app \
+    && chown -R app:app /app
+
+USER app
+
+# Port applicatif
+EXPOSE 5000
+
+# Healthcheck : attend que l'API réponde sur /api/health ou /
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget -qO- http://localhost:5000/ > /dev/null 2>&1 || exit 1
+
+# Démarrage en production
+CMD ["node", "dist/index.js"]

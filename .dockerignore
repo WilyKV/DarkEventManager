@@ -1,0 +1,35 @@
+# Dépendances et build artifacts — régénérés dans l'image
+node_modules
+dist
+coverage
+
+# Données et secrets — ne jamais inclure dans l'image
+.env
+.env.*
+!.env.example
+uploads
+
+# Contrôle de version — non nécessaire au build
+.git
+.gitignore
+
+# CI/CD et documentation — inutile au runtime
+.github
+docs
+
+# Tests — non nécessaires en production
+tests
+
+# Fichiers OS et éditeurs
+.DS_Store
+Thumbs.db
+*.log
+*.swp
+*.swo
+.vscode
+.idea
+
+# Docker lui-même — évite les boucles de contexte
+.docker
+Dockerfile*
+docker-compose*

@@ -1,0 +1,126 @@
+# =============================================================================
+# docker-compose.prod.yml — Stack de production DarkEventManager
+# Isolation totale via project name "darkevent" (-p darkevent).
+# Ne PAS utiliser pour le développement : voir docker-compose.yml.
+#
+# Emplacement attendu du .env prod sur le Jetson : ~/DarkEventManager/.env
+# Ce compose est lancé depuis la racine du repo ; le chemin vers .env est
+# résolu relativement à l'emplacement du compose FILE (.docker/), donc
+# on remonte d'un niveau avec "../.env" → ~/DarkEventManager/.env (si le
+# repo est cloné dans ~/DarkEventManager/).
+# =============================================================================
+
+name: darkevent
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Base de données PostgreSQL 17
+  # Pas de port publié : accessible uniquement depuis le réseau interne darkevent.
+  # Volume nommé "darkevent_postgres_data" isolé des autres projets.
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:17-alpine
+    container_name: darkevent_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: darkevent
+      POSTGRES_USER: darkevent
+      POSTGRES_PASSWORD: darkevent
+    # Pas de ports publiés : la DB n'est pas exposée sur l'hôte en prod.
+    # Si besoin de connexion directe depuis l'hôte (debug), décommenter :
+    # ports:
+    #   - "127.0.0.1:5434:5432"
+    volumes:
+      - darkevent_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U darkevent"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - default
+
+  # ---------------------------------------------------------------------------
+  # Migration DB (conteneur éphémère — lancé manuellement par deploy.sh)
+  # Utilise la même image que l'app mais exécute uniquement drizzle-kit push.
+  # drizzle-kit est en devDependency donc disponible uniquement dans le stage
+  # builder. Ce service rebuild depuis le Dockerfile.prod stage builder.
+  # ---------------------------------------------------------------------------
+  db-migrate:
+    build:
+      context: ..
+      dockerfile: Dockerfile.prod
+      target: builder
+    container_name: darkevent_migrate
+    command: ["npx", "drizzle-kit", "push", "--force"]
+    env_file:
+      - ../.env
+    environment:
+      # Écrase DATABASE_URL du .env pour pointer vers le réseau interne compose
+      DATABASE_URL: postgres://darkevent:darkevent@db:5432/darkevent
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - default
+
+  # ---------------------------------------------------------------------------
+  # Application Express + Vite (production)
+  # ---------------------------------------------------------------------------
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile.prod
+    container_name: darkevent_app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    # .env prod contient : SESSION_SECRET, SMTP_*, EMAIL_FROM*, WEBSOCKET_SECRET,
+    # QR_ENCRYPTION_KEY, QR_ENCRYPTION_IV, NODE_ENV, DATABASE_URL (écrasé ci-dessous).
+    # Chemin relatif depuis .docker/ vers la racine du repo cloné sur le Jetson.
+    env_file:
+      - ../.env
+    environment:
+      # Ces valeurs écrasent celles du .env (priorité Docker Compose)
+      NODE_ENV: production
+      DATABASE_URL: postgres://darkevent:darkevent@db:5432/darkevent
+    volumes:
+      # Volume nommé pour uploads — isolé du cycle de vie du conteneur, pas de dépendance
+      # au répertoire courant ou à un symlink. Données persistées dans darkevent_uploads.
+      - darkevent_uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:5000/ > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    networks:
+      - default
+      - proxy
+
+# -----------------------------------------------------------------------------
+# Volumes nommés — isolés du projet dev (docker_postgres_data)
+# -----------------------------------------------------------------------------
+volumes:
+  darkevent_postgres_data:
+    name: darkevent_postgres_data
+  darkevent_uploads:
+    name: darkevent_uploads
+
+# -----------------------------------------------------------------------------
+# Réseaux
+# -----------------------------------------------------------------------------
+networks:
+  default:
+    name: darkevent_default
+  # Réseau externe partagé avec nginx_proxy — déclaré external: true pour ne
+  # PAS le recréer (il appartient à JetsonProxy, pas à ce projet). Aucun
+  # risque pour les autres conteneurs. La DB (service "db") n'est PAS sur ce
+  # réseau : elle reste isolée sur darkevent_default.
+  proxy:
+    external: true
+    name: proxy

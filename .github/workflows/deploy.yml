@@ -1,0 +1,88 @@
+# =============================================================================
+# deploy.yml — Pipeline CI/CD DarkEventManager
+# Déclenchement : push d'un tag vX.Y.Z (ex: v1.2.3)
+#
+# Architecture :
+#   - Runner self-hosted sur le Jetson Orin Nano (aarch64, Ubuntu 22.04)
+#   - Build Docker natif ARM64 (pas de QEMU, ni registry externe)
+#   - Le runner EST la cible de déploiement : le workspace runner contient
+#     le code source, deploy.sh construit et redémarre les conteneurs.
+#   - Isolation totale via "docker compose -p darkevent"
+#
+# Prérequis sur le Jetson (one-shot, voir docs/DEPLOYMENT.md) :
+#   - Runner GitHub Actions enregistré avec labels : self-hosted, linux, ARM64
+#   - ~/DarkEventManager/.env présent (hors repo, jamais commité)
+#   - ~/DarkEventManager/uploads/ et ~/DarkEventManager/backups/ créés
+# =============================================================================
+
+name: Deploy to Jetson
+
+on:
+  push:
+    tags:
+      # Déclenché uniquement sur les tags sémantiques (v1.0.0, v2.1.3…)
+      - 'v*.*.*'
+
+# Pas de déploiement concurrent : un déploiement à la fois.
+# cancel-in-progress: false garantit qu'un deploy en cours n'est JAMAIS annulé
+# par un nouveau tag (le second attendra la fin du premier).
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy ${{ github.ref_name }}
+    # Cible le runner self-hosted du Jetson Orin Nano
+    runs-on: [self-hosted, linux, ARM64]
+
+    # Permissions minimales : lecture du code source uniquement
+    permissions:
+      contents: read
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout du code au tag exact déclenché
+      # -----------------------------------------------------------------------
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          # Checkout du tag exact (ref est le tag poussé)
+          ref: ${{ github.ref }}
+          # fetch-depth 1 : clone superficiel pour économiser la RAM du Jetson
+          fetch-depth: 1
+
+      # -----------------------------------------------------------------------
+      # 2. Information sur la version déployée (traçabilité dans les logs CI)
+      # -----------------------------------------------------------------------
+      - name: Show deployment info
+        env:
+          TAG: ${{ github.ref_name }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          echo "Tag déployé   : ${TAG}"
+          echo "Commit        : ${GIT_SHA}"
+          echo "Runner        : $(hostname) — $(uname -m)"
+          echo "Docker        : $(docker --version)"
+          echo "Compose       : $(docker compose version)"
+
+      # -----------------------------------------------------------------------
+      # 3. Déploiement via le script idempotent
+      # Le script gère : backup DB, build, migration, up, smoke test, rollback.
+      # Le .env prod est attendu à ~/DarkEventManager/.env (hors repo).
+      # uploads est un volume nommé darkevent_uploads — aucun lien symlink requis.
+      # -----------------------------------------------------------------------
+      - name: Deploy
+        env:
+          # Passage du tag via variable d'env pour éviter toute injection de commande
+          TAG: ${{ github.ref_name }}
+        run: |
+          # S'assurer que le .env de prod est accessible depuis la racine du repo
+          # (le runner clone dans ~/actions-runner/_work/DarkEventManager/DarkEventManager/)
+          # Le compose référence ../.env depuis .docker/ → on crée un lien si absent.
+          if [ ! -f ".env" ] && [ -f "${HOME}/DarkEventManager/.env" ]; then
+            echo "Lien .env prod → ${HOME}/DarkEventManager/.env"
+            ln -sf "${HOME}/DarkEventManager/.env" .env
+          fi
+
+          bash scripts/deploy.sh "${TAG}"

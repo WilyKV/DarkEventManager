@@ -8,5 +8,6 @@ vite.config.ts.*
 .vscode
 .env*
 !.env.example
+!.env.prod.example
 backups/
 *.sql

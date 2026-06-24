@@ -19,6 +19,7 @@ import { sessionLogger } from "./session-logger";
 import { pool } from "./db";
 import { getSessionCookieOptions } from "./session-cookie-config";
 import { applySecurityHeaders } from "./security-headers";
+import { configureProxyTrust } from "./proxy-trust-config";
 import { childLogger } from "./logger";
 import { BULK_INGEST_BODY_LIMIT } from "./config/limits";
 
@@ -34,6 +35,12 @@ if (sessionSecretCheck.mode === 'fail') {
 }
 
 const app = express();
+
+// En production, l'app est derrière nginx qui termine TLS et proxifie en HTTP.
+// Sans trust proxy, Express voit req.secure === false et n'émet pas le Set-Cookie
+// quand cookie.secure === true. On fait confiance au 1er hop (nginx).
+configureProxyTrust(app, process.env);
+
 applySecurityHeaders(app);
 app.use("/api/events/bulk-ingest", express.json({ limit: BULK_INGEST_BODY_LIMIT }));
 app.use(express.json());

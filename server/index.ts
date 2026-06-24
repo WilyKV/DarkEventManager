@@ -11,7 +11,7 @@ import { registerAuthRoutes } from "./auth-routes";
 import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
 import { checkSyncPermissions } from "./sync-middleware";
-import { setupVite, serveStatic, log } from "./vite";
+import { serveStatic, log } from "./static";
 import { validateWebSocketSecret } from "./websocket-secret-config";
 import { validateSessionSecret } from "./session-secret-config";
 import { createSessionStore } from "./session-config";
@@ -121,6 +121,8 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (app.get("env") === "development") {
+    // Import dynamique : vite n'est chargé qu'en dev, pas dans le bundle de prod
+    const { setupVite } = await import("./vite");
     await setupVite(app, server);
   } else {
     serveStatic(app);

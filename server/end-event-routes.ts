@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { requireRole } from "./auth-middleware";
 import { storage } from "./storage";
 import { generateParticipantPDF, encryptPDFFilename } from "./pdf-service";
-import { sendEmail, createEndEventEmailTemplate } from "./email-service";
+import { sendEmail, createEndEventEmailTemplate, isEmailEnabled } from "./email-service";
 import { childLogger } from "./logger";
 
 const endEventLogger = childLogger('end-event');
@@ -20,10 +20,12 @@ export function setupEndEventRoute(app: Express) {
       const allParticipants = await storage.getParticipants();
       const participantsWithEmail = allParticipants.filter(p => p.email && p.email.trim() !== '');
 
+      const emailActive = isEmailEnabled();
       const total = participantsWithEmail.length;
       let processed = 0;
       let succeeded = 0;
       let failed = 0;
+      let skipped = 0;
 
       // Send initial progress
       res.write(`data: ${JSON.stringify({
@@ -31,6 +33,8 @@ export function setupEndEventRoute(app: Express) {
         processed,
         succeeded,
         failed,
+        skipped,
+        emailEnabled: emailActive,
         status: 'processing'
       })}\n\n`);
 
@@ -66,12 +70,14 @@ export function setupEndEventRoute(app: Express) {
             }],
           });
 
-          if (emailSent) {
+          if (!emailActive) {
+            skipped++;
+          } else if (emailSent) {
             succeeded++;
           } else {
             failed++;
           }
-          
+
           processed++;
 
           // Send progress update
@@ -80,12 +86,16 @@ export function setupEndEventRoute(app: Express) {
             processed,
             succeeded,
             failed,
+            skipped,
+            emailEnabled: emailActive,
             currentParticipant: `${participant.firstName} ${participant.lastName}`,
-            status: 'processing'
+            status: emailActive ? 'processing' : 'email_skipped'
           })}\n\n`);
 
           // Small delay to avoid overwhelming the SMTP server
-          await new Promise(resolve => setTimeout(resolve, 500));
+          if (emailActive) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
 
         } catch (error) {
           endEventLogger.error({ err: error, participantId: participant.id }, 'Echec traitement participant');
@@ -98,6 +108,8 @@ export function setupEndEventRoute(app: Express) {
             processed,
             succeeded,
             failed,
+            skipped,
+            emailEnabled: emailActive,
             currentParticipant: `${participant.firstName} ${participant.lastName}`,
             status: 'processing'
           })}\n\n`);
@@ -110,6 +122,8 @@ export function setupEndEventRoute(app: Express) {
         processed,
         succeeded,
         failed,
+        skipped,
+        emailEnabled: emailActive,
         status: 'completed'
       })}\n\n`);
 

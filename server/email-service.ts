@@ -4,10 +4,25 @@ import { childLogger } from './logger';
 
 const emailLogger = childLogger('email');
 
+const SMTP_PLACEHOLDERS = ['', 'CHANGE_ME', 'CHANGE_ME@outlook.com', 'your-email@outlook.com', 'your-password'];
+
+/**
+ * Retourne true si l'envoi d'email est activé.
+ * L'email est considéré désactivé si :
+ *  - EMAIL_ENABLED vaut explicitement "false", OU
+ *  - SMTP_USER ou SMTP_PASS sont absents ou contiennent un placeholder.
+ */
+export function isEmailEnabled(): boolean {
+  if (process.env.EMAIL_ENABLED === 'false') return false;
+  const user = (process.env.SMTP_USER ?? '').trim();
+  const pass = (process.env.SMTP_PASS ?? '').trim();
+  return !SMTP_PLACEHOLDERS.includes(user) && !SMTP_PLACEHOLDERS.includes(pass);
+}
+
 // Configuration du transporteur SMTP
 export function createEmailTransporter(): Transporter {
   const isDevelopment = process.env.NODE_ENV === 'development';
-  
+
   const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp-mail.outlook.com',
     port: parseInt(process.env.SMTP_PORT || '587'),
@@ -38,6 +53,11 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
+  if (!isEmailEnabled()) {
+    emailLogger.warn({ to: options.to }, 'Email désactivé (SMTP non configuré) — envoi ignoré pour ' + options.to);
+    return false;
+  }
+
   try {
     const transporter = createEmailTransporter();
     const isDevelopment = process.env.NODE_ENV === 'development';

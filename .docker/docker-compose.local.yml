@@ -1,0 +1,29 @@
+# Usage avec docker-compose.yml. La base et les volumes sont propres au projet local.
+name: darkevent-local
+
+services:
+  db:
+    container_name: !reset null
+    ports: !reset []
+  app:
+    container_name: !reset null
+    command: ["node", "dist/index.js"]
+    environment:
+      NODE_ENV: development
+      SERVE_BUILT_CLIENT: "true"
+      EMAIL_ENABLED: "false"
+      PORT: "5000"
+    ports: !override
+      - "127.0.0.1:5000:5000"
+    volumes: !override
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/api/setup/status').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:
+    name: !reset null
+  uploads:

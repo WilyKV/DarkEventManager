@@ -5,6 +5,7 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";
+import { registerZombieOfflineRoutes } from "./zombie-offline-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
@@ -45,6 +46,10 @@ applySecurityHeaders(app);
 app.use("/api/events/bulk-ingest", express.json({ limit: BULK_INGEST_BODY_LIMIT }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+app.use("/api", (_req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  next();
+});
 
 // Session configuration
 app.use(session({
@@ -74,7 +79,7 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      if (capturedJsonResponse && !path.startsWith("/api/zombie-offline")) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 
@@ -114,6 +119,7 @@ app.use((req, res, next) => {
   setupEndEventRoute(app);
 
   // Register main routes
+  registerZombieOfflineRoutes(app);
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
@@ -127,7 +133,7 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (app.get("env") === "development" && process.env.SERVE_BUILT_CLIENT !== "true") {
     // Import dynamique : vite n'est chargé qu'en dev, pas dans le bundle de prod
     const { setupVite } = await import("./vite");
     await setupVite(app, server);

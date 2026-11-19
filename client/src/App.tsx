@@ -4,12 +4,14 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, RequireAuth } from "@/lib/auth";
+import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
 import LoginPage from "@/pages/login";
 import VisitorPage from "@/pages/visitor";
 import OverviewPage from "@/pages/overview";
 import DashboardPage from "@/pages/dashboard";
 import ZombiePage from "@/pages/zombie";
+import ZombieOfflinePage from "@/pages/zombie-offline";
+import { getOfflineCopy } from "@/db/zombie-offline";
 import SurvivantPage from "@/pages/survivant";
 import StaffPage from "@/pages/staff";
 import BoutiquePage from "@/pages/boutique";
@@ -38,12 +40,22 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
-  if (data?.needsSetup === true && location !== "/setup") {
+  if (data?.needsSetup === true && location !== "/setup" && location !== "/zombie/hors-ligne") {
     setLocation("/setup");
     return null;
   }
 
   return <>{children}</>;
+}
+
+function AppHome() {
+  const { user, isLoading } = useAuth();
+  const [hasOfflineCopy, setHasOfflineCopy] = React.useState<boolean>();
+  React.useEffect(() => {
+    getOfflineCopy().then(copy => setHasOfflineCopy(Boolean(copy))).catch(() => setHasOfflineCopy(false));
+  }, []);
+  if (hasOfflineCopy === undefined || (hasOfflineCopy && isLoading && navigator.onLine)) return null;
+  return <Redirect to={hasOfflineCopy && (!navigator.onLine || !user) ? "/zombie/hors-ligne" : "/overview"} />;
 }
 
 function Router() {
@@ -55,10 +67,7 @@ function Router() {
         <VisitorPage />
       </Route>
 
-      {/* Root → overview */}
-      <Route path="/">
-        <Redirect to="/overview" />
-      </Route>
+      <Route path="/" component={AppHome} />
       {/* /home → overview (rétro-compat) */}
       <Route path="/home">
         <Redirect to="/overview" />
@@ -78,6 +87,7 @@ function Router() {
         </RequireAuth>
       </Route>
 
+      <Route path="/zombie/hors-ligne" component={ZombieOfflinePage} />
       <Route path="/zombie">
         <RequireAuth>
           <ZombiePage />

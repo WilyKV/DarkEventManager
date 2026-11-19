@@ -29,21 +29,14 @@ export function SyncPendingBadge() {
     };
   }, []);
 
-  if (count === 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
-        <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />
-        <span className="hidden sm:inline">À jour</span>
-      </span>
-    );
-  }
+  if (count === 0) return null;
 
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500">
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-500" role="status">
       <span className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-amber-500 text-white text-[10px] font-bold px-1">
         {count > 99 ? "99+" : count}
       </span>
-      <span className="hidden sm:inline">en attente</span>
+      <span>en attente</span>
     </span>
   );
 }

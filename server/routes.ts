@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { checkSyncPermissions } from "./sync-middleware";
@@ -70,6 +70,14 @@ async function createAuditLog(
   }
 }
 
+function requireParticipantAccess(req: Request, res: Response, next: NextFunction) {
+  if (req.session?.user) return next();
+  const visitor = req.session?.visitor;
+  if (!visitor) return res.status(401).json({ message: "Non authentifié" });
+  if (String(visitor.participantId) !== req.params.id) return res.status(403).json({ message: "Accès refusé" });
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register event ingest routes (auth required, no sync middleware)
@@ -90,7 +98,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== PARTICIPANTS =====
 
   // Get all participants (with optional type filter via query string)
-  app.get("/api/participants", async (req, res) => {
+  app.get("/api/participants", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const participants = await storage.getParticipants(type);
@@ -101,7 +109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get participants count
-  app.get("/api/participants/count", async (req, res) => {
+  app.get("/api/participants/count", requireAuth, async (req, res) => {
     try {
       const participants = await storage.getParticipants();
       res.json(participants.length);
@@ -111,7 +119,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get single participant by ID
-  app.get("/api/participants/:id", async (req, res) => {
+  app.get("/api/participants/:id", requireParticipantAccess, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -128,7 +136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create new participant
-  app.post("/api/participants", async (req, res) => {
+  app.post("/api/participants", requireAuth, async (req, res) => {
     try {
       const validationResult = createParticipantSchema.safeParse(req.body);
       
@@ -168,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update participant
-  app.patch("/api/participants/:id", async (req, res) => {
+  app.patch("/api/participants/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const currentParticipant = await storage.getParticipant(id);
@@ -218,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Regenerate secret code for a participant
-  app.post("/api/participants/regenerate-code", async (req, res) => {
+  app.post("/api/participants/regenerate-code", requireAuth, async (req, res) => {
     try {
       const { participantId } = req.body;
 
@@ -245,7 +253,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Batch update participants
-  app.post("/api/participants/batch-update", async (req, res) => {
+  app.post("/api/participants/batch-update", requireAuth, async (req, res) => {
     try {
       const updates = req.body.updates as Array<{ id: number; data: any }>;
       
@@ -292,25 +300,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse Excel file with exceljs
       const wb = new ExcelJS.Workbook();
-      let loadError = false;
       try {
         await wb.xlsx.load(req.file.buffer);
       } catch {
-        loadError = true;
+        return res.status(400).json({ message: "Fichier Excel illisible. Utilisez un fichier .xlsx." });
       }
       const rows: Array<{ firstName: string; lastName: string; timeSlotName: string }> = [];
-      if (!loadError) {
-        const ws = wb.worksheets[0];
-        if (ws) {
-          ws.eachRow((row, rowNumber) => {
-            if (rowNumber === 1) return; // Skip header row
-            const firstName = String(row.getCell(1).value ?? "");
-            const lastName = String(row.getCell(2).value ?? "");
-            const timeSlotName = String(row.getCell(3).value ?? "");
-            rows.push({ firstName, lastName, timeSlotName });
-          });
-        }
-      }
+      wb.worksheets[0]?.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return;
+        rows.push({ firstName: row.getCell(1).text, lastName: row.getCell(2).text, timeSlotName: row.getCell(3).text.trim() });
+      });
 
       let count = 0;
 
@@ -367,7 +366,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get squad audit logs for a participant
-  app.get("/api/participants/:id/squad-history", async (req, res) => {
+  app.get("/api/participants/:id/squad-history", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const auditLogs = await storage.getSquadAuditLogs(id);
@@ -379,7 +378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== TIME SLOTS =====
   
-  app.get("/api/time-slots", async (req, res) => {
+  app.get("/api/time-slots", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const timeSlots = await storage.getTimeSlots(type);
@@ -389,7 +388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/time-slots", async (req, res) => {
+  app.post("/api/time-slots", requireRole("admin"), async (req, res) => {
     try {
       const data = insertTimeSlotSchema.parse(req.body) as InsertTimeSlot;
       const timeSlot = await storage.createTimeSlot(data);
@@ -399,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/time-slots/:id", async (req, res) => {
+  app.patch("/api/time-slots/:id", requireRole("admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const timeSlot = await storage.updateTimeSlot(id, req.body);
@@ -409,7 +408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/time-slots/:id", async (req, res) => {
+  app.delete("/api/time-slots/:id", requireRole("admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteTimeSlot(id);
@@ -421,7 +420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== SQUADS =====
   
-  app.get("/api/squads", async (req, res) => {
+  app.get("/api/squads", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const squads = await storage.getSquads(type);
@@ -431,7 +430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/squads/with-participants", async (req, res) => {
+  app.get("/api/squads/with-participants", requireAuth, async (req, res) => {
     try {
       const type = req.query.type as string | undefined;
       const timeSlotId = req.query.timeSlotId ? parseInt(req.query.timeSlotId as string) : undefined;
@@ -442,7 +441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/squads", async (req, res) => {
+  app.post("/api/squads", requireRole("admin"), async (req, res) => {
     try {
       const data = insertSquadSchema.parse(req.body) as InsertSquad;
       const squad = await storage.createSquad(data);
@@ -452,7 +451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch("/api/squads/:id", async (req, res) => {
+  app.patch("/api/squads/:id", requireRole("admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const squad = await storage.updateSquad(id, req.body);
@@ -462,7 +461,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/squads/:id", async (req, res) => {
+  app.delete("/api/squads/:id", requireRole("admin"), async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       await storage.deleteSquad(id);
@@ -1137,7 +1136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/qr/scan", async (req, res) => {
+  app.post("/api/qr/scan", requireAuth, async (req, res) => {
     try {
       const { qrData } = req.body;
 
@@ -1558,7 +1557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate QR code for data sharing
-  app.post("/api/data/qr-share", async (req, res) => {
+  app.post("/api/data/qr-share", requireRole("admin"), async (req, res) => {
     try {
       const { module, type } = req.body;
 
@@ -1596,7 +1595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import data from QR code
-  app.post("/api/data/qr-import", async (req, res) => {
+  app.post("/api/data/qr-import", requireRole("admin"), async (req, res) => {
     try {
       const { qrData } = req.body;
 
@@ -1830,7 +1829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Endpoint pour générer le PDF d'un participant (accessible par le visiteur)
-  app.get("/api/participants/:id/pdf", async (req, res) => {
+  app.get("/api/participants/:id/pdf", requireParticipantAccess, async (req, res) => {
     try {
       const participantId = parseInt(req.params.id);
       
@@ -1871,7 +1870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== AUDIT LOGS =====
 
   // Get audit logs with optional filters
-  app.get("/api/audit-logs", async (req, res) => {
+  app.get("/api/audit-logs", requireRole("admin"), async (req, res) => {
     try {
       const filters = {
         tableName: req.query.tableName as string | undefined,

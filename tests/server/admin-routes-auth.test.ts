@@ -313,7 +313,7 @@ describe("admin-routes-auth — protection des routes sensibles", () => {
       expect(response.status).toBe(401);
     });
 
-    it("doit retourner 200 quand le rôle est admin", async () => {
+    it("doit signaler le classeur illisible au compte admin", async () => {
       // Arrange
       const app = await buildApp(adminUser);
 
@@ -323,8 +323,8 @@ describe("admin-routes-auth — protection des routes sensibles", () => {
         .field("type", "zombie")
         .attach("file", Buffer.from(""), "participants.xlsx");
 
-      // Assert — le code retourné doit être 200 (pas 401/403)
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/Excel illisible/);
     });
 
   });

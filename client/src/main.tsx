@@ -6,6 +6,12 @@ import "./index.css";
 
 // Register service worker
 registerSW({ immediate: true });
+// Earlier versions cached API responses, including data tied to staff sessions.
+if ("caches" in window) {
+  const clearLegacyApiCache = () => { void caches.delete("api-cache").catch(() => {}); };
+  clearLegacyApiCache();
+  navigator.serviceWorker?.addEventListener("controllerchange", clearLegacyApiCache);
+}
 
 // Force dark mode
 document.documentElement.classList.add('dark');

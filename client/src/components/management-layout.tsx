@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft, LogOut, QrCode } from "lucide-react";
 import { PageTransition } from "./page-transition";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "./notification-center";
 import { UnifiedScanModal } from "./unified-scan-modal";
@@ -29,11 +29,9 @@ export function ManagementLayout({
   children,
   actions,
   showScanButton = false,
-  scanLink = "/scan",
   useHistoryBack = false,
 }: ManagementLayoutProps) {
-  const { user, visitor, logout } = useAuth();
-  const [location] = useLocation();
+  const { visitor, logout } = useAuth();
   const [scanModalOpen, setScanModalOpen] = useState(false);
 
   const handleBackClick = () => {
@@ -48,11 +46,11 @@ export function ManagementLayout({
       <SideRail />
 
       {/* Main content area: offset by rail width on md+ */}
-      <div className="flex-1 md:pl-20 flex flex-col min-h-screen">
+      <div className="flex min-w-0 flex-1 flex-col min-h-screen md:pl-20">
         <div className="flex-1 p-4 sm:p-6 pb-28 md:pb-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border pb-3 sm:pb-4">
               <div className="flex items-center gap-4">
                 {/* Mobile : bouton retour OU logo "DARK EVENT" cliquable */}
                 {useHistoryBack ? (
@@ -78,12 +76,12 @@ export function ManagementLayout({
                   </Link>
                 )}
                 <div>
-                  <h1 className="text-3xl sm:text-4xl font-display tracking-tight text-primary">{title}</h1>
+                  <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{title}</h1>
                   <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2">
                 <ConnectionIndicator />
                 <SyncPendingBadge />
                 <NotificationCenter />
@@ -96,7 +94,7 @@ export function ManagementLayout({
                     onClick={() => setScanModalOpen(true)}
                   >
                     <QrCode className="w-4 h-4" />
-                    <span className="hidden sm:inline">Scanner</span>
+                    Scanner
                   </Button>
                 )}
                 {actions}
@@ -110,7 +108,7 @@ export function ManagementLayout({
                   <LogOut className="w-5 h-5" />
                 </Button>
               </div>
-            </div>
+            </header>
 
             {/* Page Content */}
             <PageTransition>

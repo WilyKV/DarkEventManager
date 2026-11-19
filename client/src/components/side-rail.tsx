@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { ConnectionIndicator } from "./connection-indicator";
 import { getSectionColor } from "@/lib/section-colors";
 
 interface NavItem {
@@ -58,7 +57,6 @@ export function SideRail() {
             <span className="text-primary font-display text-xs font-bold leading-tight block">DARK</span>
             <span className="text-foreground font-display text-xs font-bold leading-tight block">EVENT</span>
           </div>
-          <ConnectionIndicator />
         </div>
       </Link>
 

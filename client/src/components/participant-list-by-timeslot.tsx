@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, IdCard, LogIn, LogOut, Eye, Users, Search, Edit } from "lucide-react";
+import { ChevronDown, IdCard, LogIn, LogOut, Search, Edit } from "lucide-react";
 import { ParticipantWithRelations, TimeSlot } from "@shared/schema";
 import { SimpleCheckInModal } from "./simple-check-in-modal";
 import { BatchCheckInModal } from "./batch-check-in-modal";
@@ -107,49 +107,32 @@ export function ParticipantListByTimeslot({
     setSelectedForBatch(newSelected);
   };
 
-  // Filter participants by search query
+  const isSearching = searchQuery.trim().length > 0;
   const filteredParticipants = useMemo(() => {
-    if (!searchQuery.trim()) return participants;
-    const query = searchQuery.toLowerCase();
-    return participants.filter(p =>
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(query)
-    );
+    const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");
+    const words = normalize(searchQuery).trim().split(/\s+/).filter(Boolean);
+    if (!words.length) return participants;
+    return participants.filter(({ firstName, lastName }) => {
+      const name = normalize(`${firstName} ${lastName}`);
+      return words.every(word => name.includes(word));
+    });
   }, [participants, searchQuery]);
 
-  // Grouper les participants par créneau (triés par ordre croissant de briefingTime)
-  const participantsByTimeslot = timeSlots
-    .slice()
-    .sort((a, b) => {
-      // Compare briefingTime strings (format "HH:MM")
-      return a.briefingTime.localeCompare(b.briefingTime);
-    })
-    .map(slot => {
-      const slotParticipants = filteredParticipants.filter(p => p.timeSlotId === slot.id);
-      return {
-        slot,
-        participants: slotParticipants,
-        arrivedCount: slotParticipants.filter(p => p.arrived).length,
-        totalCount: slotParticipants.length
-      };
-    }).filter(group => group.totalCount > 0);
-
-  // Participants sans créneau
-  const participantsWithoutSlot = filteredParticipants.filter(p => !p.timeSlotId);
-
-  const formatTime = (date: Date | string) => {
-    // Si c'est déjà au format "HH:MM", le retourner directement
-    if (typeof date === 'string' && /^\d{1,2}:\d{2}$/.test(date)) {
-      return date;
-    }
-    
-    // Sinon essayer de le parser comme Date
-    const d = new Date(date);
-    // Vérifier si la date est valide
-    if (isNaN(d.getTime())) {
-      return "--:--";
-    }
-    return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  };
+  const knownSlotIds = new Set(timeSlots.map(slot => slot.id));
+  const groups = timeSlots.slice()
+    .sort((a, b) => a.briefingTime.localeCompare(b.briefingTime))
+    .map(slot => ({
+      id: slot.id,
+      name: slot.name,
+      details: `Briefing ${slot.briefingTime} · Jeu ${slot.gameTime}`,
+      members: filteredParticipants.filter(p => p.timeSlotId === slot.id),
+    }));
+  groups.push({
+    id: -1,
+    name: "Sans créneau",
+    details: "",
+    members: filteredParticipants.filter(p => p.timeSlotId == null || !knownSlotIds.has(p.timeSlotId)),
+  });
 
   const getStatusColor = (participant: ParticipantWithRelations) => {
     if (participant.returned) return "bg-muted text-muted-foreground";
@@ -165,26 +148,26 @@ export function ParticipantListByTimeslot({
 
   return (
     <div className="space-y-4">
-      {/* Search bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
         <Input
-          type="text"
-          placeholder="Rechercher un participant par nom..."
+          type="search"
+          aria-label="Rechercher un participant"
+          placeholder="Prénom ou nom"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
+          className="min-h-11 pl-10"
         />
       </div>
 
       {/* Actions groupées */}
       {selectedForBatch.size > 0 && (
         <Card className="p-4 bg-primary/5 border-primary/30">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm font-medium">
               {selectedForBatch.size} participant{selectedForBatch.size > 1 ? 's' : ''} sélectionné{selectedForBatch.size > 1 ? 's' : ''}
             </span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="default" onClick={() => setShowBatchCheckIn(true)}>
                 <LogIn className="w-4 h-4 mr-2" />
                 Enregistrer
@@ -206,246 +189,88 @@ export function ParticipantListByTimeslot({
         </Card>
       )}
 
-      {/* Liste par créneau */}
-      {participantsByTimeslot.map(({ slot, participants: slotParticipants, arrivedCount, totalCount }) => (
-        <Collapsible
-          key={slot.id}
-          open={openTimeslots.has(slot.id)}
-          onOpenChange={() => toggleTimeslot(slot.id)}
-        >
-          <Card className="overflow-hidden">
-            <CollapsibleTrigger className="w-full">
-              <div className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {openTimeslots.has(slot.id) ? (
-                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                    )}
-                    <div className="text-left">
-                      <h3 className="font-semibold text-lg">{slot.name}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Briefing: {slot.briefingTime} • Jeu: {slot.gameTime}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge variant="outline" className="font-mono">
-                      {arrivedCount}/{totalCount}
-                    </Badge>
-                    <Users className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-            </CollapsibleTrigger>
-
-            <CollapsibleContent>
-              <div className="border-t">
-                {slotParticipants.map((participant) => (
-                  <div
-                    key={participant.id}
-                    className="p-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      {/* Checkbox et info */}
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedForBatch.has(participant.id)}
-                          onChange={() => toggleSelectParticipant(participant.id)}
-                          className="w-4 h-4 rounded border-border"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {participant.firstName} {participant.lastName}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              variant="outline"
-                              className={getStatusColor(participant)}
-                            >
-                              {getStatusText(participant)}
-                            </Badge>
-                            {participant.squad && (
-                              <Badge variant="outline" className="text-xs">
-                                Squad {participant.squad.number}
-                              </Badge>
-                            )}
-                            {/* Masquer le code secret dans la section Zombie */}
-                            {participant.secretCode && type !== "zombie" && (
-                              <Badge variant="outline" className="text-xs font-mono">
-                                Code {participant.secretCode}
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          title="Badge"
-                          onClick={() => setBadgeParticipant(participant)}
-                        >
-                          <IdCard className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant={participant.arrived ? "outline" : "default"}
-                          onClick={() => setSelectedParticipant(participant)}
-                          title="Enregistrement"
-                          disabled={participant.returned ?? false}
-                        >
-                          <LogIn className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant={participant.returned ? "default" : "outline"}
-                          onClick={() => {
-                            if (participant.returned) {
-                              undoExitMutation.mutate(participant.id);
-                            } else {
-                              exitMutation.mutate(participant.id);
-                            }
-                          }}
-                          title={participant.returned ? "Annuler sortie" : "Sortie"}
-                          disabled={!participant.arrived}
-                        >
-                          <LogOut className="w-4 h-4" />
-                        </Button>
-
-                        {/* Edit button - only in admin */}
-                        {allowEdit && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Modifier"
-                            onClick={() => setEditParticipant(participant)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      ))}
-
-      {/* Participants sans créneau */}
-      {participantsWithoutSlot.length > 0 && (
-        <Collapsible
-          open={openTimeslots.has(-1)}
-          onOpenChange={() => toggleTimeslot(-1)}
-        >
-          <Card className="overflow-hidden border-dashed">
-            <CollapsibleTrigger className="w-full">
-              <div className="p-4 hover:bg-muted/50 transition-colors cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    {openTimeslots.has(-1) ? (
-                      <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                    )}
-                    <div className="text-left">
-                      <h3 className="font-semibold text-lg">Sans créneau</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Participants non assignés
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="outline" className="font-mono">
-                    {participantsWithoutSlot.length}
-                  </Badge>
-                </div>
-              </div>
-            </CollapsibleTrigger>
-
-            <CollapsibleContent>
-              <div className="border-t">
-                {participantsWithoutSlot.map((participant) => (
-                  <div
-                    key={participant.id}
-                    className="p-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={selectedForBatch.has(participant.id)}
-                          onChange={() => toggleSelectParticipant(participant.id)}
-                          className="w-4 h-4 rounded border-border"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {participant.firstName} {participant.lastName}
-                          </p>
-                          <Badge
-                            variant="outline"
-                            className={getStatusColor(participant)}
-                          >
-                            {getStatusText(participant)}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          title="Badge"
-                          onClick={() => setBadgeParticipant(participant)}
-                        >
-                          <IdCard className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant={participant.arrived ? "outline" : "default"}
-                          onClick={() => setSelectedParticipant(participant)}
-                          title="Enregistrement"
-                        >
-                          <LogIn className="w-4 h-4" />
-                        </Button>
-
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          title="Sortie"
-                          disabled={!participant.arrived}
-                        >
-                          <LogOut className="w-4 h-4" />
-                        </Button>
-
-                        {/* Edit button - only in admin */}
-                        {allowEdit && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            title="Modifier"
-                            onClick={() => setEditParticipant(participant)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
+      {filteredParticipants.length === 0 && (
+        <p role="status" className="rounded-xl border border-border px-4 py-6 text-sm text-muted-foreground">
+          {isSearching ? "Aucun participant ne correspond à cette recherche." : "Aucun participant inscrit."}
+        </p>
       )}
+      {groups.filter(group => group.members.length > 0).map(({ id, name, details, members }) => {
+        const expanded = isSearching || openTimeslots.has(id);
+        return (
+          <Collapsible key={id} open={expanded} onOpenChange={() => toggleTimeslot(id)}>
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <CollapsibleTrigger disabled={isSearching} className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/50 disabled:hover:bg-transparent">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{name}</span>
+                  {details && <span className="block text-xs text-muted-foreground sm:text-sm">{details}</span>}
+                </span>
+                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                  {members.filter(p => p.arrived).length}/{members.length} arrivés
+                </span>
+                {!isSearching && (
+                  <ChevronDown className={`size-4 shrink-0 text-muted-foreground ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ul className="divide-y divide-border border-t border-border">
+                  {members.map(participant => {
+                    const fullName = `${participant.firstName} ${participant.lastName}`;
+                    const checkInLabel = participant.arrived ? "Revoir l’accueil" : "Accueillir";
+                    const exitLabel = participant.returned ? "Annuler la sortie" : "Marquer la sortie";
+                    return (
+                      <li key={participant.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2.5 sm:px-4">
+                        <label className="flex min-w-0 flex-1 basis-full items-center gap-2 sm:basis-44">
+                          <span className="grid size-9 shrink-0 place-items-center">
+                            <input
+                              type="checkbox"
+                              aria-label={`Sélectionner ${fullName}`}
+                              checked={selectedForBatch.has(participant.id)}
+                              onChange={() => toggleSelectParticipant(participant.id)}
+                              className="size-4 rounded border-border accent-primary"
+                            />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block break-words text-sm font-semibold sm:text-base">{fullName}</span>
+                            <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <Badge variant="outline" className={getStatusColor(participant)}>{getStatusText(participant)}</Badge>
+                              {participant.squad && <span className="text-xs text-muted-foreground">Équipe {participant.squad.number}</span>}
+                              {participant.secretCode && type !== "zombie" && (
+                                <Badge variant="outline" className="font-mono text-xs">Code {participant.secretCode}</Badge>
+                              )}
+                            </span>
+                          </span>
+                        </label>
+                        <div className="ml-11 flex flex-wrap items-center gap-1.5 sm:ml-0">
+                          <Button size="sm" className="min-h-11" variant={participant.arrived ? "outline" : "default"}
+                            onClick={() => setSelectedParticipant(participant)} disabled={participant.returned ?? false}
+                            aria-label={`${checkInLabel} — ${fullName}`}>
+                            <LogIn aria-hidden="true" /> {checkInLabel}
+                          </Button>
+                          <Button size="icon" variant="ghost" title="Voir le badge" aria-label={`Voir le badge — ${fullName}`}
+                            onClick={() => setBadgeParticipant(participant)}>
+                            <IdCard aria-hidden="true" />
+                          </Button>
+                          <Button size="icon" variant="ghost" title={exitLabel} aria-label={`${exitLabel} — ${fullName}`}
+                            disabled={!participant.arrived || exitMutation.isPending || undoExitMutation.isPending}
+                            onClick={() => (participant.returned ? undoExitMutation : exitMutation).mutate(participant.id)}>
+                            <LogOut aria-hidden="true" />
+                          </Button>
+                          {allowEdit && (
+                            <Button size="icon" variant="ghost" title="Modifier" aria-label={`Modifier — ${fullName}`}
+                              onClick={() => setEditParticipant(participant)}>
+                              <Edit aria-hidden="true" />
+                            </Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        );
+      })}
 
       {/* Modal d'enregistrement */}
       {selectedParticipant && (

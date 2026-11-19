@@ -1,9 +1,16 @@
-.PHONY: help install up down build restart logs clean db-push exec
+.PHONY: help install up down build restart logs clean db-push exec local
 
 DOCKER_COMPOSE = docker-compose -f .docker/docker-compose.yml
+LOCAL_COMPOSE = docker compose -f .docker/docker-compose.yml -f .docker/docker-compose.local.yml
 
 help: ## Affiche cette aide
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+
+local: ## Lance l'aperçu Docker sur http://127.0.0.1:5000
+	$(LOCAL_COMPOSE) build app
+	$(LOCAL_COMPOSE) up -d --wait db
+	$(LOCAL_COMPOSE) run --rm --no-deps app npm run db:push
+	$(LOCAL_COMPOSE) up -d --wait app
 
 install: ## Installe les dépendances dans le conteneur
 	$(DOCKER_COMPOSE) run --rm app npm install

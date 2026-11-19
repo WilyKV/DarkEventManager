@@ -143,7 +143,7 @@ export function ExcelImport({ type, module = "participants" }: ExcelImportProps)
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls,.csv"
+              accept={type === "zombie" ? ".xlsx" : ".xlsx,.xls,.csv"}
               onChange={handleFileChange}
               className="hidden"
               id="excel-upload"

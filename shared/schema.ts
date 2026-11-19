@@ -335,20 +335,20 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 
 // Insert Schemas
 export const insertServerEventSchema = createInsertSchema(serverEvents);
-export const insertTimeSlotSchema = createInsertSchema(timeSlots).omit({ id: true });
-export const insertSquadSchema = createInsertSchema(squads).omit({ id: true });
-export const insertParticipantSchema = createInsertSchema(participants).omit({ id: true, createdAt: true, arrivedAt: true, returnedAt: true });
-export const insertShopItemSchema = createInsertSchema(shopItems).omit({ id: true });
-export const insertMealItemSchema = createInsertSchema(mealItems).omit({ id: true });
-export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ id: true, changedAt: true });
-export const insertAppConfigSchema = createInsertSchema(appConfig).omit({ id: true, updatedAt: true });
-export const insertDiscountSchema = createInsertSchema(discounts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTimeSlotSchema = createInsertSchema(timeSlots);
+export const insertSquadSchema = createInsertSchema(squads);
+export const insertParticipantSchema = createInsertSchema(participants).omit({ createdAt: true, arrivedAt: true, returnedAt: true });
+export const insertShopItemSchema = createInsertSchema(shopItems);
+export const insertMealItemSchema = createInsertSchema(mealItems);
+export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ changedAt: true });
+export const insertAppConfigSchema = createInsertSchema(appConfig).omit({ updatedAt: true });
+export const insertDiscountSchema = createInsertSchema(discounts).omit({ createdAt: true, updatedAt: true });
 export const insertPurchaseSchema = createInsertSchema(purchases, {
   clientEventId: z.string().uuid().nullish(),
-}).omit({ id: true, purchasedAt: true });
-export const insertMealPurchaseSchema = createInsertSchema(mealPurchases).omit({ id: true, purchasedAt: true });
-export const insertMealDiscountSchema = createInsertSchema(mealDiscounts).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, timestamp: true });
+}).omit({ purchasedAt: true });
+export const insertMealPurchaseSchema = createInsertSchema(mealPurchases).omit({ purchasedAt: true });
+export const insertMealDiscountSchema = createInsertSchema(mealDiscounts).omit({ createdAt: true, updatedAt: true });
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ timestamp: true });
 
 // Manual participant creation schema (for user-submitted data)
 export const createParticipantSchema = z.object({
@@ -397,7 +397,7 @@ export const insertUserSchema = createInsertSchema(users, {
   username: z.string().min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères"),
   passwordHash: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
   roles: z.string().default('[]'),
-}).omit({ id: true, createdAt: true, lastLoginAt: true });
+}).omit({ createdAt: true, lastLoginAt: true });
 
 export const loginSchema = z.object({
   username: z.string().min(1, "Le nom d'utilisateur est requis"),

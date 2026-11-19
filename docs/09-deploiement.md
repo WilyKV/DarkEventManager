@@ -2,6 +2,8 @@
 
 Ce guide fournit les étapes **exactes et complètes** pour déployer DarkEventManager sur un serveur Linux en production. Suivi pas à pas, il garantit un déploiement fonctionnel du jour 1.
 
+Si vous déployez sur une plateforme où PostgreSQL existe déjà, utilisez [le Compose pour base hébergée](../.docker/docker-compose.hosted.yml) et [les variables de production](variables-production.md).
+
 ## 0. Prérequis
 
 ### Serveur Linux
@@ -95,128 +97,7 @@ brew install docker docker-compose
 
 ## 3. Créer et remplir le fichier `.env`
 
-### Étape 1 : Copier le template
-
-```bash
-cp .env.example .env
-```
-
-### Étape 2 : Générer les secrets cryptographiques
-
-**Ouvrir un terminal et générer chaque clé secrète :**
-
-```bash
-# Générer WEBSOCKET_SECRET (32 octets hex)
-openssl rand -hex 32
-# Output: a3f2b8c9e1d4f6a7b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f
-
-# Générer SESSION_SECRET (32 octets hex)
-openssl rand -hex 32
-# Output: b4f3c9d0e2e5g7a8b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f
-
-# Générer QR_ENCRYPTION_KEY (32 octets hex)
-openssl rand -hex 32
-# Output: c5g4d0e1f3f6h8a9b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f
-
-# Générer QR_ENCRYPTION_IV (16 octets hex)
-openssl rand -hex 16
-# Output: d6h5e1f2g4g7i9a0b5c6d7e8f9a0b1c2
-```
-
-**Copier et conserver chaque valeur générée.**
-
-### Étape 3 : Éditer le fichier `.env`
-
-```bash
-nano .env
-# ou vim, ou un autre éditeur
-```
-
-**Remplir avec ce template (remplacer les valeurs en majuscules par les vôtres) :**
-
-```env
-# === ENVIRONNEMENT ET PORT ===
-NODE_ENV=production
-PORT=5000
-
-# === DATABASE ===
-# En Docker, le conteneur app accède à "db:5432" automatiquement
-# Cette variable est SURCHARGÉE par docker-compose.yml (priorité haute)
-DATABASE_URL=postgres://darkevent:darkevent@db:5432/darkevent
-
-# === SESSION ===
-# Copier la valeur générée par: openssl rand -hex 32
-SESSION_SECRET=COLLEZ_ICI_LE_SESSION_SECRET_GENERE
-
-# === WEBSOCKET (OBLIGATOIRE en prod) ===
-# Copier la valeur générée par: openssl rand -hex 32
-# Si absent, le serveur refuse de démarrer avec erreur "WEBSOCKET_SECRET is required"
-WEBSOCKET_SECRET=COLLEZ_ICI_LE_WEBSOCKET_SECRET_GENERE
-
-# === CHIFFREMENT QR CODES ===
-# Copier la valeur générée par: openssl rand -hex 32
-QR_ENCRYPTION_KEY=COLLEZ_ICI_LE_QR_ENCRYPTION_KEY_GENERE
-
-# Copier la valeur générée par: openssl rand -hex 16
-# Obsolète (migré en AES-GCM), à conserver pour compatibilité
-QR_ENCRYPTION_IV=COLLEZ_ICI_LE_QR_ENCRYPTION_IV_GENERE
-
-# === SMTP (pour emails fin d'événement) ===
-# Utiliser Outlook/Microsoft (recommandé)
-SMTP_HOST=smtp-mail.outlook.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=votre-email@outlook.com
-SMTP_PASS=votre-app-password
-
-# === ADRESSE EMAIL ===
-EMAIL_FROM=votre-email@outlook.com
-EMAIL_FROM_NAME=Zomb'in The Dark
-
-# === MODE DÉVELOPPEMENT UNIQUEMENT ===
-# En développement, tous les emails sont redirigés vers cette adresse
-# LAISSER VIDE en production
-DEV_EMAIL_OVERRIDE=
-```
-
-**Explications clés :**
-
-- `NODE_ENV=production` : Force le conteneur Docker en mode production (sert le build Vite, pas de hot-reload)
-- `DATABASE_URL` : Surchargée automatiquement par `docker-compose.yml` → utilise l'URL interne du conteneur (db:5432)
-- `SESSION_SECRET` et `WEBSOCKET_SECRET` : **OBLIGATOIRES**. Sans eux, le serveur refuse de démarrer
-- `QR_ENCRYPTION_KEY` et `QR_ENCRYPTION_IV` : Déchiffrage des codes QR participants
-- `SMTP_*` : Optionnel mais nécessaire pour la génération de récapitulatifs PDF + emails
-
-### Étape 4 : Configurer l'email (Outlook)
-
-**Créer un "App Password" Outlook** (requis si 2FA activé) :
-
-1. Aller à https://account.microsoft.com/security
-2. Activer l'authentification à deux facteurs (si pas encore fait)
-3. Section "App passwords" → Créer un nouveau mot de passe
-4. Sélectionner "Mail" et "Windows"
-5. Copier le mot de passe 16 caractères → Coller dans `SMTP_PASS`
-
-**Alternative : Gmail (SMTP 2FA)**
-```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=votre-email@gmail.com
-SMTP_PASS=votre-app-password
-```
-
-### Étape 5 : Protéger le fichier `.env`
-
-```bash
-# Restreindre la lecture au propriétaire uniquement
-chmod 600 .env
-
-# Vérifier (affiche "-rw-------")
-ls -la .env
-```
-
----
+Copiez `.env.prod.example` vers `.env` sur la machine cible si le fichier est absent. Le [guide des variables de production](variables-production.md) décrit chaque valeur, la génération des clés et la configuration SMTP facultative. Conservez les clés existantes sur un déploiement déjà en service.
 
 ## 4. Construire et démarrer l'application
 

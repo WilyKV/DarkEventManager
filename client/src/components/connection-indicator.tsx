@@ -40,7 +40,7 @@ export function ConnectionIndicator() {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive">
         <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
-        <span className="hidden sm:inline">Déconnecté</span>
+        <span>Déconnecté</span>
       </span>
     );
   }
@@ -49,7 +49,7 @@ export function ConnectionIndicator() {
     return (
       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-500">
         <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-        <span className="hidden sm:inline">Hors ligne — maître</span>
+        <span>Hors ligne — maître</span>
       </span>
     );
   }
@@ -57,7 +57,7 @@ export function ConnectionIndicator() {
   return (
     <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
       <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
-      <span className="hidden sm:inline">En ligne</span>
+      <span>En ligne</span>
     </span>
   );
 }

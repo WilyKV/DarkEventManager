@@ -8,6 +8,9 @@ coverage
 .env.*
 !.env.example
 uploads
+.local
+backups
+*.sql
 
 # Contrôle de version — non nécessaire au build
 .git

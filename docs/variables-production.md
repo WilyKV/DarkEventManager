@@ -1,6 +1,6 @@
 # Variables de production DarkEventManager
 
-Le Compose du Jetson lit `~/DarkEventManager/.env`. Pour une plateforme qui fournit déjà PostgreSQL et un proxy HTTPS, sélectionnez [`.docker/docker-compose.hosted.yml`](../.docker/docker-compose.hosted.yml) avec la racine du dépôt comme répertoire de base. Saisissez `DATABASE_URL`, `SESSION_SECRET`, `WEBSOCKET_SECRET` et `QR_ENCRYPTION_KEY` dans les variables du déploiement, accessibles au moment où la plateforme lit le Compose. Les conteneurs de production doivent être joints par le proxy HTTPS. Celui-ci transmet `X-Forwarded-Proto: https` pour que le serveur envoie le cookie de session. HTTPS permet aussi à la PWA de s’installer sur téléphone ou tablette.
+Le Compose du Jetson lit `~/DarkEventManager/.env`. Pour une plateforme qui fournit déjà PostgreSQL et un proxy HTTPS, sélectionnez [`.docker/docker-compose.hosted.yml`](../.docker/docker-compose.hosted.yml) avec la racine du dépôt (`/` dans Coolify) comme répertoire de base. Activez `DATABASE_URL`, `SESSION_SECRET`, `WEBSOCKET_SECRET` et `QR_ENCRYPTION_KEY` à l’exécution seulement. Le Compose définit `NODE_ENV=production` pour le conteneur de l’application. Les conteneurs de production doivent être joints par le proxy HTTPS. Celui-ci transmet `X-Forwarded-Proto: https` pour que le serveur envoie le cookie de session. HTTPS permet aussi à la PWA de s’installer sur téléphone ou tablette.
 
 | Variable | Valeur et origine |
 | --- | --- |
@@ -36,6 +36,12 @@ Si vous activez les e-mails, votre fournisseur SMTP vous donne `SMTP_HOST`, `SMT
 
 
 ## Base PostgreSQL déjà créée dans la plateforme
+
+Pour vérifier ce Compose manuellement depuis la racine du dépôt, utilisez le même répertoire de projet que Coolify.
+
+```bash
+docker compose --project-directory . -f .docker/docker-compose.hosted.yml config --quiet
+```
 
 - Utilisez le nom de la base de DarkEventManager dans `DATABASE_URL`. Si l’URL privée fournie par la plateforme utilise un nom de conteneur, rendez la base joignable depuis le projet de l’application en rattachant les deux ressources au même réseau privé dans la plateforme. `localhost` désigne le conteneur de l’application elle-même.
 - Configurez le domaine HTTPS pour le service `app` sur le port interne `80` ou sur la valeur de `HOSTED_APP_PORT` si vous l’avez définie. Le service `db-migrate` initialise le schéma de la base, puis s’arrête. L’application démarre après sa réussite. Définissez un compte PostgreSQL avec les droits de créer et modifier les tables de cette base pendant l’initialisation.

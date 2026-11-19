@@ -1,6 +1,8 @@
 #!/bin/sh
 set -eu
 
+: "${DATABASE_URL:?Renseignez DATABASE_URL dans les variables de démarrage}"
+
 # Check the connection directly because Drizzle Kit can hide connection errors.
 node --input-type=module <<'JS'
 import pg from "pg";

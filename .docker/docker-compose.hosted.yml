@@ -1,11 +1,12 @@
-# Déploiement avec un PostgreSQL déjà créé dans la plateforme.
-x-database-url: &database-url "${DATABASE_URL:?Renseignez DATABASE_URL dans les variables du déploiement}"
+# Coolify fixe le répertoire de projet Compose à la racine du dépôt.
+# Pour un lancement manuel, passez --project-directory . depuis cette racine.
+x-database-url: &database-url "${DATABASE_URL:-}"
 x-app-port: &app-port "${HOSTED_APP_PORT:-80}"
 
 services:
   db-migrate:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.prod
       target: builder
     environment:
@@ -15,21 +16,22 @@ services:
 
   app:
     build:
-      context: ..
+      context: .
       dockerfile: Dockerfile.prod
       target: runner
       args:
         APP_PORT: *app-port
     restart: unless-stopped
+    command: ["sh", "scripts/hosted-start.sh"]
     expose:
       - *app-port
     environment:
       NODE_ENV: production
       PORT: *app-port
       DATABASE_URL: *database-url
-      SESSION_SECRET: "${SESSION_SECRET:?Renseignez SESSION_SECRET dans les variables du déploiement}"
-      WEBSOCKET_SECRET: "${WEBSOCKET_SECRET:?Renseignez WEBSOCKET_SECRET dans les variables du déploiement}"
-      QR_ENCRYPTION_KEY: "${QR_ENCRYPTION_KEY:?Renseignez QR_ENCRYPTION_KEY dans les variables du déploiement}"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      WEBSOCKET_SECRET: "${WEBSOCKET_SECRET:-}"
+      QR_ENCRYPTION_KEY: "${QR_ENCRYPTION_KEY:-}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
       LOG_VERBOSE: "${LOG_VERBOSE:-false}"
       EMAIL_ENABLED: "${EMAIL_ENABLED:-false}"

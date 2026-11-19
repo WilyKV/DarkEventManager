@@ -17,7 +17,7 @@ COPY package*.json ./
 # esbuild et Rollup utilisent les binaires optionnels de la plateforme.
 RUN --mount=type=secret,id=npm_ca \
     if [ -f /run/secrets/npm_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/npm_ca; fi; \
-    npm ci --no-audit --no-fund
+    npm ci --include=dev --no-audit --no-fund
 
 # Copie du code source (le .dockerignore exclut node_modules, dist, .git, etc.)
 COPY . .
@@ -50,6 +50,7 @@ COPY --from=builder /app/dist ./dist
 
 # shared/ est nécessaire si du code runtime l'importe directement
 COPY --from=builder /app/shared ./shared
+COPY scripts/hosted-start.sh ./scripts/hosted-start.sh
 
 # Dossier uploads — point de montage pour le volume nommé darkevent_uploads
 RUN mkdir -p /app/uploads

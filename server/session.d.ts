@@ -2,6 +2,7 @@ import 'express-session';
 
 declare module 'express-session' {
   interface SessionData {
+    staffRevision?: string;
     user?: {
       id: number;
       username: string;

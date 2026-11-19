@@ -4,6 +4,7 @@ import { ArrowLeft, LockKeyhole } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
@@ -32,7 +33,7 @@ function newLocalSession(snapshot: ZombieSnapshot): LocalZombieSession {
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) {
-    if (error.name === "OperationError") return "Phrase secrète incorrecte ou copie locale illisible.";
+    if (error.name === "OperationError") return "Phrase de déverrouillage incorrecte ou copie locale illisible.";
     if (error instanceof TypeError || error.name === "TimeoutError") return "Serveur inaccessible. Réessayez au retour du réseau.";
     const response = /^(\d+): (.*)$/.exec(error.message);
     if (response) {
@@ -46,7 +47,8 @@ function errorMessage(error: unknown): string {
 }
 
 export default function ZombieOfflinePage() {
-  const { hasAnyRole } = useAuth();
+  const { hasAnyRole, isLoading, user } = useAuth();
+  const online = useOnlineStatus();
   const [copy, setCopy] = useState<Copy>();
   const [loaded, setLoaded] = useState(false);
   const [unlocked, setUnlocked] = useState<UnlockedCopy>();
@@ -86,7 +88,7 @@ export default function ZombieOfflinePage() {
         setUnlocked({ envelope: copy, key, data: await openOfflineCopy(copy, key) });
       } else {
         if (passphrase.length < 12 || passphrase !== confirmPassphrase) {
-          throw new Error("Saisissez deux fois la même phrase secrète, avec au moins 12 caractères.");
+          throw new Error("Saisissez deux fois la même phrase de déverrouillage, avec au moins 12 caractères.");
         }
         await checkOfflineShell();
         const data = newLocalSession(await fetchSnapshot());
@@ -184,10 +186,10 @@ export default function ZombieOfflinePage() {
   const canPrepare = hasAnyRole(["admin", "staff_zombie"]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl space-y-5 p-4 pb-10 sm:p-6">
+    <main className="mx-auto min-h-dvh max-w-3xl space-y-5 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))] sm:px-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
         <div>
-          <Link href="/zombie" className="mb-2 inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Zombies</Link>
+          {online && <Link href="/zombie" className="mb-2 inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Zombies</Link>}
           <h1 className="font-display text-2xl font-semibold sm:text-3xl">Accueil zombie hors ligne</h1>
         </div>
         {unlocked && <Button variant="outline" disabled={busy} onClick={() => { setUnlocked(undefined); setSelectedId(undefined); setSearch(""); setNotice(""); setError(""); }}><LockKeyhole /> Verrouiller</Button>}
@@ -200,9 +202,12 @@ export default function ZombieOfflinePage() {
           <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
             <div>
               <p className="font-medium">{participants.filter(player => player.state.arrived).length} / {participants.length} arrivés</p>
-              <p className="text-sm text-muted-foreground">{pending.size ? `${pending.size} fiche(s) à envoyer` : "Aucune fiche à envoyer"}</p>
+              <p className="text-sm text-muted-foreground">{pending.size ? `${pending.size} ${pending.size === 1 ? "fiche à envoyer" : "fiches à envoyer"} · Enregistré sur cet appareil` : "Aucune fiche à envoyer"}</p>
+              {!online && <p className="mt-1 text-sm text-amber-300">Hors connexion · Vous pouvez continuer la saisie.</p>}
             </div>
-            <Button disabled={busy || !pending.size} onClick={() => run(() => sync(unlocked))}>Envoyer au serveur</Button>
+            {online && !isLoading && !user
+              ? <Link href="/login" className={buttonVariants({ variant: "outline" })}>Se reconnecter pour envoyer</Link>
+              : <Button disabled={busy || !online || !pending.size} onClick={() => run(() => sync(unlocked))}>Envoyer au serveur</Button>}
           </section>
           <Input type="search" aria-label="Rechercher un joueur" placeholder="Prénom ou nom" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11" />
           <ul className="divide-y divide-border rounded-xl border border-border bg-card">
@@ -222,7 +227,7 @@ export default function ZombieOfflinePage() {
           </ul>
           {matches.length === 0 && <p role="status" className="text-sm text-muted-foreground">Aucun joueur trouvé.</p>}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" disabled={busy || pending.size > 0} onClick={() => run(async () => {
+            <Button variant="outline" disabled={busy || !online || pending.size > 0} onClick={() => run(async () => {
               const snapshot = await fetchSnapshot();
               if (snapshot.ownerId !== data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
               await persist(unlocked, newLocalSession(snapshot));
@@ -240,7 +245,7 @@ export default function ZombieOfflinePage() {
           </div>
           {selected && (
             <CheckInDialog key={selected.id} player={selected} data={data} busy={busy} error={error}
-              onClose={() => setSelectedId(undefined)} onRestore={() => restoreFromServer(unlocked, selected)}
+              onClose={() => setSelectedId(undefined)} onRestore={online ? () => restoreFromServer(unlocked, selected) : undefined}
               onSave={state => run(async () => {
                 const changed = JSON.stringify(selected.state) !== JSON.stringify(state);
                 if (changed) {
@@ -255,21 +260,33 @@ export default function ZombieOfflinePage() {
               })} />
           )}
         </>
-      ) : copy || canPrepare ? (
-        <form className="max-w-md space-y-4 rounded-xl border border-border bg-card p-4 sm:p-6" onSubmit={installOrUnlock}>
-          <p className="text-sm text-muted-foreground">{copy ? "Saisissez la phrase secrète choisie lors de la préparation." : "Choisissez une phrase secrète propre à cet appareil. Vous en aurez besoin pour rouvrir la liste sans réseau."}</p>
-          <label className="block space-y-2 text-sm">Phrase secrète
-            <Input type="password" autoComplete={copy ? "current-password" : "new-password"} required value={passphrase} onChange={event => setPassphrase(event.target.value)} />
+      ) : copy || (online && canPrepare) ? (
+        <form className="max-w-lg space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-6" onSubmit={installOrUnlock}>
+          <div className="space-y-1">
+            <h2 className="flex items-center gap-2 text-lg font-semibold"><LockKeyhole className="size-4 text-emerald-300" aria-hidden />{copy ? "Déverrouiller la copie locale" : "Préparer cet appareil"}</h2>
+            <p className="text-sm text-muted-foreground">
+              {copy
+                ? "Saisissez la phrase choisie pour la copie locale. Elle fonctionne aussi en mode avion."
+                : "La liste sera téléchargée et chiffrée sur cet appareil. Choisissez une phrase d’au moins 12 caractères, différente du mot de passe de votre compte."}
+            </p>
+          </div>
+          {!copy && <p className="text-sm text-muted-foreground">Si vous utilisez l’icône installée pour la séance, préparez la liste depuis cette icône. Gardez la phrase pour rouvrir la liste sur cet appareil.</p>}
+          <label className="block space-y-2 text-sm">Phrase de déverrouillage locale
+            <Input className="min-h-11" type="password" autoComplete={copy ? "off" : "new-password"} required minLength={copy ? undefined : 12} value={passphrase} onChange={event => setPassphrase(event.target.value)} />
           </label>
-          {!copy && <label className="block space-y-2 text-sm">Confirmer la phrase secrète
-            <Input type="password" autoComplete="new-password" required value={confirmPassphrase} onChange={event => setConfirmPassphrase(event.target.value)} />
+          {!copy && <label className="block space-y-2 text-sm">Confirmer la phrase
+            <Input className="min-h-11" type="password" autoComplete="new-password" required minLength={12} value={confirmPassphrase} onChange={event => setConfirmPassphrase(event.target.value)} />
           </label>}
-          <Button type="submit" disabled={busy}>{copy ? "Ouvrir la liste" : "Préparer cet appareil"}</Button>
+          <Button className="min-h-11" type="submit" disabled={busy}>{copy ? "Ouvrir la liste" : "Télécharger la liste chiffrée"}</Button>
         </form>
       ) : (
-        <div className="space-y-3">
-          <p>Connectez-vous avec votre compte d’accueil pour préparer la liste sur cet appareil.</p>
-          <Link href="/login" className={buttonVariants()}>Se connecter</Link>
+        <div className="space-y-3 rounded-xl border border-border bg-card p-4" role="status">
+          {isLoading ? <p>Vérification du compte…</p> : online ? (
+            <>
+              <p>Une connexion au serveur et un compte d’accueil zombie sont nécessaires pour télécharger la liste.</p>
+              <Link href="/login" className={buttonVariants()}>Se connecter</Link>
+            </>
+          ) : <p>Aucune copie locale sur cet appareil. Rétablissez la connexion et préparez la liste avant de passer en mode avion.</p>}
         </div>
       )}
     </main>
@@ -283,7 +300,7 @@ function CheckInDialog({ player, data, busy, error, onClose, onSave, onRestore }
   error: string;
   onClose: () => void;
   onSave: (state: ZombieCheckIn) => void;
-  onRestore: () => void;
+  onRestore?: () => void;
 }) {
   const [state, setState] = useState(player.state);
   const counts = new Map<number, number>();
@@ -331,7 +348,7 @@ function CheckInDialog({ player, data, busy, error, onClose, onSave, onRestore }
           {data.conflicts[player.id] && (
             <div className="space-y-2 border-t border-border pt-3">
               <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>
-              <Button type="button" variant="outline" disabled={busy} onClick={onRestore}>Reprendre la fiche serveur</Button>
+              <Button type="button" variant="outline" disabled={busy || !onRestore} onClick={onRestore}>Reprendre la fiche serveur</Button>
             </div>
           )}
           <div className="flex flex-wrap justify-end gap-2">

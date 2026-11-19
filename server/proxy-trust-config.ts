@@ -15,6 +15,11 @@ export function configureProxyTrust(
   env: NodeJS.ProcessEnv,
 ): void {
   if (env.NODE_ENV === "production") {
-    app.set("trust proxy", 1);
+    const configured = env.TRUST_PROXY_HOPS;
+    const hops = configured === undefined || configured === "" ? 1 : Number(configured);
+    if (!Number.isSafeInteger(hops) || hops < 0 || hops > 8) {
+      throw new Error("TRUST_PROXY_HOPS doit être un entier compris entre 0 et 8.");
+    }
+    app.set("trust proxy", hops);
   }
 }

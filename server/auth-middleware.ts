@@ -22,18 +22,20 @@ export function requireRole(...roles: string[]) {
       return res.status(401).json({ message: "Non authentifié" });
     }
 
-    const userRoles = req.session.user.roles;
-    const parsedRoles: string[] = Array.isArray(userRoles)
-      ? userRoles
-      : typeof userRoles === 'string'
-        ? (() => { try { const p = JSON.parse(userRoles); return Array.isArray(p) ? p : []; } catch { return []; } })()
-        : [];
-    const hasRole = roles.some(role => parsedRoles.includes(role));
-
+    const hasRole = hasSessionRole(req.session.user.roles, roles);
     if (!hasRole) {
       return res.status(403).json({ message: "Accès refusé - Permissions insuffisantes" });
     }
 
     next();
   };
+}
+
+
+export function hasSessionRole(userRoles: unknown, roles: readonly string[]): boolean {
+  let values: unknown = userRoles;
+  if (typeof values === "string") {
+    try { values = JSON.parse(values); } catch { return false; }
+  }
+  return Array.isArray(values) && roles.some(role => values.includes(role));
 }

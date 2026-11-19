@@ -45,9 +45,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [, setLocation] = useLocation();
 
   const checkSession = async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 6_000);
     try {
       const res = await fetch("/api/auth/session", {
         credentials: "include",
+        signal: controller.signal,
       });
 
       if (res.ok) {
@@ -64,10 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setVisitor(null);
       }
     } catch (error) {
-      console.error("Session check error:", error);
+      if (!controller.signal.aborted && navigator.onLine) console.error("Session check error:", error);
       setUser(null);
       setVisitor(null);
     } finally {
+      window.clearTimeout(timeout);
       setIsLoading(false);
     }
   };
@@ -135,7 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    checkSession();
+    if (navigator.onLine) void checkSession();
+    else setIsLoading(false);
+    window.addEventListener("online", checkSession);
+    return () => window.removeEventListener("online", checkSession);
   }, []);
 
   return (
@@ -161,8 +168,8 @@ export function RequireAuth({ children, roles }: { children: ReactNode; roles?: 
   useEffect(() => {
     if (!isLoading && !user && !visitor) {
       setLocation("/login");
-    } else if (!isLoading && user && roles && roles.length > 0 && !hasAnyRole(roles)) {
-      setLocation("/overview");
+    } else if (!isLoading && roles && roles.length > 0 && !hasAnyRole(roles)) {
+      setLocation(visitor ? "/visitor" : "/overview");
     }
   }, [user, visitor, isLoading, roles, setLocation, hasAnyRole]);
 
@@ -178,7 +185,7 @@ export function RequireAuth({ children, roles }: { children: ReactNode; roles?: 
     return null;
   }
 
-  if (roles && roles.length > 0 && user && !hasAnyRole(roles)) {
+  if (roles && roles.length > 0 && !hasAnyRole(roles)) {
     return null;
   }
 

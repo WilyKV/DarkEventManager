@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 // Storage implementation - updated to use DatabaseStorage from javascript_database blueprint
 import {
   participants,
@@ -127,14 +128,14 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  async generateSecretCode(): Promise<string> {
+  async generateSecretCode(source: Pick<typeof db, "select"> = db): Promise<string> {
     // Generate unique 5-digit secret code
     let secretCode: string;
     let exists = true;
 
     while (exists) {
-      secretCode = Math.floor(10000 + Math.random() * 90000).toString();
-      const [existing] = await db
+      secretCode = randomInt(10_000, 100_000).toString();
+      const [existing] = await source
         .select()
         .from(participants)
         .where(eq(participants.secretCode, secretCode))

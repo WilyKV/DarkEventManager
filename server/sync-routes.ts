@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Express } from "express";
 import { storage } from "./storage";
 import { z } from "zod";
@@ -22,8 +23,13 @@ const generateTokenSchema = z.object({
 
 export function registerSyncRoutes(app: Express) {
 
-  // Generate WebSocket authentication token (NO AUTH REQUIRED - this is the auth endpoint!)
-  app.post("/api/sync/ws-token", async (req, res) => {
+  app.get("/api/sync/live-token", requireAuth, (_req, res) => {
+    const id = `watch:${randomUUID()}`;
+    res.set("Cache-Control", "no-store");
+    res.json({ id, token: generateWebSocketToken(id, getWebSocketSecret()) });
+  });
+
+  app.post("/api/sync/ws-token", requireRole("admin"), async (req, res) => {
     try {
       const body = generateTokenSchema.parse(req.body);
       const secret = getWebSocketSecret();
@@ -35,7 +41,7 @@ export function registerSyncRoutes(app: Express) {
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
-        res.status(400).json({ message: "Invalid device ID format", errors: error.errors });
+        res.status(400).json({ message: "Invalid device ID format", errors: error.issues });
       } else {
         syncLogger.error({ err: error }, 'Erreur génération token WebSocket');
         res.status(500).json({ message: "Failed to generate token" });
@@ -47,7 +53,8 @@ export function registerSyncRoutes(app: Express) {
   app.get("/api/sync/config", requireAuth, async (req, res) => {
     try {
       const config = await storage.getSyncConfig();
-      res.json(config);
+      const { masterDeviceId: _masterDeviceId, ...visible } = config;
+      res.json(visible);
     } catch (error) {
       syncLogger.error({ err: error }, 'Erreur récupération configuration sync');
       res.status(500).json({ message: "Failed to fetch sync configuration" });
@@ -62,7 +69,7 @@ export function registerSyncRoutes(app: Express) {
       res.json(config);
     } catch (error: any) {
       if (error.name === "ZodError") {
-        res.status(400).json({ message: "Invalid request data", errors: error.errors });
+        res.status(400).json({ message: "Invalid request data", errors: error.issues });
       } else {
         syncLogger.error({ err: error }, 'Erreur mise à jour configuration sync');
         res.status(500).json({ message: "Failed to update sync configuration" });

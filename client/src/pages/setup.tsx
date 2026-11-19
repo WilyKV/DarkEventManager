@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2, ChevronLeft, ChevronRight, Skull, Wifi, WifiOff, AlertCircle } from "lucide-react";
+import { newStaffPasswordSchema } from "@shared/schema";
 import { ExcelImport } from "@/components/excel-import";
 
 // ---------------------------------------------------------------------------
@@ -18,10 +19,9 @@ import { ExcelImport } from "@/components/excel-import";
 // ---------------------------------------------------------------------------
 
 const adminSchema = z.object({
-  username: z.string().min(1, "Le nom d'utilisateur est requis"),
-  password: z
-    .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+  username: z.string().trim().min(3, "Le nom d’utilisateur doit contenir au moins 3 caractères").max(128),
+  password: newStaffPasswordSchema,
+  setupToken: z.string().max(512).optional(),
   confirmPassword: z.string().min(1, "La confirmation est requise"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas",
@@ -100,15 +100,15 @@ function StepAdmin({ onNext, onBack }: { onNext: () => void; onBack: () => void 
       const res = await fetch("/api/auth/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: data.username, password: data.password }),
+        body: JSON.stringify({ username: data.username, password: data.password, setupToken: data.setupToken }),
       });
-      if (res.status === 403) {
-        setAlreadyExists(true);
-        throw new Error("admin_exists");
-      }
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? "Erreur lors de la création de l'admin");
+        if (body.code === "setup_complete") {
+          setAlreadyExists(true);
+          throw new Error("admin_exists");
+        }
+        throw new Error(body.message ?? "Erreur lors de la création de l’administrateur");
       }
       return res.json();
     },
@@ -191,6 +191,12 @@ function StepAdmin({ onNext, onBack }: { onNext: () => void; onBack: () => void 
           </div>
         )}
         {errors.password && <p className="text-red-400 text-xs">{errors.password.message}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="setupToken" className="text-zinc-300">Code d’installation</Label>
+        <Input id="setupToken" type="password" autoComplete="off" {...register("setupToken")} />
+        <p className="text-sm text-muted-foreground">Utilisez la valeur de SETUP_TOKEN configurée sur le serveur de production.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">

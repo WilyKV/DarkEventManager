@@ -47,7 +47,7 @@ export function verifyDeviceToken(
   secret: string,
   now: number = Date.now()
 ): { valid: boolean; deviceId?: string; reason?: 'expired' | 'invalid_signature' | 'malformed' } {
-  if (!token) {
+  if (typeof token !== 'string' || !token) {
     return { valid: false, reason: 'malformed' };
   }
 
@@ -71,7 +71,7 @@ export function verifyDeviceToken(
   const expectedHmac = computeHmac(payload, secret);
 
   if (
-    providedHmac.length !== expectedHmac.length ||
+    !/^[0-9a-f]{64}$/i.test(providedHmac) ||
     !crypto.timingSafeEqual(Buffer.from(providedHmac, 'hex'), Buffer.from(expectedHmac, 'hex'))
   ) {
     return { valid: false, reason: 'invalid_signature' };

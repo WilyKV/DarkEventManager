@@ -1,25 +1,3 @@
-/**
- * Tests TDD — Red Phase
- *
- * A.3 — Auth obligatoire sur /api/sync/*
- *
- * Analyse des routes déclarées dans server/sync-routes.ts :
- *
- * | Route                    | Méthode | Auth actuelle | Décision test     | Justification
- * |--------------------------|---------|---------------|-------------------|----------------------------------------------
- * | POST /api/sync/ws-token  | POST    | AUCUNE        | reste publique    | Commentaire explicite dans le code source :
- * |                          |         |               |                   | "NO AUTH REQUIRED - this is the auth endpoint!"
- * |                          |         |               |                   | Le token WS est le mécanisme d'auth lui-même
- * | GET  /api/sync/config    | GET     | AUCUNE        | doit exiger auth  | Expose isOnlineMode et masterDeviceId
- * | POST /api/sync/config    | POST    | AUCUNE        | doit exiger admin | Modifie le mode sync global — action critique
- * | POST /api/sync/check-master | POST | AUCUNE        | doit exiger auth  | Révèle si un appareil est le maître
- * | POST /api/sync/data      | POST    | AUCUNE        | doit exiger auth  | Mutation de données de sync
- * | POST /api/sync/trigger   | POST    | AUCUNE        | doit exiger auth  | Déclenche une sync manuelle
- *
- * Ces tests sont en Red Phase : ils échouent car les routes n'ont aucune
- * vérification de session/rôle dans le code actuel.
- */
-
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -99,54 +77,33 @@ describe("sync-routes — protection par authentification", () => {
     vi.clearAllMocks();
   });
 
-  // =========================================================================
-  // POST /api/sync/ws-token — DOIT rester publique
-  // =========================================================================
+  describe("jetons WebSocket", () => {
+    const deviceId = "550e8400-e29b-41d4-a716-446655440000";
 
-  describe("POST /api/sync/ws-token (publique — endpoint d'auth lui-même)", () => {
-
-    it("should return 200 without any session (route publique intentionnelle)", async () => {
-      // Arrange — pas de session
+    it("refuse les jetons sans session staff", async () => {
       const app = await buildApp(undefined);
-      const validBody = { deviceId: "550e8400-e29b-41d4-a716-446655440000" };
-
-      // Act
-      const response = await request(app)
-        .post("/api/sync/ws-token")
-        .send(validBody);
-
-      // Assert — pas de 401 : cette route est volontairement publique
-      expect(response.status).not.toBe(401);
+      await request(app).get("/api/sync/live-token").expect(401);
+      await request(app).post("/api/sync/ws-token").send({ deviceId }).expect(401);
     });
 
-    it("should return 200 with valid deviceId UUID and no session", async () => {
-      // Arrange
-      const app = await buildApp(undefined);
-
-      // Act
-      const response = await request(app)
-        .post("/api/sync/ws-token")
-        .send({ deviceId: "550e8400-e29b-41d4-a716-446655440000" });
-
-      // Assert
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty("token");
-      expect(response.body).toHaveProperty("expiresIn");
+    it("délivre un jeton de direct à une session staff, sans mise en cache", async () => {
+      const app = await buildApp([USER_ROLES.STAFF_ZOMBIE]);
+      const response = await request(app).get("/api/sync/live-token").expect(200).expect("Cache-Control", "no-store");
+      expect(response.body.id).toMatch(/^watch:/);
+      expect(response.body.token).toBe("mock.token.signature");
     });
 
-    it("should return 400 when deviceId is not a valid UUID", async () => {
-      // Arrange
-      const app = await buildApp(undefined);
-
-      // Act
-      const response = await request(app)
-        .post("/api/sync/ws-token")
-        .send({ deviceId: "pas-un-uuid" });
-
-      // Assert — validation Zod, pas une erreur d'auth
-      expect(response.status).toBe(400);
+    it("accepte un UUID valide pour le protocole historique après authentification", async () => {
+      const app = await buildApp([USER_ROLES.ADMIN]);
+      const response = await request(app).post("/api/sync/ws-token").send({ deviceId }).expect(200);
+      expect(response.body.token).toBe("mock.token.signature");
+      expect(response.body.expiresIn).toBeGreaterThan(0);
     });
 
+    it("rejette un identifiant d’appareil invalide", async () => {
+      const app = await buildApp([USER_ROLES.ADMIN]);
+      await request(app).post("/api/sync/ws-token").send({ deviceId: "pas-un-uuid" }).expect(400);
+    });
   });
 
   // =========================================================================
@@ -162,7 +119,6 @@ describe("sync-routes — protection par authentification", () => {
       // Act
       const response = await request(app).get("/api/sync/config");
 
-      // Assert — ÉCHOUE en Red Phase car la route n'a pas de garde auth
       expect(response.status).toBe(401);
     });
 
@@ -210,7 +166,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/config")
         .send(validBody);
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(401);
     });
 
@@ -223,7 +178,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/config")
         .send(validBody);
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(403);
     });
 
@@ -236,7 +190,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/config")
         .send(validBody);
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(403);
     });
 
@@ -249,7 +202,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/config")
         .send(validBody);
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(403);
     });
 
@@ -262,7 +214,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/config")
         .send(validBody);
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(403);
     });
 
@@ -293,7 +244,6 @@ describe("sync-routes — protection par authentification", () => {
           .post("/api/sync/config")
           .send(validBody);
 
-        // Assert — ÉCHOUE en Red Phase
         expect(response.status).toBe(403);
       }
     );
@@ -315,7 +265,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/check-master")
         .send({ deviceId: "device-123" });
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(401);
     });
 
@@ -367,7 +316,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/data")
         .send({ deviceId: "device-123", syncData: {} });
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(401);
     });
 
@@ -417,7 +365,6 @@ describe("sync-routes — protection par authentification", () => {
         .post("/api/sync/trigger")
         .send({ timestamp: Date.now(), source: "manual" });
 
-      // Assert — ÉCHOUE en Red Phase
       expect(response.status).toBe(401);
     });
 

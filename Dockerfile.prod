@@ -6,12 +6,12 @@
 # -----------------------------------------------------------------------------
 # Stage 1: builder — compile le client Vite + bundle le serveur esbuild
 # -----------------------------------------------------------------------------
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
 # Copie des manifestes en premier pour profiter du cache Docker
-COPY package*.json ./
+COPY --chmod=0644 package*.json ./
 
 # Installation de TOUTES les dépendances (dev incluses : vite, esbuild, drizzle-kit…)
 # esbuild et Rollup utilisent les binaires optionnels de la plateforme.
@@ -28,12 +28,12 @@ RUN npm run build
 # -----------------------------------------------------------------------------
 # Stage 2: runner — image finale légère, uniquement ce qui tourne en production
 # -----------------------------------------------------------------------------
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
 # Copie des manifestes pour installer uniquement les dépendances de prod
-COPY package*.json ./
+COPY --chmod=0644 package*.json ./
 
 # --omit=dev exclut devDependencies (vite, esbuild, tsx…)
 # drizzle-kit est en devDependency : il est donc absent ici.
@@ -50,14 +50,12 @@ COPY --from=builder /app/dist ./dist
 
 # shared/ est nécessaire si du code runtime l'importe directement
 COPY --from=builder /app/shared ./shared
-COPY scripts/hosted-start.sh ./scripts/hosted-start.sh
+COPY --chmod=0644 scripts/hosted-start.sh ./scripts/hosted-start.sh
 
 # Dossier uploads — point de montage pour le volume nommé darkevent_uploads
-RUN mkdir -p /app/uploads
-
-# Utilisateur non-root pour réduire la surface d'attaque
 RUN addgroup -S app && adduser -S app -G app \
-    && chown -R app:app /app
+    && chmod -R a+rX /app/dist /app/shared /app/scripts \
+    && mkdir -p /app/uploads && chown app:app /app/uploads
 
 USER app
 

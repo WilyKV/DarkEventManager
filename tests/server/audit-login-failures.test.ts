@@ -262,31 +262,14 @@ describe("audit-login-failures — POST /api/auth/login-visitor (visitor)", () =
     expect(auditCall.tableName).toBe("participants");
   });
 
-  it("doit inclure les 3 premiers caractères du secretCode dans l'audit (pas le code complet)", async () => {
-    // Arrange
+  it("exclut le code personnel et son préfixe de l’audit", async () => {
     mockDbSelectLimit.mockResolvedValue([]);
-
-    // Act
-    await request(app)
-      .post("/api/auth/login-visitor")
-      .set("X-Forwarded-For", "10.0.0.3")
-      .send({ secretCode: "98765", firstLetterLastName: "A" });
-
-    // Assert — le recordData ou changes doit contenir "987" (3 premiers chars)
-    // mais PAS "98765" (code complet) pour limiter l'exposition en cas de fuite de log
-    const auditCall = findAuditCall("LOGIN_FAILED");
-    expect(auditCall).toBeDefined();
-
-    const serialized = JSON.stringify(auditCall);
-    // Le préfixe doit être présent
-    expect(serialized).toContain("987");
-    // Le code complet ne doit PAS figurer dans les champs loggés exposés
-    // (sauf éventuellement dans un champ masqué explicite)
-    const fullCodeInNonSensitiveFields =
-      (typeof auditCall.recordData === "string" && auditCall.recordData.includes("98765")) ||
-      (typeof auditCall.changes === "string" && auditCall.changes.includes("98765")) ||
-      (typeof auditCall.username === "string" && auditCall.username.includes("98765"));
-    expect(fullCodeInNonSensitiveFields).toBe(false);
+    await request(app).post("/api/auth/login-visitor")
+      .send({ secretCode: "98765", firstLetterLastName: "A" })
+      .expect(401);
+    const audit = findAuditCall("LOGIN_FAILED");
+    expect(audit).toBeDefined();
+    expect(JSON.stringify(audit)).not.toContain("987");
   });
 
   it("doit inclure l'IP dans l'entrée audit LOGIN_FAILED visitor", async () => {

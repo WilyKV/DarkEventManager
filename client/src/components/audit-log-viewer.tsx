@@ -36,12 +36,11 @@ export function AuditLogViewer() {
   const [tableFilter, setTableFilter] = useState<string>("all");
   const [actionFilter, setActionFilter] = useState<string>("all");
 
-  const { data: logs, isLoading } = useQuery<AuditLog[]>({
-    queryKey: ["/api/audit-logs", { 
-      tableName: tableFilter !== "all" ? tableFilter : undefined,
-      action: actionFilter !== "all" ? actionFilter : undefined,
-      limit: 100 
-    }],
+  const filters = new URLSearchParams({ limit: "100" });
+  if (tableFilter !== "all") filters.set("tableName", tableFilter);
+  if (actionFilter !== "all") filters.set("action", actionFilter);
+  const { data: logs, isLoading, isError } = useQuery<AuditLog[]>({
+    queryKey: [`/api/audit-logs?${filters}`],
   });
 
   const getActionBadge = (action: string) => {
@@ -82,9 +81,9 @@ export function AuditLogViewer() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex gap-4 mb-4">
+        <div className="mb-4 flex flex-wrap gap-2">
           <Select value={tableFilter} onValueChange={setTableFilter}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger aria-label="Filtrer par table" className="w-full sm:w-48">
               <SelectValue placeholder="Filtrer par table" />
             </SelectTrigger>
             <SelectContent>
@@ -100,7 +99,7 @@ export function AuditLogViewer() {
           </Select>
 
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger aria-label="Filtrer par action" className="w-full sm:w-40">
               <SelectValue placeholder="Filtrer par action" />
             </SelectTrigger>
             <SelectContent>
@@ -112,7 +111,9 @@ export function AuditLogViewer() {
           </Select>
         </div>
 
-        {isLoading ? (
+        {isError ? (
+          <p role="alert" className="py-4 text-sm text-muted-foreground">Impossible de charger l’historique.</p>
+        ) : isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>

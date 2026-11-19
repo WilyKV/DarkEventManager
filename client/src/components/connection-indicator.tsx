@@ -1,63 +1,19 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useLiveStatus } from "@/lib/live-updates";
+import { cn } from "@/lib/utils";
 
-interface SyncConfig {
-  isOnlineMode: boolean;
-}
-
-function useOnlineStatus(): boolean {
-  const [online, setOnline] = useState(navigator.onLine);
-
-  useEffect(() => {
-    const setTrue = () => setOnline(true);
-    const setFalse = () => setOnline(false);
-    window.addEventListener("online", setTrue);
-    window.addEventListener("offline", setFalse);
-    return () => {
-      window.removeEventListener("online", setTrue);
-      window.removeEventListener("offline", setFalse);
-    };
-  }, []);
-
-  return online;
-}
+const states = {
+  connecting: ["Connexion au direct…", "bg-muted-foreground"],
+  live: ["En direct", "bg-emerald-400"],
+  offline: ["Hors connexion", "bg-amber-400"],
+  unavailable: ["Direct indisponible", "bg-amber-400"],
+};
 
 export function ConnectionIndicator() {
-  const isOnline = useOnlineStatus();
-
-  const { data: config } = useQuery<SyncConfig>({
-    queryKey: ["/api/sync/config"],
-    queryFn: async () => {
-      const res = await fetch("/api/sync/config");
-      if (!res.ok) throw new Error("sync config unavailable");
-      return res.json() as Promise<SyncConfig>;
-    },
-    retry: false,
-    staleTime: 30_000,
-  });
-
-  if (!isOnline) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive">
-        <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
-        <span>Déconnecté</span>
-      </span>
-    );
-  }
-
-  if (config && !config.isOnlineMode) {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-500">
-        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
-        <span>Hors ligne — maître</span>
-      </span>
-    );
-  }
-
+  const [label, color] = states[useLiveStatus()];
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
-      <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
-      <span>En ligne</span>
+    <span role="status" className="inline-flex items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs font-medium text-foreground">
+      <span className={cn("size-2 shrink-0 rounded-full", color)} aria-hidden />
+      {label}
     </span>
   );
 }

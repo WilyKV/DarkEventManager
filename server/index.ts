@@ -2,21 +2,24 @@
 // DOIT rester en premier, avant tout module lisant process.env (ex: ./db).
 // dotenv n'écrase pas les variables déjà définies (Docker Compose, shell…).
 import "dotenv/config";
+import { publishLiveChanges } from "./live-updates";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";
+import { registerDemoDataRoutes } from "./demo-data-routes";
 import { registerZombieOfflineRoutes } from "./zombie-offline-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
+import { requireAuth } from "./auth-middleware";
 import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
-import { checkSyncPermissions } from "./sync-middleware";
+import { validateSessionAccount } from "./session-account";
+import { protectApiOrigin } from "./request-origin";
 import { serveStatic, log } from "./static";
 import { validateWebSocketSecret } from "./websocket-secret-config";
 import { validateSessionSecret } from "./session-secret-config";
 import { createSessionStore } from "./session-config";
-import { sessionLogger } from "./session-logger";
 import { pool } from "./db";
 import { getSessionCookieOptions } from "./session-cookie-config";
 import { applySecurityHeaders } from "./security-headers";
@@ -43,14 +46,10 @@ const app = express();
 configureProxyTrust(app, process.env);
 
 applySecurityHeaders(app);
-app.use("/api/events/bulk-ingest", express.json({ limit: BULK_INGEST_BODY_LIMIT }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 app.use("/api", (_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
-});
-
+}, protectApiOrigin);
 // Session configuration
 app.use(session({
   name: 'darkevent.sid',
@@ -63,41 +62,24 @@ app.use(session({
     ...getSessionCookieOptions(process.env),
   },
 }));
+app.use("/api", validateSessionAccount);
+app.use("/api/events/bulk-ingest", requireAuth, express.json({ limit: BULK_INGEST_BODY_LIMIT }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && !path.startsWith("/api/zombie-offline")) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  // Debug session
-  if (path.startsWith("/api/auth")) {
-    sessionLogger(req, `SessionID=${req.sessionID || 'NONE'}`, { level: "info" });
+  if (/^\/api(?:\/|$)/i.test(path)) {
+    res.once("finish", () => {
+      log(`${req.method} ${path.slice(0, 100)} ${res.statusCode} in ${Date.now() - start}ms`);
+    });
   }
 
   next();
 });
+
+app.use(publishLiveChanges);
 
 (async () => {
   // Validate WebSocket secret configuration at startup
@@ -119,15 +101,21 @@ app.use((req, res, next) => {
   setupEndEventRoute(app);
 
   // Register main routes
+  registerDemoDataRoutes(app);
   registerZombieOfflineRoutes(app);
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+  app.use("/api", (_req, res) => res.status(404).json({ message: "Route API introuvable" }));
+  app.use((err: { status?: number; statusCode?: number; code?: string }, _req: Request, res: Response, next: NextFunction) => {
+    if (res.headersSent) return next(err);
+    const status = err.code === "LIMIT_FILE_SIZE" ? 413 : (err.status ?? err.statusCode);
+    if (status === 413) return res.status(413).json({ message: "Fichier ou requête trop volumineuse" });
+    if (typeof status === "number" && status >= 400 && status < 500) {
+      return res.status(status).json({ message: "Requête invalide" });
+    }
+    if (err.code?.startsWith("LIMIT_")) return res.status(400).json({ message: "Envoi de fichier invalide" });
+    appLogger.error({ type: err instanceof Error ? err.name : "UnknownError" }, "Erreur de traitement HTTP");
+    return res.status(500).json({ message: "Erreur interne du serveur" });
   });
 
   // importantly only setup vite in development and after

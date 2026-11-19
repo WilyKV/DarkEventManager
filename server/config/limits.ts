@@ -13,10 +13,9 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Taille maximale d'un message WebSocket accepté par le serveur (100 MB).
- * Nécessaire pour les transferts de données de synchronisation offline.
+ * Taille maximale d’une trame WebSocket, enveloppe comprise.
  */
-export const WS_MAX_PAYLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+export const WS_MAX_PAYLOAD_BYTES = 11 * 1024 * 1024;
 
 /**
  * Intervalle entre deux pings WebSocket envoyés au client (30 s).

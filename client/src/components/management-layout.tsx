@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowLeft, LogOut, QrCode } from "lucide-react";
+import { ArrowLeft, QrCode, Skull } from "lucide-react";
 import { PageTransition } from "./page-transition";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { SideRail } from "./side-rail";
 import { BottomNav } from "./bottom-nav";
 import { ConnectionIndicator } from "./connection-indicator";
 import { SyncPendingBadge } from "./sync-pending-badge";
-import { InstallPrompt } from "./install-prompt";
 
 interface ManagementLayoutProps {
   title: string;
@@ -31,7 +30,7 @@ export function ManagementLayout({
   showScanButton = false,
   useHistoryBack = false,
 }: ManagementLayoutProps) {
-  const { visitor, logout } = useAuth();
+  const { visitor } = useAuth();
   const [scanModalOpen, setScanModalOpen] = useState(false);
 
   const handleBackClick = () => {
@@ -46,8 +45,8 @@ export function ManagementLayout({
       <SideRail />
 
       {/* Main content area: offset by rail width on md+ */}
-      <div className="flex min-w-0 flex-1 flex-col min-h-screen md:pl-20">
-        <div className="flex-1 p-4 sm:p-6 pb-28 md:pb-6">
+      <div className="flex min-w-0 flex-1 flex-col min-h-dvh md:pl-20 xl:pl-48">
+        <div className="flex-1 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 md:py-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
             <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border pb-3 sm:pb-4">
@@ -64,15 +63,9 @@ export function ManagementLayout({
                     <ArrowLeft className="w-5 h-5" />
                   </Button>
                 ) : (
-                  <Link href={visitor ? "/visitor" : "/overview"}>
-                    <button
-                      data-testid="button-back"
-                      className="md:hidden flex flex-col items-center justify-center px-2 py-1 rounded-lg hover:bg-muted transition-colors"
-                      title="Vue d'ensemble"
-                    >
-                      <span className="text-primary font-display text-[10px] font-bold leading-tight block">DARK</span>
-                      <span className="text-foreground font-display text-[10px] font-bold leading-tight block">EVENT</span>
-                    </button>
+                  <Link href={visitor ? "/visitor" : "/overview"} aria-label="Retour à l’accueil" data-testid="button-back"
+                    className="grid size-11 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-emerald-300 md:hidden">
+                    <Skull className="size-5" aria-hidden />
                   </Link>
                 )}
                 <div>
@@ -89,7 +82,7 @@ export function ManagementLayout({
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground"
+                    className="hidden gap-2 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground md:inline-flex"
                     title="Scanner QR Code"
                     onClick={() => setScanModalOpen(true)}
                   >
@@ -98,15 +91,7 @@ export function ManagementLayout({
                   </Button>
                 )}
                 {actions}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={logout}
-                  title="Se déconnecter"
-                  className="md:hidden"
-                >
-                  <LogOut className="w-5 h-5" />
-                </Button>
+
               </div>
             </header>
 
@@ -120,9 +105,6 @@ export function ManagementLayout({
 
       {/* Bottom nav — mobile only */}
       <BottomNav />
-
-      {/* PWA install prompt */}
-      <InstallPrompt />
 
       {/* Unified Scan Modal */}
       <UnifiedScanModal

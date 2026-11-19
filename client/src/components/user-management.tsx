@@ -296,7 +296,7 @@ export function UserManagement() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Minimum 6 caractères"
+                placeholder="Minimum 12 caractères"
               />
             </div>
             <div className="space-y-2">
@@ -350,7 +350,7 @@ export function UserManagement() {
                 type="password"
                 value={changePassword}
                 onChange={(e) => setChangePassword(e.target.value)}
-                placeholder="Minimum 6 caractères"
+                placeholder="Minimum 12 caractères"
               />
             </div>
           </div>

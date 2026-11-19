@@ -16,7 +16,7 @@ const appEventSchema = z.object({
   aggregateId:   z.string(),
   aggregateType: z.enum(AGGREGATE_TYPES),
   eventType:     z.string(),
-  payload:       z.record(z.unknown()),
+  payload:       z.record(z.string(), z.unknown()),
   clientEventId: z.string(),
   deviceId:      z.string(),
   lamportTs:     z.number().int().min(0),
@@ -61,7 +61,7 @@ export function registerEventIngestRoutes(
       // 2. Validation du body (structure de base)
       const bodyResult = bulkIngestBodySchema.safeParse(req.body);
       if (!bodyResult.success) {
-        res.status(400).json({ message: "Body invalide", errors: bodyResult.error.errors });
+        res.status(400).json({ message: "Body invalide", errors: bodyResult.error.issues });
         return;
       }
 
@@ -95,7 +95,7 @@ export function registerEventIngestRoutes(
         // Validation Zod complète
         const parsed = appEventSchema.safeParse(raw);
         if (!parsed.success) {
-          const errors = parsed.error.errors;
+          const errors = parsed.error.issues;
           const hasLamportError = errors.some((e) => e.path.includes("lamportTs"));
           const hasAggregateTypeError = errors.some((e) =>
             e.path.includes("aggregateType")

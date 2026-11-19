@@ -9,6 +9,8 @@ Le Compose du Jetson lit `~/DarkEventManager/.env`. Pour une plateforme qui four
 | `APP_PORT` | Port publié sur l’hôte avec le Compose du Jetson, `5000` par défaut. |
 | `HOSTED_APP_PORT` | Port interne du service `app` avec le Compose pour base hébergée, `80` par défaut. Configurez le même port dans le proxy de la plateforme. |
 | `DATABASE_URL` | Avec le Compose pour base hébergée, utilisez l’URL de connexion fournie par votre plateforme et conservez ses paramètres TLS. L’application et le service de migration reçoivent la même variable. Le Compose du Jetson impose son URL de base intégrée. |
+| `TRUST_PROXY_HOPS` | Nombre de proxies de confiance entre Internet et le conteneur. `1` par défaut. Utilisez `2` si le seul chemin public passe par Traefik sur le Jetson puis Traefik sur Kevin Pro. |
+| `SETUP_TOKEN` | Requis pour créer le premier administrateur sur une base vide. Générez une valeur indépendante avec `openssl rand -hex 32`. Configurez-la à l’exécution et saisissez-la dans le champ **Code d’installation** de la page de configuration. Une base déjà initialisée ignore ce réglage. |
 | `SESSION_SECRET` | Obligatoire. Générez 32 octets aléatoires en hexadécimal. Signe les cookies de session. Gardez la même valeur entre redémarrages et entre instances. La rotation invalide les sessions. |
 | `WEBSOCKET_SECRET` | Obligatoire. Générez une deuxième valeur indépendante de 32 octets en hexadécimal. Signe les jetons WebSocket. |
 | `QR_ENCRYPTION_KEY` | Générez une troisième valeur indépendante, exactement 64 caractères hexadécimaux. Conservez-la pour relire les QR codes créés avec cette clé. Sinon, le serveur tombe sur une clé temporaire propre au processus. |
@@ -16,7 +18,7 @@ Le Compose du Jetson lit `~/DarkEventManager/.env`. Pour une plateforme qui four
 | `LOG_LEVEL` | Facultatif. `info` par défaut en production. |
 | `LOG_VERBOSE` | Facultatif. Laissez `false` sauf diagnostic ciblé. |
 
-Générez chacune des trois clés séparément sur la machine cible. Chaque exécution produit 64 caractères hexadécimaux.
+Générez chaque clé et le code d’installation séparément sur la machine cible. Chaque exécution produit 64 caractères hexadécimaux.
 
 ```bash
 openssl rand -hex 32

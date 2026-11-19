@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, json, jsonb, bigint, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, json, jsonb, bigint, index, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -220,6 +220,20 @@ export const auditLogs = pgTable("audit_logs", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
+// A marker follows each fixture even when it is edited. Deleting the fixture removes only its marker.
+export const demoRecords = pgTable("demo_records", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  participantId: integer("participant_id").unique().references(() => participants.id, { onDelete: "cascade" }),
+  timeSlotId: integer("time_slot_id").unique().references(() => timeSlots.id, { onDelete: "cascade" }),
+  squadId: integer("squad_id").unique().references(() => squads.id, { onDelete: "cascade" }),
+  shopItemId: integer("shop_item_id").unique().references(() => shopItems.id, { onDelete: "cascade" }),
+  mealItemId: integer("meal_item_id").unique().references(() => mealItems.id, { onDelete: "cascade" }),
+  userId: integer("user_id").unique().references(() => users.id, { onDelete: "cascade" }),
+  auditLogId: integer("audit_log_id").unique().references(() => auditLogs.id, { onDelete: "cascade" }),
+}, table => [
+  check("demo_records_one_reference", sql`num_nonnulls(${table.participantId}, ${table.timeSlotId}, ${table.squadId}, ${table.shopItemId}, ${table.mealItemId}, ${table.userId}, ${table.auditLogId}) = 1`),
+]);
+
 // Sessions Table - For connect-pg-simple persistent session store
 export const sessions = pgTable(
   "sessions",
@@ -392,10 +406,14 @@ export const USER_ROLES = {
 
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
 
-// User schemas
+// bcrypt limits passwords to 72 bytes, including multibyte characters.
+export const newStaffPasswordSchema = z.string()
+  .min(12, "Le mot de passe doit contenir au moins 12 caractères")
+  .refine(password => new TextEncoder().encode(password).length <= 72, "Le mot de passe doit tenir dans 72 octets");
+
 export const insertUserSchema = createInsertSchema(users, {
-  username: z.string().min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères"),
-  passwordHash: z.string().min(6, "Le mot de passe doit contenir au moins 6 caractères"),
+  username: z.string().trim().min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères").max(128),
+  passwordHash: newStaffPasswordSchema,
   roles: z.string().default('[]'),
 }).omit({ createdAt: true, lastLoginAt: true });
 

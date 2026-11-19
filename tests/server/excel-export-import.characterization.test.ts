@@ -1,9 +1,5 @@
 /**
- * Tests de CARACTÉRISATION — Contrat Excel pré-migration exceljs
- *
- * Objectif : figer le comportement observable des endpoints Excel (import/export)
- * tels qu'ils existent avec la dépendance `xlsx` (SheetJS). Ces tests doivent
- * rester verts après la migration vers `exceljs` (GHSA-4r6h-8v6p-xvw6).
+ * Tests de caractérisation du contrat Excel des routes d’import et d’export.
  *
  * Endpoints couverts :
  *   EXPORT
@@ -42,8 +38,6 @@
  *
  * Convention : les assertions portent sur le CONTRAT OBSERVABLE
  * (feuilles, colonnes, lignes, statuts HTTP, Content-Type, Content-Disposition).
- * Elles N'encodent PAS les détails internes de xlsx afin de rester valides
- * après migration vers exceljs.
  *
  * Exécution : npm test -- --project=server
  */
@@ -51,66 +45,58 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import xlsx from "xlsx";
+import ExcelJS from "exceljs";
 import { USER_ROLES, type UserRole } from "@shared/schema";
 
 // ---------------------------------------------------------------------------
-// Helpers de construction de buffers .xlsx (côté TEST seulement)
-// Ces helpers utilisent xlsx pour construire des fixtures — ils ne touchent pas
-// au code de production. Après migration exceljs, le serveur changera mais ces
-// helpers tests restent valides pour construire des fichiers d'entrée.
-// ---------------------------------------------------------------------------
-
-function buildParticipantsImportBuffer(rows: Array<Record<string, string>>): Buffer {
-  // Ligne 0 = header (firstName, lastName, timeSlotName) comme attendu par le serveur
-  const wsData = [
-    { firstName: "firstName", lastName: "lastName", timeSlotName: "timeSlotName" },
-    ...rows,
-  ];
-  const ws = xlsx.utils.json_to_sheet(wsData, { skipHeader: true, header: ["firstName", "lastName", "timeSlotName"] });
-  const wb = xlsx.utils.book_new();
-  xlsx.utils.book_append_sheet(wb, ws, "Sheet1");
-  return Buffer.from(xlsx.write(wb, { type: "buffer", bookType: "xlsx" }));
+// Helpers Excel utilisés pour les fichiers échangés par les routes.
+function addTab(workbook: ExcelJS.Workbook, name: string, headers: string[], rows: Array<Record<string, unknown>>) {
+  const sheet = workbook.addWorksheet(name);
+  sheet.addRow(headers);
+  for (const row of rows) sheet.addRow(headers.map(header => row[header]));
 }
 
-function buildImportAllBuffer(options: {
+async function buildParticipantsImportBuffer(rows: Array<Record<string, string>>): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  addTab(workbook, "Sheet1", ["firstName", "lastName", "timeSlotName"], rows);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+async function buildImportAllBuffer(options: {
   participants?: Array<Record<string, unknown>>;
   timeSlots?: Array<Record<string, unknown>>;
   squads?: Array<Record<string, unknown>>;
-}): Buffer {
-  const wb = xlsx.utils.book_new();
-
-  if (options.timeSlots) {
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(options.timeSlots), "Créneaux");
+}): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  for (const [name, rows] of [
+    ["Créneaux", options.timeSlots],
+    ["Squads", options.squads],
+    ["Participants", options.participants],
+  ] as const) {
+    if (rows) addTab(workbook, name, Array.from(new Set(rows.flatMap(row => Object.keys(row)))), rows);
   }
-  if (options.squads) {
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(options.squads), "Squads");
-  }
-  if (options.participants) {
-    xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet(options.participants), "Participants");
-  }
-
-  return Buffer.from(xlsx.write(wb, { type: "buffer", bookType: "xlsx" }));
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
-/** Parse un buffer binaire reçu comme réponse HTTP en workbook xlsx (côté test). */
-function parseResponseBuffer(buffer: Buffer): xlsx.WorkBook {
-  return xlsx.read(buffer, { type: "buffer" });
+async function parseResponseBuffer(buffer: Buffer) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  return workbook;
 }
 
-/** Retourne les headers (première ligne) d'une feuille. */
-function getSheetHeaders(wb: xlsx.WorkBook, sheetName: string): string[] {
-  const sheet = wb.Sheets[sheetName];
-  if (!sheet) return [];
-  const rows = xlsx.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-  return (rows[0] as string[]) ?? [];
+function getSheetHeaders(workbook: ExcelJS.Workbook, sheetName: string): string[] {
+  const headers: string[] = [];
+  workbook.getWorksheet(sheetName)?.getRow(1).eachCell((cell, index) => { headers[index - 1] = cell.text; });
+  return headers;
 }
 
-/** Retourne toutes les lignes (hors header) d'une feuille sous forme d'objets. */
-function getSheetRows(wb: xlsx.WorkBook, sheetName: string): Array<Record<string, unknown>> {
-  const sheet = wb.Sheets[sheetName];
-  if (!sheet) return [];
-  return xlsx.utils.sheet_to_json<Record<string, unknown>>(sheet);
+function getSheetRows(workbook: ExcelJS.Workbook, sheetName: string): Array<Record<string, unknown>> {
+  const headers = getSheetHeaders(workbook, sheetName);
+  const rows: Array<Record<string, unknown>> = [];
+  workbook.getWorksheet(sheetName)?.eachRow((row, index) => {
+    if (index > 1) rows.push(Object.fromEntries(headers.map((header, column) => [header, row.getCell(column + 1).value])));
+  });
+  return rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -547,9 +533,9 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).toHaveLength(1);
-      expect(wb.SheetNames[0]).toBe("Participants");
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).toHaveLength(1);
+      expect(wb.worksheets.map(sheet => sheet.name)[0]).toBe("Participants");
     });
 
     it("should produce expected column headers in Participants sheet", async () => {
@@ -567,7 +553,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const headers = getSheetHeaders(wb, "Participants");
       expect(headers).toEqual(PARTICIPANTS_EXPORT_COLUMNS);
     });
@@ -587,7 +573,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const rows = getSheetRows(wb, "Participants");
       expect(rows).toHaveLength(1);
       expect(rows[0]["Prénom"]).toBe("Alice");
@@ -667,9 +653,9 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       expect(res.headers["content-type"]).toContain(XLSX_CONTENT_TYPE);
 
       // Assert — structure workbook
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).toHaveLength(1);
-      expect(wb.SheetNames[0]).toBe("Creneaux");
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).toHaveLength(1);
+      expect(wb.worksheets.map(sheet => sheet.name)[0]).toBe("Creneaux");
 
       const headers = getSheetHeaders(wb, "Creneaux");
       expect(headers).toEqual(TIME_SLOTS_EXPORT_COLUMNS);
@@ -690,7 +676,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const rows = getSheetRows(wb, "Creneaux");
       expect(rows).toHaveLength(1);
       expect(rows[0]["Nom"]).toBe("Créneau 20h");
@@ -739,9 +725,9 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       expect(res.status).toBe(200);
       expect(res.headers["content-type"]).toContain(XLSX_CONTENT_TYPE);
 
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).toHaveLength(1);
-      expect(wb.SheetNames[0]).toBe("Squads");
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).toHaveLength(1);
+      expect(wb.worksheets.map(sheet => sheet.name)[0]).toBe("Squads");
 
       const headers = getSheetHeaders(wb, "Squads");
       expect(headers).toEqual(SQUADS_EXPORT_COLUMNS);
@@ -762,7 +748,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const rows = getSheetRows(wb, "Squads");
       expect(rows).toHaveLength(1);
       expect(rows[0]["Numéro"]).toBe(3);
@@ -791,10 +777,10 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
 
       // Assert
       expect(res.status).toBe(200);
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).toContain("Participants");
-      expect(wb.SheetNames).toContain("Creneaux");
-      expect(wb.SheetNames).toContain("Squads");
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Participants");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Creneaux");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Squads");
     });
 
     it("should produce a workbook WITHOUT Squads sheet when type=staff", async () => {
@@ -813,10 +799,10 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
 
       // Assert
       expect(res.status).toBe(200);
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).not.toContain("Squads");
-      expect(wb.SheetNames).toContain("Participants");
-      expect(wb.SheetNames).toContain("Creneaux");
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).not.toContain("Squads");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Participants");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Creneaux");
     });
 
     it("should have correct columns in each sheet of all-data export", async () => {
@@ -834,7 +820,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert — colonnes de Participants (all-data a "Checklist" sans hasMerch extra)
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const partHeaders = getSheetHeaders(wb, "Participants");
       expect(partHeaders).toEqual(PARTICIPANTS_EXPORT_COLUMNS);
 
@@ -865,13 +851,13 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
 
       // Assert
       expect(res.status).toBe(200);
-      const wb = parseResponseBuffer(res.body as Buffer);
-      expect(wb.SheetNames).toContain("Participants");
-      expect(wb.SheetNames).toContain("Créneaux");
-      expect(wb.SheetNames).toContain("Squads");
-      expect(wb.SheetNames).toContain("Boutique");
-      expect(wb.SheetNames).toContain("Repas");
-      expect(wb.SheetNames).toHaveLength(5);
+      const wb = await parseResponseBuffer(res.body as Buffer);
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Participants");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Créneaux");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Squads");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Boutique");
+      expect(wb.worksheets.map(sheet => sheet.name)).toContain("Repas");
+      expect(wb.worksheets.map(sheet => sheet.name)).toHaveLength(5);
     });
 
     it("should have correct columns in Participants sheet (includes ID, Email, timestamps)", async () => {
@@ -889,7 +875,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const headers = getSheetHeaders(wb, "Participants");
       expect(headers).toEqual(PARTICIPANTS_EXPORT_ALL_DATA_COLUMNS);
     });
@@ -909,7 +895,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert — note: feuille nommée "Créneaux" (avec accent) dans export-all
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const headers = getSheetHeaders(wb, "Créneaux");
       expect(headers).toEqual(TIME_SLOTS_EXPORT_ALL_DATA_COLUMNS);
     });
@@ -929,7 +915,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const headers = getSheetHeaders(wb, "Squads");
       expect(headers).toEqual(SQUADS_EXPORT_ALL_DATA_COLUMNS);
     });
@@ -949,7 +935,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       expect(getSheetHeaders(wb, "Boutique")).toEqual(SHOP_EXPORT_COLUMNS);
       expect(getSheetHeaders(wb, "Repas")).toEqual(MEAL_EXPORT_COLUMNS);
     });
@@ -969,7 +955,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         });
 
       // Assert
-      const wb = parseResponseBuffer(res.body as Buffer);
+      const wb = await parseResponseBuffer(res.body as Buffer);
       const rows = getSheetRows(wb, "Boutique");
       expect(rows).toHaveLength(1);
       expect(rows[0]["Nom"]).toBe("Bière artisanale");
@@ -1043,8 +1029,8 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
         expect(res.status).toBe(200);
         expect(res.headers["content-type"]).toContain(XLSX_CONTENT_TYPE);
 
-        const wb = parseResponseBuffer(res.body as Buffer);
-        expect(wb.SheetNames).toContain(sheetName);
+        const wb = await parseResponseBuffer(res.body as Buffer);
+        expect(wb.worksheets.map(sheet => sheet.name)).toContain(sheetName);
 
         const headers = getSheetHeaders(wb, sheetName);
         expect(headers).toEqual(expectedCols);
@@ -1089,7 +1075,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildParticipantsImportBuffer([
+      const buffer = await buildParticipantsImportBuffer([
         { firstName: "Bob",   lastName: "Survivant", timeSlotName: "Créneau 20h" },
         { firstName: "Carol", lastName: "Zombie",    timeSlotName: "" },
       ]);
@@ -1112,7 +1098,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildParticipantsImportBuffer([
+      const buffer = await buildParticipantsImportBuffer([
         { firstName: "",      lastName: "Zombie",  timeSlotName: "" }, // firstName vide → ignoré
         { firstName: "Alice", lastName: "",         timeSlotName: "" }, // lastName vide → ignoré
         { firstName: "Bob",   lastName: "Valid",    timeSlotName: "" }, // valide
@@ -1137,7 +1123,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       // getTimeSlots retourne [] → pas de créneau existant → création attendue
       vi.mocked(storage.getTimeSlots).mockResolvedValue([]);
 
-      const buffer = buildParticipantsImportBuffer([
+      const buffer = await buildParticipantsImportBuffer([
         { firstName: "Dave", lastName: "Ghoul", timeSlotName: "Nouveau créneau" },
       ]);
 
@@ -1161,7 +1147,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       // getTimeSlots retourne le mock créneau existant
       vi.mocked(storage.getTimeSlots).mockResolvedValue([mockTimeSlot]);
 
-      const buffer = buildParticipantsImportBuffer([
+      const buffer = await buildParticipantsImportBuffer([
         { firstName: "Eve", lastName: "Morte", timeSlotName: "Créneau 20h" },
       ]);
 
@@ -1184,7 +1170,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildParticipantsImportBuffer([]); // aucune ligne de données
+      const buffer = await buildParticipantsImportBuffer([]); // aucune ligne de données
 
       // Act
       const res = await request(app)
@@ -1203,18 +1189,9 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      // Construire manuellement un xlsx sans colonne timeSlotName
-      const wsData = [
-        { firstName: "firstName", lastName: "lastName" },
-        { firstName: "Frank", lastName: "Undead" },
-      ];
-      const ws = xlsx.utils.json_to_sheet(wsData, {
-        skipHeader: true,
-        header: ["firstName", "lastName"],
-      });
-      const wb = xlsx.utils.book_new();
-      xlsx.utils.book_append_sheet(wb, ws, "Sheet1");
-      const buffer = Buffer.from(xlsx.write(wb, { type: "buffer", bookType: "xlsx" }));
+      const workbook = new ExcelJS.Workbook();
+      addTab(workbook, "Sheet1", ["firstName", "lastName"], [{ firstName: "Frank", lastName: "Undead" }]);
+      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
       // Act
       const res = await request(app)
@@ -1249,7 +1226,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       // Arrange
       const app = await buildApp(adminUser);
 
-      const buffer = buildImportAllBuffer({
+      const buffer = await buildImportAllBuffer({
         timeSlots: [
           { name: "Créneau A", type: "zombie", mealTime: "20h", briefingTime: "19h30", gameTime: "21h", exitTime: "23h" },
         ],
@@ -1282,7 +1259,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildImportAllBuffer({
+      const buffer = await buildImportAllBuffer({
         timeSlots: [
           { name: "Slot Test", type: "zombie", mealTime: "20h", briefingTime: "19h30", gameTime: "21h", exitTime: "23h" },
         ],
@@ -1304,7 +1281,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildImportAllBuffer({
+      const buffer = await buildImportAllBuffer({
         squads: [{ number: 7, type: "survivant", maxMembers: 6 }],
       });
 
@@ -1324,7 +1301,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildImportAllBuffer({
+      const buffer = await buildImportAllBuffer({
         participants: [{ firstName: "Grace", lastName: "Shamble", type: "zombie" }],
       });
 
@@ -1344,7 +1321,7 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       const app = await buildApp(adminUser);
       const { storage } = await import("../../server/storage");
 
-      const buffer = buildImportAllBuffer({
+      const buffer = await buildImportAllBuffer({
         participants: [
           { firstName: "",      lastName: "X",       type: "zombie" },    // firstName vide
           { firstName: "Y",     lastName: "",         type: "survivant" }, // lastName vide
@@ -1365,10 +1342,9 @@ describe("Excel — Tests de caractérisation (contrat pré-migration exceljs)",
       // Arrange — workbook vide (aucune feuille connue)
       const app = await buildApp(adminUser);
 
-      const wb = xlsx.utils.book_new();
-      // Ajouter une feuille inconnue pour que xlsx.write accepte le workbook
-      xlsx.utils.book_append_sheet(wb, xlsx.utils.json_to_sheet([]), "IrrelevantSheet");
-      const buffer = Buffer.from(xlsx.write(wb, { type: "buffer", bookType: "xlsx" }));
+      const workbook = new ExcelJS.Workbook();
+      workbook.addWorksheet("IrrelevantSheet");
+      const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
 
       // Act
       const res = await request(app)

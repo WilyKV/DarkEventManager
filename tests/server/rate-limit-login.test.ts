@@ -47,6 +47,7 @@ async function buildAuthApp(): Promise<Express> {
   const { registerAuthRoutes } = await import("../../server/auth-routes");
 
   const app = express();
+  app.set("trust proxy", 1);
   app.use(express.json());
 
   // Middleware de session factice (login-visitor utilise req.session.regenerate + save)

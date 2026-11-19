@@ -50,7 +50,7 @@ function buildApp(storage: IPurchaseStorage): Express {
       const { insertPurchaseSchema } = await import("@shared/schema");
       const parsed = insertPurchaseSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Données invalides", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Données invalides", errors: parsed.error.issues });
       }
 
       const result = await storage.createPurchase(req.body);

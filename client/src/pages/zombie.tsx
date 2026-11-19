@@ -2,14 +2,13 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ParticipantListByTimeslot } from "@/components/participant-list-by-timeslot";
 import { SquadList } from "@/components/squad-list";
-import { SyncPushPullButtons } from "@/components/sync-push-pull-buttons";
 import { ExcelExport } from "@/components/excel-export";
 import { ExcelImport } from "@/components/excel-import";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileSpreadsheet } from "lucide-react";
+import { FileSpreadsheet, WifiOff } from "lucide-react";
 import { ParticipantWithRelations, TimeSlot } from "@shared/schema";
 import { ManagementLayout } from "@/components/management-layout";
 
@@ -93,7 +92,13 @@ export default function ZombiePage() {
 
         <TabsContent value="data" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SyncPushPullButtons />
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><WifiOff className="size-5" /> Accueil hors ligne</CardTitle>
+                <CardDescription>Téléchargez la liste chiffrée pour cocher les arrivées et attribuer les équipes sans réseau.</CardDescription>
+              </CardHeader>
+              <CardContent><Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
+            </Card>
 
             <Card>
               <CardHeader>

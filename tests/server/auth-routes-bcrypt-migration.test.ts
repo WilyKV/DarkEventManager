@@ -49,6 +49,7 @@ vi.mock("../../server/db", () => ({
     insert: mockDbInsert,
     update: mockDbUpdate,
     delete: mockDbDelete,
+    transaction: (callback: Function) => callback({ select: mockDbSelect, insert: mockDbInsert, execute: vi.fn() }),
   },
 }));
 
@@ -485,14 +486,14 @@ describe("POST /api/auth/users — création avec hash bcrypt", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. Init admin — POST /api/auth/init → hash bcrypt pour "admin123"
+// 4. Init admin — POST /api/auth/init → hash bcrypt pour "test-long-passphrase!"
 // ---------------------------------------------------------------------------
 
 describe("POST /api/auth/init — initialisation admin avec hash bcrypt", () => {
   let app: express.Express;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     app = await buildTestApp();
   });
 
@@ -512,17 +513,17 @@ describe("POST /api/auth/init — initialisation admin avec hash bcrypt", () => 
     });
 
     // Act
-    const response = await request(app).post("/api/auth/init");
+    const response = await request(app).post("/api/auth/init").send({ password: "test-long-passphrase!" });
 
     // Assert — 201 Created
     expect(response.status).toBe(201);
-    // hashPassword doit avoir été appelé avec "admin123"
-    expect(mockHashPassword).toHaveBeenCalledWith("admin123");
+    // hashPassword doit avoir été appelé avec "test-long-passphrase!"
+    expect(mockHashPassword).toHaveBeenCalledWith("test-long-passphrase!");
     // Le hash résultant doit être bcrypt
     expect(looksLikeBcrypt(bcryptHashOfAdmin123)).toBe(true);
   });
 
-  it("ne devrait PAS stocker le hash SHA-256 de 'admin123' (HIGH-4 fix)", async () => {
+  it("ne devrait PAS stocker le hash SHA-256 de 'test-long-passphrase!' (HIGH-4 fix)", async () => {
     // Arrange
     setupSelectReturning([]);
 
@@ -547,10 +548,10 @@ describe("POST /api/auth/init — initialisation admin avec hash bcrypt", () => 
     });
 
     // Act
-    await request(app).post("/api/auth/init");
+    await request(app).post("/api/auth/init").send({ password: "test-long-passphrase!" });
 
-    // Assert — le hash inséré ne doit PAS être "admin123" en SHA-256
-    const sha256OfAdmin123 = sha256("admin123");
+    // Assert — le hash inséré ne doit PAS être "test-long-passphrase!" en SHA-256
+    const sha256OfAdmin123 = sha256("test-long-passphrase!");
     expect(insertedPasswordHash).not.toBe(sha256OfAdmin123);
     // Et doit être bcrypt
     expect(insertedPasswordHash).toBe(bcryptHash);
@@ -564,7 +565,7 @@ describe("POST /api/auth/init — initialisation admin avec hash bcrypt", () => 
     }]);
 
     // Act
-    const response = await request(app).post("/api/auth/init");
+    const response = await request(app).post("/api/auth/init").send({ password: "test-long-passphrase!" });
 
     // Assert — 403 Forbidden (protection SEC-AUTH)
     expect(response.status).toBe(403);

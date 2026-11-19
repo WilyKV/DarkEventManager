@@ -1,126 +1,55 @@
 import { Link, useLocation } from "wouter";
-import {
-  Skull,
-  Users,
-  ShoppingBag,
-  Utensils,
-  QrCode,
-  UserCog,
-  IdCard,
-  Settings,
-  LayoutDashboard,
-} from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { homeItem, useManagementNav } from "@/lib/management-nav";
 import { useAuth } from "@/lib/auth";
-import { getSectionColor } from "@/lib/section-colors";
-
-interface NavItem {
-  label: string;
-  icon: React.ElementType;
-  path: string;
-  roles?: string[];
-}
-
-/** Même liste que side-rail sans Accueil ni Dashboard standalone */
-const ALL_NAV_ITEMS: NavItem[] = [
-  { label: "Zombies",      icon: Skull,           path: "/zombie",    roles: ["admin", "staff_zombie"] },
-  { label: "Survivants",   icon: Users,           path: "/survivant", roles: ["admin", "staff_survivant"] },
-  { label: "Staff",        icon: UserCog,         path: "/staff",     roles: ["admin"] },
-  { label: "Boutique",     icon: ShoppingBag,     path: "/boutique",  roles: ["admin", "staff_boutique"] },
-  { label: "Repas",        icon: Utensils,        path: "/repas",     roles: ["admin", "staff_repas"] },
-  { label: "Badges",       icon: IdCard,          path: "/badges",    roles: ["admin"] },
-  { label: "Analytics",   icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
-  { label: "Admin",        icon: Settings,        path: "/admin",     roles: ["admin"] },
-];
-
-const SCAN_ROLES = ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"];
-
-function useFilteredNavItems(): NavItem[] {
-  const { hasRole } = useAuth();
-  return ALL_NAV_ITEMS.filter((item) => {
-    if (!item.roles) return true;
-    return item.roles.some((r) => hasRole(r));
-  });
-}
+import { cn } from "@/lib/utils";
+import { InstallAppButton } from "./install-prompt";
 
 export function BottomNav() {
   const [location] = useLocation();
-  const { hasAnyRole } = useAuth();
-  const filtered = useFilteredNavItems();
-  const canScan = hasAnyRole(SCAN_ROLES);
-
-  // Slot budget: 4 items + 1 FAB = 2 left + FAB + 2 right
-  const slots      = filtered.slice(0, 4);
-  const leftSlots  = slots.slice(0, 2);
-  const rightSlots = slots.slice(2, 4);
-
-  const isActive = (path: string) => location === path;
-
-  const renderSlot = (item: NavItem) => {
-    const Icon  = item.icon;
-    const active = isActive(item.path);
-    const color  = getSectionColor(item.path);
-
-    return (
-      <Link key={item.path} href={item.path}>
-        <button
-          className={`flex flex-col items-center justify-center gap-0.5 min-w-[44px] min-h-[44px] px-2 py-1 rounded-lg transition-all active:scale-95 ${
-            active ? "" : "text-muted-foreground hover:text-foreground"
-          }`}
-          style={active ? { color } : undefined}
-        >
-          <div
-            className="relative p-1.5 rounded-lg transition-colors"
-            style={active ? { backgroundColor: `${color}1f` } : undefined}
-          >
-            <Icon size={22} strokeWidth={active ? 2.5 : 1.8} />
-            {active && (
-              <span
-                className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-            )}
-          </div>
-          <span className="text-[10px] font-medium leading-tight">{item.label}</span>
-        </button>
-      </Link>
-    );
-  };
+  const modules = useManagementNav();
+  const { logout } = useAuth();
+  const scanner = modules.find(item => item.path === "/scan");
+  const primary = modules.find(item => ["/zombie", "/survivant", "/boutique", "/repas"].includes(item.path));
+  const shortcuts = [homeItem, ...(primary ? [primary] : []), ...(scanner ? [scanner] : [])];
 
   return (
-    <nav
-      className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-card/95 backdrop-blur-md border-t border-border"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      <div className="flex items-end h-16">
-        {/* Left slots */}
-        <div className="flex flex-1 items-center justify-around">
-          {leftSlots.map(renderSlot)}
-        </div>
-
-        {/* FAB central — Scanner */}
-        <div className="flex items-end justify-center px-2 pb-2">
-          {canScan ? (
-            <Link href="/scan">
-              <button
-                className={`flex items-center justify-center h-14 w-14 rounded-full shadow-lg -translate-y-3 transition-all active:scale-95 ${
-                  isActive("/scan")
-                    ? "bg-primary text-primary-foreground ring-2 ring-primary/30"
-                    : "bg-primary text-primary-foreground hover:brightness-110"
-                }`}
-              >
-                <QrCode size={26} />
-              </button>
-            </Link>
-          ) : (
-            <div className="w-14" />
-          )}
-        </div>
-
-        {/* Right slots */}
-        <div className="flex flex-1 items-center justify-around">
-          {rightSlots.map(renderSlot)}
-          {rightSlots.length < 2 && <div className="w-[44px]" />}
-        </div>
+    <nav aria-label="Navigation mobile" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+      <div className="flex h-16 items-stretch px-2">
+        {shortcuts.map(({ icon: Icon, label, path }) => (
+          <Link key={path} href={path} aria-current={location === path ? "page" : undefined}
+            className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:text-primary">
+            <Icon className="size-5" aria-hidden />{label}
+          </Link>
+        ))}
+        <Sheet>
+          <SheetTrigger className={cn("flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium text-muted-foreground hover:text-foreground",
+            modules.some(item => item.path === location) && !shortcuts.some(item => item.path === location) && "text-primary")}>
+            <Menu className="size-5" aria-hidden /> Menu
+          </SheetTrigger>
+          <SheetContent side="bottom" className="mx-auto max-h-[85dvh] max-w-xl overflow-y-auto rounded-t-2xl px-4 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+            <SheetTitle>Tous les menus</SheetTitle>
+            <SheetDescription className="sr-only">Sections disponibles avec votre compte.</SheetDescription>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              {[homeItem, ...modules].map(({ icon: Icon, label, path }) => (
+                <SheetClose asChild key={path}>
+                  <Link href={path} aria-current={location === path ? "page" : undefined}
+                    className="flex min-h-14 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium hover:border-primary/40 aria-[current=page]:border-primary/60 aria-[current=page]:text-primary">
+                    <Icon className="size-4 shrink-0" aria-hidden />
+                    <span className="flex-1 break-words">{label}</span>
+                  </Link>
+                </SheetClose>
+              ))}
+              <SheetClose asChild>
+                <button type="button" onClick={() => void logout()} className="flex min-h-14 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground">
+                  <LogOut className="size-4 shrink-0" aria-hidden /> Se déconnecter
+                </button>
+              </SheetClose>
+            </div>
+            <InstallAppButton className="mt-4 w-full" />
+          </SheetContent>
+        </Sheet>
       </div>
     </nav>
   );

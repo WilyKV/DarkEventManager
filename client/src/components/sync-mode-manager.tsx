@@ -1,295 +1,86 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
+import { Radio, Shield, WifiOff } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Wifi, WifiOff, Crown, AlertTriangle, Check } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
-import { WebSocketSyncClient } from "@/components/websocket-sync-client";
+import { ConnectionIndicator } from "@/components/connection-indicator";
+import { apiRequest } from "@/lib/queryClient";
 
 interface SyncConfig {
-  id: number;
   isOnlineMode: boolean;
-  masterDeviceId: string | null;
-  masterDeviceName: string | null;
-  lastSyncAt: string | null;
-  updatedAt: string;
-}
-
-// Get or create device ID from localStorage
-function getDeviceId(): string {
-  let deviceId = localStorage.getItem('deviceId');
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem('deviceId', deviceId);
-  }
-  return deviceId;
-}
-
-function getDeviceName(): string {
-  return localStorage.getItem('deviceName') || 'Mon appareil';
-}
-
-function setDeviceName(name: string) {
-  localStorage.setItem('deviceName', name);
+  masterDeviceId?: string | null;
+  masterDeviceName?: string | null;
 }
 
 export function SyncModeManager() {
-  const { toast } = useToast();
-  const deviceId = getDeviceId();
-  const [localDeviceName, setLocalDeviceName] = useState(getDeviceName());
+  const queryClient = useQueryClient();
+  const { data: config, isError, refetch } = useQuery<SyncConfig>({ queryKey: ["/api/sync/config"] });
+  const [deviceName, setDeviceName] = useState(() => localStorage.getItem("deviceName") || "Mon appareil");
+  const update = useMutation({
+    mutationFn: async (isOnlineMode: boolean) => {
+      if (isOnlineMode) {
+        await apiRequest("POST", "/api/sync/config", { isOnlineMode, masterDeviceId: null, masterDeviceName: null });
+        return;
+      }
 
-  // Fetch sync config
-  const { data: config, isLoading } = useQuery<SyncConfig>({
-    queryKey: ['/api/sync/config'],
-    queryFn: async () => {
-      const res = await fetch('/api/sync/config');
-      if (!res.ok) throw new Error('Failed to fetch sync config');
-      return res.json();
+      const id = localStorage.getItem("deviceId") || crypto.randomUUID?.();
+      if (!id) throw new Error("Ouvrez l’application en HTTPS pour désigner cet appareil.");
+      localStorage.setItem("deviceId", id);
+      localStorage.setItem("deviceName", deviceName.trim());
+      await apiRequest("POST", "/api/sync/config", { isOnlineMode, masterDeviceId: id, masterDeviceName: deviceName.trim() });
     },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/sync/config"] }),
   });
-
-  // Update sync config mutation
-  const updateConfigMutation = useMutation({
-    mutationFn: async (update: Partial<SyncConfig>) => {
-      const res = await fetch('/api/sync/config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(update),
-      });
-      if (!res.ok) throw new Error('Failed to update sync config');
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sync/config'] });
-      toast({
-        title: "Configuration mise à jour",
-        description: "Le mode de synchronisation a été modifié avec succès.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Erreur",
-        description: error.message || "Impossible de mettre à jour la configuration",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const isMasterDevice = config?.masterDeviceId === deviceId;
-  const isOnlineMode = config?.isOnlineMode ?? true;
-
-  const handleToggleMode = async () => {
-    if (!isOnlineMode && isMasterDevice) {
-      // Switching from offline to online - remove master device
-      await updateConfigMutation.mutateAsync({
-        isOnlineMode: true,
-        masterDeviceId: null,
-        masterDeviceName: null,
-      });
-    } else if (isOnlineMode) {
-      // Switching from online to offline - set this device as master
-      await updateConfigMutation.mutateAsync({
-        isOnlineMode: false,
-        masterDeviceId: deviceId,
-        masterDeviceName: localDeviceName,
-      });
-    } else {
-      toast({
-        title: "Action non autorisée",
-        description: "Seul l'appareil maître peut changer le mode de synchronisation",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleBecomeMaster = async () => {
-    if (!isOnlineMode) {
-      await updateConfigMutation.mutateAsync({
-        masterDeviceId: deviceId,
-        masterDeviceName: localDeviceName,
-      });
-    }
-  };
-
-  const handleSaveDeviceName = () => {
-    setDeviceName(localDeviceName);
-    if (isMasterDevice && !isOnlineMode) {
-      updateConfigMutation.mutate({
-        masterDeviceName: localDeviceName,
-      });
-    }
-    toast({
-      title: "Nom de l'appareil enregistré",
-      description: `Votre appareil s'appelle maintenant "${localDeviceName}"`,
-    });
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3" />
-            <div className="h-24 bg-muted rounded" />
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-4">
-      {/* Device Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5" />
-            Informations de cet appareil
-          </CardTitle>
-          <CardDescription>Identifiant unique et nom de cet appareil</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label className="text-xs text-muted-foreground">ID de l'appareil</Label>
-            <p className="text-sm font-mono bg-muted p-2 rounded mt-1">{deviceId}</p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="deviceName">Nom de l'appareil</Label>
-            <div className="flex gap-2">
-              <Input
-                id="deviceName"
-                value={localDeviceName}
-                onChange={(e) => setLocalDeviceName(e.target.value)}
-                placeholder="Ex: Tablette Admin, PC Principal..."
-              />
-              <Button onClick={handleSaveDeviceName} variant="outline">
-                Enregistrer
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><Radio className="size-5 shrink-0" /> Mises à jour en direct</CardTitle>
+            <CardDescription>Le WebSocket signale les modifications enregistrées au serveur aux écrans ouverts.</CardDescription>
+          </CardHeader>
+          <CardContent><ConnectionIndicator /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base"><WifiOff className="size-5 shrink-0" /> Accueil zombie hors ligne</CardTitle>
+            <CardDescription>Préparez une copie chiffrée de la liste pour travailler sur cet appareil en mode avion.</CardDescription>
+          </CardHeader>
+          <CardContent><Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
+        </Card>
+      </div>
+      <details className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <summary className="cursor-pointer font-medium"><Shield className="mr-2 inline size-4" aria-hidden /> Restriction d’écriture sur le serveur</summary>
+        <p className="mb-4 mt-2 text-sm text-muted-foreground">
+          Ce réglage réserve les modifications sur le serveur à un seul navigateur désigné. Pour la saisie sans réseau, utilisez l’accueil zombie hors ligne.
+        </p>
+        {isError ? (
+          <Button variant="outline" onClick={() => void refetch()}>Recharger le réglage</Button>
+        ) : config ? (
+          <div className="space-y-3">
+            <p className="text-sm">{config.isOnlineMode ? "Écriture autorisée aux appareils habilités." : `Appareil désigné · ${config.masterDeviceName || "Sans nom"}`}</p>
+            <form className="flex flex-wrap items-end gap-2" onSubmit={event => {
+              event.preventDefault();
+              if (window.confirm("Réserver l’écriture sur le serveur à cet appareil ?")) update.mutate(false);
+            }}>
+              <label className="flex flex-col gap-1 text-sm">
+                Nom de cet appareil
+                <Input required maxLength={80} value={deviceName} onChange={event => setDeviceName(event.target.value)} />
+              </label>
+              <Button type="submit" variant="outline" disabled={update.isPending || !deviceName.trim()}>
+                {config.isOnlineMode ? "Restreindre à cet appareil" : "Désigner cet appareil"}
               </Button>
-            </div>
-          </div>
-
-          {isMasterDevice && (
-            <Alert>
-              <Crown className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Cet appareil est l'appareil maître</strong> - Il peut synchroniser les données avec la base de données.
-              </AlertDescription>
-            </Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Sync Mode Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {isOnlineMode ? <Wifi className="w-5 h-5" /> : <WifiOff className="w-5 h-5" />}
-            Mode de synchronisation
-          </CardTitle>
-          <CardDescription>
-            Gérez le mode de fonctionnement : en ligne (tous peuvent synchroniser) ou hors ligne (seul le maître synchronise)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Mode Toggle */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-4">
-              {isOnlineMode ? (
-                <Wifi className="w-8 h-8 text-green-500" />
-              ) : (
-                <WifiOff className="w-8 h-8 text-orange-500" />
+              {!config.isOnlineMode && (
+                <Button type="button" variant="outline" disabled={update.isPending} onClick={() => update.mutate(true)}>Lever la restriction</Button>
               )}
-              <div>
-                <p className="font-semibold">
-                  {isOnlineMode ? 'Mode En ligne' : 'Mode Hors ligne'}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {isOnlineMode
-                    ? 'Tous les appareils peuvent synchroniser avec la base de données'
-                    : 'Seul l\'appareil maître peut synchroniser avec la base de données'}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={!isOnlineMode}
-              onCheckedChange={handleToggleMode}
-              disabled={!isOnlineMode && !isMasterDevice}
-            />
+            </form>
+            {update.isError && <p role="alert" className="text-sm text-destructive">Impossible d’enregistrer le réglage. Vérifiez votre accès au serveur et réessayez.</p>}
           </div>
-
-          {/* Offline Mode Info */}
-          {!isOnlineMode && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="space-y-2">
-                  <p><strong>Mode hors ligne activé</strong></p>
-                  <p className="text-sm">
-                    Appareil maître actuel : <strong>{config?.masterDeviceName || 'Non défini'}</strong>
-                  </p>
-                  {!isMasterDevice && (
-                    <>
-                      <p className="text-sm">
-                        Vous ne pouvez pas synchroniser directement avec la base de données.
-                        Utilisez les QR Codes ou la connexion WebSocket pour partager vos données avec l'appareil maître.
-                      </p>
-                      <Button
-                        onClick={handleBecomeMaster}
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                      >
-                        Devenir l'appareil maître
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Last Sync Info */}
-          {config?.lastSyncAt && (
-            <div className="text-sm text-muted-foreground">
-              Dernière synchronisation : {new Date(config.lastSyncAt).toLocaleString('fr-FR')}
-            </div>
-          )}
-
-          {/* Feature Badges */}
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="gap-1">
-              <Check className="w-3 h-3" />
-              QR Codes (toujours actif)
-            </Badge>
-            <Badge variant="outline" className="gap-1">
-              <Check className="w-3 h-3" />
-              Export/Import Excel
-            </Badge>
-            {!isOnlineMode && (
-              <Badge variant="default" className="gap-1">
-                <Wifi className="w-3 h-3" />
-                WebSocket actif
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* WebSocket Sync Client - Only show in offline mode */}
-      {!isOnlineMode && (
-        <WebSocketSyncClient
-          isMaster={isMasterDevice}
-          deviceId={deviceId}
-          deviceName={localDeviceName}
-        />
-      )}
+        ) : <p role="status" className="text-sm text-muted-foreground">Chargement du réglage…</p>}
+      </details>
     </div>
   );
 }

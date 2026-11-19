@@ -1,10 +1,11 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request, Response, NextFunction, RequestHandler } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { checkSyncPermissions } from "./sync-middleware";
 import { registerEventIngestRoutes } from "./event-ingest-routes";
 import { requireAuth, requireRole } from "./auth-middleware";
 import multer from "multer";
+import { z } from "zod";
 import ExcelJS from "exceljs";
 import crypto from "crypto";
 import pako from "pako";
@@ -16,7 +17,18 @@ import { childLogger } from "./logger";
 const routesLogger = childLogger('routes');
 const qrLogger = childLogger('qr-import');
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024, files: 1, fields: 8, fieldSize: 16 * 1024, parts: 10 },
+});
+
+const participantPatchSchema = insertParticipantSchema.omit({ secretCode: true }).partial().extend({
+  arrivedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
+  returnedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
+}).strict();
+const batchParticipantPatchSchema = z.object({
+  updates: z.array(z.object({ id: z.number().int().positive(), data: participantPatchSchema })).min(1).max(500),
+});
 
 // QR encryption key derived from environment variable
 let qrKey: Buffer;
@@ -41,6 +53,10 @@ function decryptQRData(encryptedData: string): { id: number; code: string } | nu
   }
 }
 
+function redactAuditCredentials(key: string, value: unknown) {
+  return ["secretCode", "password", "passwordHash", "setupToken"].includes(key) ? undefined : value;
+}
+
 // Utility function to create audit logs
 async function createAuditLog(
   action: 'CREATE' | 'UPDATE' | 'DELETE',
@@ -59,8 +75,8 @@ async function createAuditLog(
       action,
       tableName,
       recordId,
-      recordData: recordData ? JSON.stringify(recordData) : null,
-      changes: changes ? JSON.stringify(changes) : null,
+      recordData: recordData ? JSON.stringify(recordData, redactAuditCredentials) : null,
+      changes: changes ? JSON.stringify(changes, redactAuditCredentials) : null,
       ipAddress: req.ip || req.connection?.remoteAddress || null,
       userAgent: req.get('user-agent') || null,
     });
@@ -78,22 +94,37 @@ function requireParticipantAccess(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+function allowPurchaseHistory(staffAccess: RequestHandler): RequestHandler {
+  return (req, res, next) => {
+    const visitor = req.session?.visitor;
+    if (!req.session?.user && visitor && (req.method === "GET" || req.method === "HEAD") && req.path === "/") {
+      if (req.query.participantId !== String(visitor.participantId)) {
+        res.status(403).json({ message: "Accès refusé" });
+        return;
+      }
+      return next();
+    }
+    return staffAccess(req, res, next);
+  };
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 
   // Register event ingest routes (auth required, no sync middleware)
   registerEventIngestRoutes(app);
 
-  // Apply sync permissions middleware to main API routes (not sync routes)
-  app.use('/api/participants', checkSyncPermissions);
-  app.use('/api/time-slots', checkSyncPermissions);
-  app.use('/api/squads', checkSyncPermissions);
-  app.use('/api/shop-items', checkSyncPermissions);
-  app.use('/api/meal-items', checkSyncPermissions);
-  app.use('/api/dashboard', checkSyncPermissions);
-  app.use('/api/purchases', checkSyncPermissions);
-  app.use('/api/meal-purchases', checkSyncPermissions);
-  app.use('/api/discounts', checkSyncPermissions);
-  app.use('/api/meal-discounts', checkSyncPermissions);
+  const shopStaff = requireRole("admin", "staff_boutique");
+  const mealStaff = requireRole("admin", "staff_repas");
+  app.use("/api/participants", checkSyncPermissions);
+  app.use("/api/time-slots", requireAuth, checkSyncPermissions);
+  app.use("/api/squads", requireAuth, checkSyncPermissions);
+  app.use("/api/shop-items", shopStaff, checkSyncPermissions);
+  app.use("/api/meal-items", mealStaff, checkSyncPermissions);
+  app.use("/api/dashboard", requireAuth);
+  app.use("/api/purchases", allowPurchaseHistory(shopStaff), checkSyncPermissions);
+  app.use("/api/meal-purchases", allowPurchaseHistory(mealStaff), checkSyncPermissions);
+  app.use("/api/discounts", shopStaff, checkSyncPermissions);
+  app.use("/api/meal-discounts", mealStaff, checkSyncPermissions);
 
   // ===== PARTICIPANTS =====
 
@@ -121,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single participant by ID
   app.get("/api/participants/:id", requireParticipantAccess, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid participant ID" });
       }
@@ -143,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!validationResult.success) {
         return res.status(400).json({ 
           message: "Invalid participant data", 
-          errors: validationResult.error.errors 
+          errors: validationResult.error.issues
         });
       }
 
@@ -178,30 +209,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update participant
   app.patch("/api/participants/:id", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const currentParticipant = await storage.getParticipant(id);
       
       if (!currentParticipant) {
         return res.status(404).json({ message: "Participant not found" });
       }
       
-      // Secret code should already exist from creation
-      
-      // Convert timestamp strings to Date objects if present
-      if (req.body.arrivedAt && typeof req.body.arrivedAt === 'string') {
-        req.body.arrivedAt = new Date(req.body.arrivedAt);
-      }
-      if (req.body.returnedAt && typeof req.body.returnedAt === 'string') {
-        req.body.returnedAt = new Date(req.body.returnedAt);
-      }
-      
-      // Check if squad is changing (before update)
-      const squadChanging = req.body.squadId !== undefined && req.body.squadId !== currentParticipant.squadId;
+      const patch = participantPatchSchema.safeParse(req.body);
+      if (!patch.success) return res.status(400).json({ message: "Modification de participant invalide" });
+      const { squadId: newSquadId } = patch.data;
       const previousSquadId = currentParticipant.squadId;
-      const newSquadId = req.body.squadId;
-      
-      // Update participant first
-      const participant = await storage.updateParticipant(id, req.body);
+      const squadChanging = newSquadId !== undefined && newSquadId !== previousSquadId;
+      const participant = await storage.updateParticipant(id, patch.data);
       
       // Log audit trail with changes
       await createAuditLog('UPDATE', 'participants', id, req, participant, {
@@ -221,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(participant);
     } catch (error) {
       routesLogger.error({ err: error }, 'Erreur mise à jour participant');
-      res.status(500).json({ message: "Error updating participant", error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ message: "Error updating participant" });
     }
   });
 
@@ -255,27 +275,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Batch update participants
   app.post("/api/participants/batch-update", requireAuth, async (req, res) => {
     try {
-      const updates = req.body.updates as Array<{ id: number; data: any }>;
-      
-      if (!Array.isArray(updates) || updates.length === 0) {
-        return res.status(400).json({ message: "Updates array is required and must not be empty" });
-      }
+      const parsed = batchParticipantPatchSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Liste de modifications invalide" });
+      const { updates } = parsed.data;
 
-      // Process each update: generate locker numbers and convert timestamps
       for (const update of updates) {
-        const currentParticipant = await storage.getParticipant(update.id);
-        if (!currentParticipant) {
-          return res.status(404).json({ message: `Participant ${update.id} not found` });
-        }
-
-        // Secret code should already exist from creation
-
-        // Convert timestamp strings to Date objects if present
-        if (update.data.arrivedAt && typeof update.data.arrivedAt === 'string') {
-          update.data.arrivedAt = new Date(update.data.arrivedAt);
-        }
-        if (update.data.returnedAt && typeof update.data.returnedAt === 'string') {
-          update.data.returnedAt = new Date(update.data.returnedAt);
+        if (!await storage.getParticipant(update.id)) {
+          return res.status(404).json({ message: `Participant ${update.id} introuvable` });
         }
       }
 
@@ -285,7 +291,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true, updated: results.length, participants: results });
     } catch (error) {
       routesLogger.error({ err: error }, 'Erreur mise à jour batch');
-      res.status(500).json({ message: "Error updating participants", error: error instanceof Error ? error.message : String(error) });
+      res.status(500).json({ message: "Error updating participants" });
     }
   });
 
@@ -296,11 +302,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "No file uploaded" });
       }
 
-      const type = (req.body.type as "zombie" | "survivant") || undefined;
+      const type = (req.body?.type as "zombie" | "survivant") || undefined;
 
       // Parse Excel file with exceljs
       const wb = new ExcelJS.Workbook();
       try {
+        if (!req.file.buffer.length) throw new Error("Fichier vide");
         await wb.xlsx.load(req.file.buffer);
       } catch {
         return res.status(400).json({ message: "Fichier Excel illisible. Utilisez un fichier .xlsx." });
@@ -368,7 +375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get squad audit logs for a participant
   app.get("/api/participants/:id/squad-history", requireAuth, async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const auditLogs = await storage.getSquadAuditLogs(id);
       res.json(auditLogs);
     } catch (error) {
@@ -400,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/time-slots/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const timeSlot = await storage.updateTimeSlot(id, req.body);
       res.json(timeSlot);
     } catch (error) {
@@ -410,7 +417,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/time-slots/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deleteTimeSlot(id);
       res.json({ message: "Time slot deleted" });
     } catch (error) {
@@ -453,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/squads/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const squad = await storage.updateSquad(id, req.body);
       res.json(squad);
     } catch (error) {
@@ -463,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/squads/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deleteSquad(id);
       res.json({ message: "Squad deleted" });
     } catch (error) {
@@ -501,7 +508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get discount for a specific squad
   app.get("/api/discounts/squad/:squadId", async (req, res) => {
     try {
-      const squadId = parseInt(req.params.squadId);
+      const squadId = parseInt(String(req.params.squadId), 10);
       const discount = await storage.getSquadDiscount(squadId);
       res.json({ discount: discount ?? 0 });
     } catch (error) {
@@ -512,7 +519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set discount for a specific squad
   app.put("/api/discounts/squad/:squadId", async (req, res) => {
     try {
-      const squadId = parseInt(req.params.squadId);
+      const squadId = parseInt(String(req.params.squadId), 10);
       const { discount } = req.body;
       const updated = await storage.setSquadDiscount(squadId, discount);
       res.json(updated);
@@ -524,7 +531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get discount for a specific participant
   app.get("/api/discounts/participant/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const discount = await storage.getParticipantDiscount(participantId);
       res.json({ discount });
     } catch (error) {
@@ -535,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Set discount for a specific participant
   app.put("/api/discounts/participant/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const { discount } = req.body;
       const updated = await storage.setParticipantDiscount(participantId, discount);
       res.json(updated);
@@ -547,7 +554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Calculate discount for a participant
   app.get("/api/discounts/calculate/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const discount = await storage.calculateDiscount(participantId);
       res.json({ discount });
     } catch (error) {
@@ -573,7 +580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single purchase
   app.get("/api/purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const purchase = await storage.getPurchase(id);
       if (!purchase) {
         return res.status(404).json({ message: "Purchase not found" });
@@ -589,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const parsed = insertPurchaseSchema.safeParse(req.body);
       if (!parsed.success) {
-        return res.status(400).json({ message: "Données invalides", errors: parsed.error.errors });
+        return res.status(400).json({ message: "Données invalides", errors: parsed.error.issues });
       }
       const result = await storage.createPurchase(parsed.data as InsertPurchase);
       if (result.idempotent) {
@@ -604,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update purchase (e.g., mark as paid)
   app.patch("/api/purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const purchase = await storage.updatePurchase(id, req.body);
       res.json(purchase);
     } catch (error) {
@@ -615,7 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete purchase
   app.delete("/api/purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deletePurchase(id);
       res.json({ message: "Purchase deleted" });
     } catch (error) {
@@ -661,7 +668,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get single meal purchase
   app.get("/api/meal-purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const mealPurchase = await storage.getMealPurchase(id);
       if (!mealPurchase) {
         return res.status(404).json({ message: "Meal purchase not found" });
@@ -685,7 +692,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update meal purchase (e.g., mark as paid)
   app.patch("/api/meal-purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const mealPurchase = await storage.updateMealPurchase(id, req.body);
       res.json(mealPurchase);
     } catch (error) {
@@ -696,7 +703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete meal purchase
   app.delete("/api/meal-purchases/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deleteMealPurchase(id);
       res.json({ message: "Meal purchase deleted" });
     } catch (error) {
@@ -749,7 +756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get squad meal discount
   app.get("/api/meal-discounts/squad/:squadId", async (req, res) => {
     try {
-      const squadId = parseInt(req.params.squadId);
+      const squadId = parseInt(String(req.params.squadId), 10);
       const discount = await storage.getSquadMealDiscount(squadId);
       res.json({ discount: discount ?? 0 });
     } catch (error) {
@@ -760,7 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update squad meal discount
   app.put("/api/meal-discounts/squad/:squadId", async (req, res) => {
     try {
-      const squadId = parseInt(req.params.squadId);
+      const squadId = parseInt(String(req.params.squadId), 10);
       const { discount } = req.body;
       const updated = await storage.setSquadMealDiscount(squadId, discount);
       res.json(updated);
@@ -772,7 +779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get participant meal discount
   app.get("/api/meal-discounts/participant/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const discount = await storage.getParticipantMealDiscount(participantId);
       res.json({ discount: discount ?? null });
     } catch (error) {
@@ -783,7 +790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update participant meal discount
   app.put("/api/meal-discounts/participant/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const { discount } = req.body;
       const updated = await storage.setParticipantMealDiscount(participantId, discount);
       res.json(updated);
@@ -795,7 +802,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Calculate meal discount for participant
   app.get("/api/meal-discounts/calculate/:participantId", async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const discount = await storage.calculateMealDiscount(participantId);
       res.json({ discount });
     } catch (error) {
@@ -814,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/shop-items", async (req, res) => {
+  app.post("/api/shop-items", requireRole("admin"), async (req, res) => {
     try {
       const data = insertShopItemSchema.parse(req.body) as InsertShopItem;
       const item = await storage.createShopItem(data);
@@ -831,7 +838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/shop-items/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const item = await storage.updateShopItem(id, req.body);
       res.json(item);
     } catch (error) {
@@ -839,9 +846,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/shop-items/:id", async (req, res) => {
+  app.delete("/api/shop-items/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deleteShopItem(id);
       res.json({ message: "Item deleted" });
     } catch (error) {
@@ -860,7 +867,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/meal-items", async (req, res) => {
+  app.post("/api/meal-items", requireRole("admin"), async (req, res) => {
     try {
       const data = insertMealItemSchema.parse(req.body) as InsertMealItem;
       const item = await storage.createMealItem(data);
@@ -877,7 +884,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/meal-items/:id", async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       const item = await storage.updateMealItem(id, req.body);
       res.json(item);
     } catch (error) {
@@ -885,9 +892,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/meal-items/:id", async (req, res) => {
+  app.delete("/api/meal-items/:id", requireRole("admin"), async (req, res) => {
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id), 10);
       await storage.deleteMealItem(id);
       res.json({ message: "Item deleted" });
     } catch (error) {
@@ -1118,7 +1125,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== QR CODE GENERATION & SCANNING =====
   app.get("/api/qr/generate/:participantId", requireAuth, async (req, res) => {
     try {
-      const participantId = parseInt(req.params.participantId);
+      const participantId = parseInt(String(req.params.participantId), 10);
       const participant = await storage.getParticipant(participantId);
 
       if (!participant) {
@@ -1831,7 +1838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Endpoint pour générer le PDF d'un participant (accessible par le visiteur)
   app.get("/api/participants/:id/pdf", requireParticipantAccess, async (req, res) => {
     try {
-      const participantId = parseInt(req.params.id);
+      const participantId = parseInt(String(req.params.id), 10);
       
       if (isNaN(participantId)) {
         return res.status(400).json({ message: "ID participant invalide" });

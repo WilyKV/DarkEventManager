@@ -1,118 +1,33 @@
 import { Link, useLocation } from "wouter";
-import {
-  Skull,
-  Users,
-  ShoppingBag,
-  Utensils,
-  QrCode,
-  UserCog,
-  IdCard,
-  Settings,
-  LogOut,
-  LayoutDashboard,
-} from "lucide-react";
+import { LogOut, Skull } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { getSectionColor } from "@/lib/section-colors";
-
-interface NavItem {
-  label: string;
-  icon: React.ElementType;
-  path: string;
-  roles?: string[];
-}
-
-const ALL_NAV_ITEMS: NavItem[] = [
-  { label: "Zombies",      icon: Skull,           path: "/zombie",    roles: ["admin", "staff_zombie"] },
-  { label: "Survivants",   icon: Users,           path: "/survivant", roles: ["admin", "staff_survivant"] },
-  { label: "Staff",        icon: UserCog,         path: "/staff",     roles: ["admin"] },
-  { label: "Boutique",     icon: ShoppingBag,     path: "/boutique",  roles: ["admin", "staff_boutique"] },
-  { label: "Repas",        icon: Utensils,        path: "/repas",     roles: ["admin", "staff_repas"] },
-  { label: "Badges",       icon: IdCard,          path: "/badges",    roles: ["admin"] },
-  { label: "Scanner",      icon: QrCode,          path: "/scan",      roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
-  { label: "Analytics",   icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
-  { label: "Admin",        icon: Settings,        path: "/admin",     roles: ["admin"] },
-];
-
-function useFilteredNavItems(): NavItem[] {
-  const { hasRole } = useAuth();
-  return ALL_NAV_ITEMS.filter((item) => {
-    if (!item.roles) return true;
-    return item.roles.some((r) => hasRole(r));
-  });
-}
+import { useManagementNav } from "@/lib/management-nav";
 
 export function SideRail() {
   const [location] = useLocation();
   const { user, logout } = useAuth();
-  const filtered = useFilteredNavItems();
-
-  const isActive = (path: string) => location === path;
+  const modules = useManagementNav();
 
   return (
-    <aside className="hidden md:flex flex-col fixed left-0 top-0 h-full w-20 z-40 bg-card border-r border-border overflow-y-auto">
-      {/* Logo / App title — cliquable -> /overview */}
-      <Link href="/overview">
-        <div className="flex flex-col items-center justify-center py-4 px-2 border-b border-border/50 shrink-0 gap-1 cursor-pointer hover:bg-muted/50 transition-colors">
-          <div className="text-center">
-            <span className="text-primary font-display text-xs font-bold leading-tight block">DARK</span>
-            <span className="text-foreground font-display text-xs font-bold leading-tight block">EVENT</span>
-          </div>
-        </div>
+    <aside className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col overflow-y-auto border-r border-border bg-card md:flex xl:w-48">
+      <Link href="/overview" aria-label="Accueil" aria-current={location === "/overview" ? "page" : undefined}
+        className="flex min-h-16 shrink-0 items-center justify-center gap-2 border-b border-border px-3 text-primary hover:bg-muted/50 xl:justify-start">
+        <Skull className="size-6" aria-hidden />
+        <span className="hidden font-display font-bold xl:inline">Zomb’in The Dark</span>
       </Link>
-
-      {/* Nav items */}
-      <nav className="flex flex-col items-center py-3 gap-1 flex-1 px-2">
-        {filtered.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.path);
-          const color = getSectionColor(item.path);
-
-          return (
-            <Link key={item.path} href={item.path}>
-              <button
-                className={`relative flex flex-col items-center justify-center gap-1 w-full min-h-[60px] px-1 py-2 rounded-xl transition-all duration-150 group ${
-                  active
-                    ? ""
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-                style={
-                  active
-                    ? { color, backgroundColor: `${color}1f` }
-                    : undefined
-                }
-                title={item.label}
-              >
-                {/* Barre d'accent gauche (active) */}
-                {active && (
-                  <span
-                    className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full"
-                    style={{ backgroundColor: color }}
-                  />
-                )}
-                <Icon size={20} strokeWidth={active ? 2.5 : 1.8} />
-                <span className="text-[10px] font-medium leading-tight text-center line-clamp-2">
-                  {item.label}
-                </span>
-              </button>
-            </Link>
-          );
-        })}
+      <nav aria-label="Navigation principale" className="flex flex-1 flex-col gap-1 p-2">
+        {modules.map(({ icon: Icon, label, path }) => (
+          <Link href={path} key={path} aria-current={location === path ? "page" : undefined} title={label}
+            className="flex min-h-12 flex-col items-center justify-center gap-1 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground aria-[current=page]:bg-primary/10 aria-[current=page]:text-primary xl:flex-row xl:justify-start xl:gap-2 xl:px-3">
+            <Icon className="size-[18px] shrink-0" aria-hidden />
+            <span className="text-center text-[10px] font-medium leading-tight xl:text-left xl:text-sm">{path === "/admin" ? <><span className="xl:hidden">Admin</span><span className="hidden xl:inline">{label}</span></> : label}</span>
+          </Link>
+        ))}
       </nav>
-
-      {/* Bottom: user + logout */}
-      <div className="shrink-0 border-t border-border/50 py-3 px-2 flex flex-col items-center gap-2">
-        {user && (
-          <div className="text-[9px] text-muted-foreground text-center font-medium truncate w-full">
-            {user.username}
-          </div>
-        )}
-        <button
-          onClick={logout}
-          className="flex flex-col items-center justify-center gap-1 w-full min-h-[52px] px-1 py-2 rounded-xl text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-150"
-          title="Se déconnecter"
-        >
-          <LogOut size={18} />
-          <span className="text-[9px] font-medium">Quitter</span>
+      <div className="border-t border-border p-2">
+        {user && <p className="truncate px-2 py-1 text-center text-xs text-muted-foreground xl:text-left">{user.username}</p>}
+        <button onClick={logout} className="flex min-h-11 w-full flex-col items-center justify-center gap-1 rounded-md text-xs text-muted-foreground hover:bg-muted hover:text-foreground xl:flex-row xl:justify-start xl:gap-2 xl:px-3">
+          <LogOut className="size-4" aria-hidden /> Quitter
         </button>
       </div>
     </aside>

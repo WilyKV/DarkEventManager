@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import type { Server } from 'http';
+import type { IncomingMessage, Server } from 'node:http';
 import dgram from 'dgram';
 import os from 'os';
 import { verifyWebSocketToken, getWebSocketSecret } from './sync-middleware';
@@ -14,6 +14,8 @@ import {
 import { validateSyncPayload } from './ws/event-validator';
 import { canDeviceSend } from './ws/sync-permission';
 import { routeMessage } from './ws/message-router';
+import { verifyDeviceToken } from './ws-token';
+import type { LiveScope } from '../shared/live-updates';
 
 const wsLogger = childLogger('websocket');
 
@@ -28,6 +30,7 @@ interface SyncClient {
 export class WebSocketSyncServer {
   private wss: WebSocketServer | null = null;
   private clients: Map<string, SyncClient> = new Map();
+  private watchers = new Map<WebSocket, ReturnType<typeof setTimeout>>();
   private udpServer: dgram.Socket | null = null;
   private broadcastPort: number = UDP_DISCOVERY_PORT;
   private httpServer: Server | null = null;
@@ -49,10 +52,13 @@ export class WebSocketSyncServer {
       server: httpServer,
       path: '/ws',
       perMessageDeflate: false,
-      // Important for WiFi Direct: don't verify origin at connection level
-      // We'll verify authentication via token in the register message
-      verifyClient: () => true,
-      // Increase max payload size for data sync
+      verifyClient: (info: { origin?: string; secure: boolean; req: IncomingMessage }) => {
+        if (info.origin === undefined) return true;
+        const forwardedProtocol = info.req.headers["x-forwarded-proto"];
+        const proxyTLS = process.env.NODE_ENV === "production" && (forwardedProtocol === "https" || forwardedProtocol === "wss");
+        const protocol = info.secure || proxyTLS ? "https" : "http";
+        return info.origin === `${protocol}://${info.req.headers.host}`;
+      },
       maxPayload: WS_MAX_PAYLOAD_BYTES,
     });
 
@@ -60,20 +66,22 @@ export class WebSocketSyncServer {
     const port = this.getServerPort();
     wsLogger.info({ url: `ws://${localIP}:${port}/ws`, secretLength: this.wsSecret.length }, 'WebSocket Sync Server démarré');
 
-    // Start UDP broadcast for auto-discovery
-    this.startDiscoveryBroadcast();
+    if (process.env.NODE_ENV !== "production") this.startDiscoveryBroadcast();
 
     this.wss.on('connection', (ws: WebSocket, req) => {
       wsLogger.debug({ remoteAddress: req.socket.remoteAddress }, 'Nouvelle connexion WebSocket');
 
-      // Send ping every 30 seconds to keep connection alive
+      let alive = true;
       const pingInterval = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.ping();
-        } else {
-          clearInterval(pingInterval);
-        }
+        if (!alive) return ws.terminate();
+        alive = false;
+        ws.ping();
       }, WS_PING_INTERVAL_MS);
+      const registrationTimeout = setTimeout(() => {
+        if (!this.watchers.has(ws) && !Array.from(this.clients.values()).some(client => client.ws === ws)) {
+          ws.close(4004, 'Authentication required');
+        }
+      }, 10_000);
 
       // Handle client messages
       ws.on('message', (data: Buffer) => {
@@ -88,6 +96,9 @@ export class WebSocketSyncServer {
 
       ws.on('close', () => {
         clearInterval(pingInterval);
+        clearTimeout(registrationTimeout);
+        clearTimeout(this.watchers.get(ws));
+        this.watchers.delete(ws);
         // Remove client from the list
         for (const [deviceId, client] of Array.from(this.clients.entries())) {
           if (client.ws === ws) {
@@ -105,7 +116,7 @@ export class WebSocketSyncServer {
       });
 
       ws.on('pong', () => {
-        // Connection is alive
+        alive = true;
       });
     });
 
@@ -232,7 +243,12 @@ export class WebSocketSyncServer {
   }
 
   private handleMessage(ws: WebSocket, message: any) {
-    // Allow registration without authentication check
+    if (!message || typeof message !== 'object') return ws.close(4001, 'Invalid message');
+    if (this.watchers.has(ws)) return;
+    if (message.type === 'watch') {
+      this.handleWatch(ws, message.token);
+      return;
+    }
     if (message.type === 'register') {
       this.handleRegister(ws, message);
       return;
@@ -256,10 +272,30 @@ export class WebSocketSyncServer {
     });
   }
 
+  private handleWatch(ws: WebSocket, token: string) {
+    const verification = verifyDeviceToken(token, this.wsSecret);
+    const alreadyRegistered = Array.from(this.clients.values()).some(client => client.ws === ws);
+    if (!verification.valid || !verification.deviceId?.startsWith('watch:') || alreadyRegistered) {
+      ws.close(4003, 'Invalid subscription');
+      return;
+    }
+
+    const expiresAt = Number(token.split('.')[1]);
+    this.watchers.set(ws, setTimeout(() => ws.close(4000, 'Subscription expired'), Math.max(0, expiresAt - Date.now())));
+    ws.send(JSON.stringify({ type: 'watching' }));
+  }
+
+  notifyDataChanged(scope: LiveScope) {
+    const message = JSON.stringify({ type: 'changed', scope });
+    this.watchers.forEach((_timeout, ws) => {
+      if (ws.readyState === WebSocket.OPEN) ws.send(message);
+    });
+  }
+
   private async handleRegister(ws: WebSocket, message: any) {
     const { deviceId, deviceName, authToken } = message;
 
-    if (!deviceId || !deviceName) {
+    if (typeof deviceId !== 'string' || !deviceId || deviceId.startsWith('watch:') || typeof deviceName !== 'string' || !deviceName) {
       ws.send(JSON.stringify({ type: 'error', message: 'Missing deviceId or deviceName' }));
       ws.close(4001, 'Missing credentials');
       return;
@@ -298,7 +334,7 @@ export class WebSocketSyncServer {
       wsLogger.error({ err: error }, 'Erreur vérification configuration sync');
     }
 
-    // Register the client
+    if (ws.readyState !== WebSocket.OPEN || this.watchers.has(ws)) return;
     this.clients.set(deviceId, {
       ws,
       deviceId,
@@ -471,6 +507,7 @@ export class WebSocketSyncServer {
     }
 
     if (this.wss) {
+      this.wss.clients.forEach(ws => ws.terminate());
       this.wss.close();
       this.clients.clear();
       wsLogger.info('Serveur WebSocket Sync arrêté');

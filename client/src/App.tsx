@@ -1,26 +1,30 @@
 import React from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
-import LoginPage from "@/pages/login";
-import VisitorPage from "@/pages/visitor";
-import OverviewPage from "@/pages/overview";
-import DashboardPage from "@/pages/dashboard";
-import ZombiePage from "@/pages/zombie";
-import ZombieOfflinePage from "@/pages/zombie-offline";
+import { PwaProvider } from "@/components/install-prompt";
+import { LiveUpdatesProvider } from "@/lib/live-updates";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 import { getOfflineCopy } from "@/db/zombie-offline";
-import SurvivantPage from "@/pages/survivant";
-import StaffPage from "@/pages/staff";
-import BoutiquePage from "@/pages/boutique";
-import RepasPage from "@/pages/repas";
-import BadgesPage from "@/pages/badges";
-import ScanPage from "@/pages/scan";
-import AdminPage from "@/pages/admin";
-import SetupPage from "@/pages/setup";
-import NotFound from "@/pages/not-found";
+
+const LoginPage = React.lazy(() => import("@/pages/login"));
+const VisitorPage = React.lazy(() => import("@/pages/visitor"));
+const OverviewPage = React.lazy(() => import("@/pages/overview"));
+const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
+const ZombiePage = React.lazy(() => import("@/pages/zombie"));
+const ZombieOfflinePage = React.lazy(() => import("@/pages/zombie-offline"));
+const SurvivantPage = React.lazy(() => import("@/pages/survivant"));
+const StaffPage = React.lazy(() => import("@/pages/staff"));
+const BoutiquePage = React.lazy(() => import("@/pages/boutique"));
+const RepasPage = React.lazy(() => import("@/pages/repas"));
+const BadgesPage = React.lazy(() => import("@/pages/badges"));
+const ScanPage = React.lazy(() => import("@/pages/scan"));
+const AdminPage = React.lazy(() => import("@/pages/admin"));
+const SetupPage = React.lazy(() => import("@/pages/setup"));
+const NotFound = React.lazy(() => import("@/pages/not-found"));
 
 function SetupGuard({ children }: { children: React.ReactNode }) {
   const [location, setLocation] = useLocation();
@@ -50,12 +54,27 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
 
 function AppHome() {
   const { user, isLoading } = useAuth();
+  const online = useOnlineStatus();
   const [hasOfflineCopy, setHasOfflineCopy] = React.useState<boolean>();
   React.useEffect(() => {
     getOfflineCopy().then(copy => setHasOfflineCopy(Boolean(copy))).catch(() => setHasOfflineCopy(false));
   }, []);
-  if (hasOfflineCopy === undefined || (hasOfflineCopy && isLoading && navigator.onLine)) return null;
-  return <Redirect to={hasOfflineCopy && (!navigator.onLine || !user) ? "/zombie/hors-ligne" : "/overview"} />;
+  if (hasOfflineCopy === undefined) return null;
+  if (hasOfflineCopy && isLoading && online) {
+    return (
+      <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-3 p-4">
+        <p role="status" className="text-sm text-muted-foreground">Connexion au serveur…</p>
+        <Link href="/zombie/hors-ligne" className="rounded-lg border border-border px-4 py-3 font-medium hover:bg-muted">Ouvrir la copie hors ligne</Link>
+      </main>
+    );
+  }
+  return <Redirect to={hasOfflineCopy && (!online || !user) ? "/zombie/hors-ligne" : "/overview"} />;
+}
+
+function ZombieEntry() {
+  const online = useOnlineStatus();
+  if (!online) return <AppHome />;
+  return <RequireAuth><ZombiePage /></RequireAuth>;
 }
 
 function Router() {
@@ -89,9 +108,7 @@ function Router() {
 
       <Route path="/zombie/hors-ligne" component={ZombieOfflinePage} />
       <Route path="/zombie">
-        <RequireAuth>
-          <ZombiePage />
-        </RequireAuth>
+        <ZombieEntry />
       </Route>
       <Route path="/survivant">
         <RequireAuth>
@@ -126,7 +143,7 @@ function Router() {
 
       {/* Admin only routes */}
       <Route path="/admin">
-        <RequireAuth roles={["admin", "staff"]}>
+        <RequireAuth roles={["admin"]}>
           <AdminPage />
         </RequireAuth>
       </Route>
@@ -143,14 +160,20 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <TooltipProvider>
-          <div className="min-h-screen bg-background text-foreground">
-            <Toaster />
-            <SetupGuard>
-              <Router />
-            </SetupGuard>
-          </div>
-        </TooltipProvider>
+        <LiveUpdatesProvider>
+          <PwaProvider>
+            <TooltipProvider>
+              <div className="min-h-dvh bg-background text-foreground">
+                <Toaster />
+                <SetupGuard>
+                  <React.Suspense fallback={<p role="status" className="grid min-h-dvh place-items-center text-sm text-muted-foreground">Chargement…</p>}>
+                    <Router />
+                  </React.Suspense>
+                </SetupGuard>
+              </div>
+            </TooltipProvider>
+          </PwaProvider>
+        </LiveUpdatesProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

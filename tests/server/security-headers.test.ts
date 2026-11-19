@@ -50,6 +50,13 @@ describe("applySecurityHeaders — CSP conditionnel", () => {
     expect(response.headers["content-security-policy"]).toBeDefined();
   });
 
+  it("permet le WebSocket TLS sur le domaine et le port de l’application", async () => {
+    process.env["NODE_ENV"] = "production";
+    const app = buildApp(await importFresh());
+    const response = await request(app).get("/health").set("Host", "ztd.example:8443");
+    expect(response.headers["content-security-policy"]).toContain("connect-src 'self' wss://ztd.example:8443/ws");
+  });
+
   it("développement : Content-Security-Policy est absent", async () => {
     // Arrange
     process.env["NODE_ENV"] = "development";

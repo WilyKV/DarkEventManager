@@ -57,7 +57,7 @@ describe("insertPurchaseSchema", () => {
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        const paths = result.error.errors.map((e) => e.path[0]);
+        const paths = result.error.issues.map((e) => e.path[0]);
         expect(paths).toContain("clientEventId");
       }
     });

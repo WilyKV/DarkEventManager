@@ -278,25 +278,11 @@ GET /api/auth/session
 
 Appelé au démarrage du client pour **hydrater** `AuthContext`.
 
-## Initialisation de l'admin
+## Premier administrateur
 
-Pour la **première utilisation**, créer un utilisateur admin :
+Sur une base vide, le formulaire **Créer le compte administrateur** permet de choisir un nom et un mot de passe. En production, renseignez auparavant `SETUP_TOKEN` dans les variables d’exécution puis saisissez cette valeur dans **Code d’installation**. Le mot de passe doit contenir au moins 12 caractères et tenir dans 72 octets. Une fois le compte créé, le serveur ferme cette route.
 
-```
-POST /api/auth/init
-Content-Type: application/json
-
-{
-  "username": "admin",
-  "password": "admin123"
-}
-```
-
-**Comportement** :
-- Si `users` table est vide → crée admin avec rôle `admin`
-- Sinon → refuse (déjà initialisé)
-
-**À changer en production** ! Implémenter une 2FA ou token one-time pour sécuriser cette init.
+Modifier le mot de passe ou les rôles d’un compte staff invalide ses sessions. La régénération d’un code participant invalide la session visiteur correspondante. Les sessions staff ouvertes avant cette mise à jour demandent une nouvelle connexion.
 
 ## Client-side Auth Context
 

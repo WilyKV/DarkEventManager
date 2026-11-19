@@ -4,14 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { LogIn, User, KeyRound, AlertCircle } from "lucide-react";
+import { LogIn, User, KeyRound, AlertCircle, Skull, WifiOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
+import { getOfflineCopy } from "@/db/zombie-offline";
 import { useAuth } from "@/lib/auth";
 
 const loginSchema = z.object({
@@ -32,6 +33,11 @@ export default function LoginPage() {
   const [, setLocation] = useLocation();
   const { checkSession, user, visitor, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState("staff");
+  const [hasOfflineCopy, setHasOfflineCopy] = useState(false);
+
+  useEffect(() => {
+    void getOfflineCopy().then(copy => setHasOfflineCopy(Boolean(copy))).catch(() => {});
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -151,18 +157,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <main className="flex min-h-dvh items-center justify-center px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]">
       <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <img
-              src="https://zombinthedark.fr/wp-content/uploads/2020/11/Logo_ZITD_plat_blanc-1-300x105.png"
-              alt="Zomb'in The Dark Logo"
-              className="w-[300px] h-auto mx-auto"
-            />
-          <p className="text-slate-300">Gestion d'événement Zombie/Survivant</p>
-        </div>
+        <header className="mb-6 flex items-center gap-3">
+          <span className="grid size-12 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-emerald-300"><Skull className="size-6" aria-hidden /></span>
+          <h1 className="text-2xl font-semibold tracking-tight">Zomb’in The Dark</h1>
+        </header>
 
-        <Card className="shadow-2xl border-slate-700">
+        {hasOfflineCopy && <Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline", className: "mb-4 w-full" })}><WifiOff /> Ouvrir la copie hors ligne</Link>}
+
+        <Card className="shadow-lg">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <LogIn className="w-5 h-5" />
@@ -228,12 +232,6 @@ export default function LoginPage() {
                   </Button>
                 </form>
 
-                <Alert className="mt-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    Par défaut : <strong>admin</strong> / <strong>admin123</strong>
-                  </AlertDescription>
-                </Alert>
               </TabsContent>
 
               {/* Visitor Login */}
@@ -297,6 +295,6 @@ export default function LoginPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </main>
   );
 }

@@ -10,8 +10,8 @@ import { DiscountManagement } from "@/components/discount-management";
 import { MealDiscountManagement } from "@/components/meal-discount-management";
 import { ProductManagement } from "@/components/product-management";
 import { MealProductManagement } from "@/components/meal-product-management";
+import { DemoDataManager } from "@/components/demo-data-manager";
 import { SyncModeManager } from "@/components/sync-mode-manager";
-import { SyncPushPullButtons } from "@/components/sync-push-pull-buttons";
 import { UserManagement } from "@/components/user-management";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
 import { ParticipantTypeSection } from "@/components/participant-type-section";
@@ -164,55 +164,31 @@ export default function AdminPage() {
   return (
     <ManagementLayout
       title="Administration"
-      subtitle="Gestion complète de l'événement"
+      subtitle="Comptes, données et réglages"
       showScanButton={true}
       scanLink="/scan"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        {/* Menu principal */}
-        <TabsList className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-8 gap-1 bg-muted/50 border border-border/50 p-1">
-          <TabsTrigger value="config" className="gap-2 data-[state=active]:bg-purple-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-purple-500/20">
-            <Settings className="w-4 h-4" />
-            <span className="hidden sm:inline">Config</span>
-          </TabsTrigger>
-          <TabsTrigger value="zombie" className="gap-2 data-[state=active]:bg-red-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-red-500/20">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Zombies</span>
-          </TabsTrigger>
-          <TabsTrigger value="survivant" className="gap-2 data-[state=active]:bg-blue-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20">
-            <Users className="w-4 h-4" />
-            <span className="hidden sm:inline">Survivants</span>
-          </TabsTrigger>
-          <TabsTrigger value="staff" className="gap-2 data-[state=active]:bg-green-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20">
-            <UserCog className="w-4 h-4" />
-            <span className="hidden sm:inline">Staff</span>
-          </TabsTrigger>
-          <TabsTrigger value="boutique" className="gap-2 data-[state=active]:bg-indigo-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-indigo-500/20">
-            <ShoppingBag className="w-4 h-4" />
-            <span className="hidden sm:inline">Boutique</span>
-          </TabsTrigger>
-          <TabsTrigger value="repas" className="gap-2 data-[state=active]:bg-orange-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-orange-500/20">
-            <Utensils className="w-4 h-4" />
-            <span className="hidden sm:inline">Repas</span>
-          </TabsTrigger>
-          <TabsTrigger value="users" className="gap-2 data-[state=active]:bg-pink-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-pink-500/20">
-            <Shield className="w-4 h-4" />
-            <span className="hidden sm:inline">Utilisateurs</span>
-          </TabsTrigger>
-          <TabsTrigger value="historique" className="gap-2 data-[state=active]:bg-yellow-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-yellow-500/20">
-            <History className="w-4 h-4" />
-            <span className="hidden sm:inline">Historique</span>
-          </TabsTrigger>
+        <TabsList aria-label="Sections d’administration" className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border p-1 min-[480px]:grid-cols-4 xl:grid-cols-8">
+          {[
+            { id: "config", label: "Configuration", icon: Settings },
+            { id: "zombie", label: "Zombies", icon: Users },
+            { id: "survivant", label: "Survivants", icon: Users },
+            { id: "staff", label: "Staff", icon: UserCog },
+            { id: "boutique", label: "Boutique", icon: ShoppingBag },
+            { id: "repas", label: "Repas", icon: Utensils },
+            { id: "users", label: "Utilisateurs", icon: Shield },
+            { id: "historique", label: "Historique", icon: History },
+          ].map(({ id, label, icon: Icon }) => (
+            <TabsTrigger key={id} value={id} className="min-h-11 justify-start gap-2 rounded-lg px-2 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary xl:justify-center">
+              <Icon className="size-4 shrink-0" aria-hidden />{label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {/* Configuration Tab */}
         <TabsContent value="config" className="space-y-4">
-          <h3 className="text-lg font-semibold text-purple-500">Configuration de l'événement</h3>
-
-          {/* Sync Push/Pull Buttons */}
-          <SyncPushPullButtons />
-
-          {/* Sync Mode Manager */}
+          <DemoDataManager />
           <SyncModeManager />
 
           {/* End Event Button */}

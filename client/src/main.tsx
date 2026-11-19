@@ -1,11 +1,8 @@
 /// <reference types="vite-plugin-pwa/client" />
 import { createRoot } from "react-dom/client";
-import { registerSW } from "virtual:pwa-register";
 import App from "./App";
 import "./index.css";
 
-// Register service worker
-registerSW({ immediate: true });
 // Earlier versions cached API responses, including data tied to staff sessions.
 if ("caches" in window) {
   const clearLegacyApiCache = () => { void caches.delete("api-cache").catch(() => {}); };

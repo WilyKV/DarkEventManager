@@ -1,36 +1,42 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   plugins: [
     react(),
-    runtimeErrorOverlay(),
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      registerType: "prompt",
+      injectRegister: false,
       manifest: {
         name: "Zomb'in The Dark",
         short_name: "ZombDark",
         description:
           "Système de gestion pour l'événement Zomb'in The Dark — zombies, survivants, boutique et repas",
-        theme_color: "#1a1a1a",
-        background_color: "#0d0d0d",
+        theme_color: "#121417",
+        background_color: "#121417",
         display: "standalone",
-        orientation: "portrait",
+        id: "/",
+        scope: "/",
         start_url: "/",
+        lang: "fr",
+        shortcuts: [
+          { name: "Accueil zombie", url: "/zombie" },
+          { name: "Accueil zombie hors ligne", url: "/zombie/hors-ligne" },
+        ],
         icons: [
           {
             src: "/pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any maskable",
           },
           {
             src: "/pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any maskable",
           },
         ],
       },
@@ -41,46 +47,12 @@ export default defineConfig({
         suppressWarnings: true,
       },
       workbox: {
+        clientsClaim: true,
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
-        runtimeCaching: [
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "image-cache",
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 60 * 60 * 24 * 30,
-              },
-            },
-          },
-          {
-            urlPattern: /\.(?:woff|woff2|ttf|eot)$/,
-            handler: "CacheFirst",
-            options: {
-              cacheName: "font-cache",
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 60 * 60 * 24 * 365,
-              },
-            },
-          },
-        ],
       },
     }),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
-      ? [
-          await import("@replit/vite-plugin-cartographer").then((m) =>
-            m.cartographer(),
-          ),
-          await import("@replit/vite-plugin-dev-banner").then((m) =>
-            m.devBanner(),
-          ),
-        ]
-      : []),
   ],
   resolve: {
     alias: {

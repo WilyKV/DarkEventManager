@@ -1,3 +1,4 @@
+import { hasSessionRole } from "./auth-middleware";
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { signDeviceToken, verifyDeviceToken } from "./ws-token";
@@ -44,7 +45,8 @@ export async function checkSyncPermissions(req: Request, res: Response, next: Ne
       });
     }
 
-    if (config.masterDeviceId !== deviceId) {
+    const isAdmin = hasSessionRole(req.session?.user?.roles, ["admin"]);
+    if (!isAdmin || config.masterDeviceId !== deviceId) {
       return res.status(403).json({
         message: "Mode hors ligne : Seul l'appareil maître peut effectuer des modifications",
         isOnlineMode: false,
@@ -59,8 +61,7 @@ export async function checkSyncPermissions(req: Request, res: Response, next: Ne
     syncLogger.error({ err: error }, 'Erreur vérification permissions sync');
     // In case of error, DENY the operation in offline mode (fail-secure)
     return res.status(500).json({
-      message: "Erreur lors de la vérification des permissions",
-      error: error instanceof Error ? error.message : "Unknown error"
+      message: "Erreur lors de la vérification des permissions"
     });
   }
 }

@@ -32,9 +32,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Squad, TimeSlot } from "@shared/schema";
 
 const squadFormSchema = z.object({
-  number: z.coerce.number().min(1, "Le numéro de squad est obligatoire"),
-  timeSlotId: z.coerce.number().min(1, "Le créneau est obligatoire"),
-  maxMembers: z.coerce.number().min(1, "Le nombre maximum de membres est obligatoire"),
+  number: z.coerce.number<number>().min(1, "Le numéro de squad est obligatoire"),
+  timeSlotId: z.coerce.number<number>().min(1, "Le créneau est obligatoire"),
+  maxMembers: z.coerce.number<number>().min(1, "Le nombre maximum de membres est obligatoire"),
 });
 
 type SquadFormData = z.infer<typeof squadFormSchema>;

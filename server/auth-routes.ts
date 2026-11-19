@@ -2,51 +2,53 @@ import type { Express, Request } from "express";
 import { sessionLogger } from "./session-logger";
 import { db } from "./db";
 import { users } from "@shared/schema";
-import { loginSchema, visitorLoginSchema, insertUserSchema, type InsertUser } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { loginSchema, visitorLoginSchema, insertUserSchema, newStaffPasswordSchema, type InsertUser } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { participants } from "@shared/schema";
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { z } from "zod";
 import { storage } from "./storage";
+import { accountRevision } from "./session-account";
 import { hashPassword, verifyPassword, isLegacyHash } from "./password-hashing";
 import { requireAuth, requireRole } from "./auth-middleware";
 import { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_VISITOR_MAX, RATE_LIMIT_STAFF_MAX } from "./config/limits";
 
 export { requireAuth, requireRole };
 
-// Resolve client IP from X-Forwarded-For header or req.ip
-function resolveIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) {
-    return String(forwarded).split(',')[0].trim();
-  }
-  return req.ip ?? 'unknown';
+const setupSchema = z.object({
+  username: z.string().trim().min(3).max(128).default("admin"),
+  password: newStaffPasswordSchema,
+  setupToken: z.string().max(512).optional(),
+});
+
+function clientNetwork(req: Request) {
+  const ip = req.ip ?? req.socket.remoteAddress;
+  return ip ? ipKeyGenerator(ip) : "unknown";
 }
 
 export function registerAuthRoutes(app: Express) {
-
-  // Rate limiter for visitor login: 10 attempts per 15 min per IP
-  const visitorLoginLimiter = rateLimit({
+  const options = {
     windowMs: RATE_LIMIT_WINDOW_MS,
-    max: RATE_LIMIT_VISITOR_MAX,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { message: 'Trop de tentatives, réessayez plus tard.' },
-    keyGenerator: (req) => resolveIp(req),
-  });
-
-  // Rate limiter for staff login: 5 attempts per 15 min per IP+username
+    message: { message: "Trop de tentatives, réessayez plus tard." },
+  };
+  const visitorLoginLimiter = rateLimit({ ...options, limit: RATE_LIMIT_VISITOR_MAX, skipSuccessfulRequests: true });
+  const staffIpLimiter = rateLimit({ ...options, limit: 25, skipSuccessfulRequests: true });
   const staffLoginLimiter = rateLimit({
-    windowMs: RATE_LIMIT_WINDOW_MS,
-    max: RATE_LIMIT_STAFF_MAX,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: 'Trop de tentatives, réessayez plus tard.' },
-    keyGenerator: (req) => `${resolveIp(req)}:${req.body?.username ?? 'anon'}`,
+    ...options,
+    limit: RATE_LIMIT_STAFF_MAX,
+    skipSuccessfulRequests: true,
+    keyGenerator: req => {
+      const username = typeof req.body?.username === "string" ? req.body.username.slice(0, 128).toLowerCase() : "";
+      return `${clientNetwork(req)}:${username}`;
+    },
   });
+  const setupLimiter = rateLimit({ ...options, limit: RATE_LIMIT_STAFF_MAX });
 
   // Login with username/password
-  app.post("/api/auth/login", staffLoginLimiter, async (req, res) => {
+  app.post("/api/auth/login", staffIpLimiter, staffLoginLimiter, async (req, res) => {
     try {
       const body = loginSchema.parse(req.body);
 
@@ -71,11 +73,12 @@ export function registerAuthRoutes(app: Express) {
       }
 
       // Lazy migration: upgrade legacy SHA-256 hash to bcrypt
+      let currentHash = user.passwordHash;
       if (isLegacyHash(user.passwordHash)) {
-        const newHash = await hashPassword(body.password);
+        currentHash = await hashPassword(body.password);
         await db
           .update(users)
-          .set({ passwordHash: newHash })
+          .set({ passwordHash: currentHash })
           .where(eq(users.id, user.id));
         sessionLogger(req, `Migrated password hash for user ${user.username} from SHA-256 to bcrypt`);
       }
@@ -107,6 +110,7 @@ export function registerAuthRoutes(app: Express) {
         username: user.username,
         roles: parsedRoles,
       };
+      req.session.staffRevision = accountRevision({ passwordHash: currentHash, roles: user.roles });
 
       // Explicitly save the session
       await new Promise<void>((resolve, reject) => {
@@ -134,7 +138,7 @@ export function registerAuthRoutes(app: Express) {
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
-        res.status(400).json({ message: "Données invalides", errors: error.errors });
+        res.status(400).json({ message: "Données invalides", errors: error.issues });
       } else {
         sessionLogger(req, `Login error: ${error}`, { level: "error" });
         res.status(500).json({ message: "Erreur lors de la connexion" });
@@ -161,7 +165,6 @@ export function registerAuthRoutes(app: Express) {
           username: null,
           ipAddress: req.ip ?? null,
           userAgent: req.get('user-agent') ?? null,
-          recordData: JSON.stringify({ secretCodePrefix: body.secretCode?.slice(0, 3) ?? '' }),
         }).catch(() => {});
         return res.status(401).json({ message: "Code ou informations incorrects" });
       }
@@ -178,7 +181,6 @@ export function registerAuthRoutes(app: Express) {
           username: null,
           ipAddress: req.ip ?? null,
           userAgent: req.get('user-agent') ?? null,
-          recordData: JSON.stringify({ secretCodePrefix: body.secretCode?.slice(0, 3) ?? '' }),
         }).catch(() => {});
         return res.status(401).json({ message: "Code ou informations incorrects" });
       }
@@ -226,7 +228,7 @@ export function registerAuthRoutes(app: Express) {
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
-        res.status(400).json({ message: "Données invalides", errors: error.errors });
+        res.status(400).json({ message: "Données invalides", errors: error.issues });
       } else {
         sessionLogger(req, `Visitor login error: ${error}`, { level: "error" });
         res.status(500).json({ message: "Erreur lors de la connexion" });
@@ -304,7 +306,7 @@ export function registerAuthRoutes(app: Express) {
       });
     } catch (error: any) {
       if (error.name === "ZodError") {
-        res.status(400).json({ message: "Données invalides", errors: error.errors });
+        res.status(400).json({ message: "Données invalides", errors: error.issues });
       } else {
         sessionLogger(req, `Create user error: ${error}`, { level: "error" });
         res.status(500).json({ message: "Erreur lors de la création de l'utilisateur" });
@@ -315,14 +317,13 @@ export function registerAuthRoutes(app: Express) {
   // Update user password (admin only)
   app.patch("/api/auth/users/:id/password", requireRole('admin'), async (req, res) => {
     try {
-      const userId = parseInt(req.params.id);
+      const userId = parseInt(String(req.params.id), 10);
       const { password } = req.body;
 
-      if (!password || password.length < 6) {
-        return res.status(400).json({ message: "Le mot de passe doit contenir au moins 6 caractères" });
-      }
+      const parsed = newStaffPasswordSchema.safeParse(password);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0].message });
 
-      const passwordHash = await hashPassword(password);
+      const passwordHash = await hashPassword(parsed.data);
 
       await db
         .update(users)
@@ -339,7 +340,7 @@ export function registerAuthRoutes(app: Express) {
   // Update user roles (admin only)
   app.patch("/api/auth/users/:id/roles", requireRole('admin'), async (req, res) => {
     try {
-      const userId = parseInt(req.params.id);
+      const userId = parseInt(String(req.params.id), 10);
       const { roles } = req.body;
 
       if (!Array.isArray(roles)) {
@@ -381,7 +382,7 @@ export function registerAuthRoutes(app: Express) {
   // Delete user (admin only)
   app.delete("/api/auth/users/:id", requireRole('admin'), async (req, res) => {
     try {
-      const userId = parseInt(req.params.id);
+      const userId = parseInt(String(req.params.id), 10);
 
       // Prevent admin from deleting themselves
       if (req.session?.user?.id === userId) {
@@ -407,43 +408,44 @@ export function registerAuthRoutes(app: Express) {
     }
   });
 
-  // Initialize admin user if no users exist
-  app.post("/api/auth/init", async (req, res) => {
+  app.post("/api/auth/init", setupLimiter, async (req, res) => {
     try {
-      const existingUsers = await db.select().from(users).limit(1);
-
-      if (existingUsers.length > 0) {
-        return res.status(403).json({ message: "Initialisation déjà effectuée" });
+      const existingUsers = await db.select({ id: users.id }).from(users).limit(1);
+      if (existingUsers.length) {
+        return res.status(403).json({ code: "setup_complete", message: "Initialisation déjà effectuée" });
       }
 
-      let passwordToHash: string;
-      const providedPassword = req.body?.password;
-
-      if (providedPassword && typeof providedPassword === 'string' && providedPassword.length >= 8) {
-        passwordToHash = providedPassword;
-      } else {
-        passwordToHash = "admin123";
-        console.log('[INIT] Mot de passe admin par défaut utilisé : admin123 — changez-le immédiatement');
+      const configuredToken = process.env.SETUP_TOKEN;
+      if (process.env.NODE_ENV === "production" || configuredToken) {
+        if (!configuredToken || configuredToken.length < 32) {
+          return res.status(503).json({ message: "Renseignez SETUP_TOKEN dans les variables de démarrage pour initialiser l’application." });
+        }
+        const supplied = typeof req.body?.setupToken === "string" && req.body.setupToken.length <= 512 ? req.body.setupToken : "";
+        const digest = (token: string) => crypto.createHash("sha256").update(token).digest();
+        if (!crypto.timingSafeEqual(digest(supplied), digest(configuredToken))) {
+          return res.status(403).json({ message: "Code d’installation incorrect." });
+        }
       }
 
-      const adminPassword = await hashPassword(passwordToHash);
-
-      const [admin] = await db
-        .insert(users)
-        .values({
-          username: "admin",
-          passwordHash: adminPassword,
-          roles: JSON.stringify(["admin"]),
-        })
-        .returning();
-
-      res.status(201).json({
-        message: "Admin créé",
-        username: "admin",
+      const parsed = setupSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: parsed.error.issues[0].message });
+      const { username, password } = parsed.data;
+      const passwordHash = await hashPassword(password);
+      const created = await db.transaction(async tx => {
+        await tx.execute(sql`LOCK TABLE ${users} IN SHARE ROW EXCLUSIVE MODE`);
+        const accounts = await tx.select({ id: users.id }).from(users).limit(1);
+        if (accounts.length) return false;
+        await tx.insert(users).values({ username, passwordHash, roles: JSON.stringify(["admin"]) });
+        return true;
       });
+
+      if (!created) {
+        return res.status(403).json({ code: "setup_complete", message: "Initialisation déjà effectuée" });
+      }
+      res.status(201).json({ message: "Administrateur créé", username });
     } catch (error) {
       sessionLogger(req, `Init admin error: ${error}`, { level: "error" });
-      res.status(500).json({ message: "Erreur lors de l'initialisation" });
+      res.status(500).json({ message: "Erreur lors de l’initialisation" });
     }
   });
 }

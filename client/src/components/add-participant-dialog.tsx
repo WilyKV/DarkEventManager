@@ -38,7 +38,7 @@ const participantFormSchema = z.object({
   firstName: z.string().min(1, "Le prénom est obligatoire"),
   lastName: z.string().min(1, "Le nom est obligatoire"),
   email: z.string().email("Email invalide").optional().or(z.literal("")),
-  timeSlotId: z.coerce.number().optional(),
+  timeSlotId: z.coerce.number<number>().optional(),
 });
 
 type ParticipantFormData = z.infer<typeof participantFormSchema>;

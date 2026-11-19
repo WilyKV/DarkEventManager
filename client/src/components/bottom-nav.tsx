@@ -11,16 +11,18 @@ export function BottomNav() {
   const modules = useManagementNav();
   const { logout } = useAuth();
   const scanner = modules.find(item => item.path === "/scan");
+  const admin = modules.find(item => item.path === "/admin");
   const primary = modules.find(item => ["/zombie", "/survivant", "/boutique", "/repas"].includes(item.path));
-  const shortcuts = [homeItem, ...(primary ? [primary] : []), ...(scanner ? [scanner] : [])];
+  const shortcuts = [homeItem, ...(primary ? [primary] : []), ...(scanner ? [scanner] : []), ...(admin ? [admin] : [])];
 
   return (
     <nav aria-label="Navigation mobile" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex h-16 items-stretch px-2">
         {shortcuts.map(({ icon: Icon, label, path }) => (
           <Link key={path} href={path} aria-current={location === path ? "page" : undefined}
+            aria-label={path === "/admin" ? label : undefined}
             className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium text-muted-foreground hover:text-foreground aria-[current=page]:text-primary">
-            <Icon className="size-5" aria-hidden />{label}
+            <Icon className="size-5" aria-hidden />{path === "/admin" ? "Admin" : label}
           </Link>
         ))}
         <Sheet>

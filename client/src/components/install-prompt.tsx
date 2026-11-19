@@ -43,6 +43,25 @@ export function PwaProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    let lastCheck = 0;
+    const checkForUpdate = () => {
+      const now = Date.now();
+      if (document.visibilityState !== "visible" || !navigator.onLine || now - lastCheck < 15_000) return;
+      lastCheck = now;
+      void navigator.serviceWorker.getRegistration().then(registration => registration?.update()).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", checkForUpdate);
+    window.addEventListener("pageshow", checkForUpdate);
+    window.addEventListener("online", checkForUpdate);
+    return () => {
+      document.removeEventListener("visibilitychange", checkForUpdate);
+      window.removeEventListener("pageshow", checkForUpdate);
+      window.removeEventListener("online", checkForUpdate);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!updating) return;
     const serviceWorker = navigator.serviceWorker;
     const reload = () => window.location.reload();

@@ -48,6 +48,7 @@ export default defineConfig({
       },
       workbox: {
         clientsClaim: true,
+        importScripts: ["/legacy-pwa-upgrade.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],

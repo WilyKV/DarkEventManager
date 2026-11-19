@@ -1,3 +1,4 @@
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -164,7 +165,7 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Zomb’in The Dark</h1>
         </header>
 
-        {hasOfflineCopy && <Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline", className: "mb-4 w-full" })}><WifiOff /> Ouvrir la copie hors ligne</Link>}
+        {hasOfflineCopy && <Link href={offlineCheckInPage} className={buttonVariants({ variant: "outline", className: "mb-4 w-full" })}><WifiOff /> Ouvrir la copie hors ligne</Link>}
 
         <Card className="shadow-lg">
           <CardHeader>

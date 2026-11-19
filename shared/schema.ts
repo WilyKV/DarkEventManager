@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, boolean, timestamp, json, jsonb, bigint, index, check } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb, bigint, index, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -51,6 +51,7 @@ export const participants = pgTable("participants", {
   hasFreemeal: boolean("has_free_meal").default(false), // Zombies get 1 free meal
   freeMealClaimed: boolean("free_meal_claimed").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // Shop Items Table (Products)
@@ -159,6 +160,7 @@ export const appConfig = pgTable("app_config", {
   masterDeviceId: text("master_device_id"), // UUID of the master device
   masterDeviceName: text("master_device_name"), // Friendly name of the master device
   lastSyncAt: timestamp("last_sync_at"),
+  eventDay: date("event_day", { mode: "string" }),
   updatedAt: timestamp("updated_at").defaultNow(),
   serverLamportTs: integer("server_lamport_ts").notNull().default(0),
 });
@@ -365,7 +367,7 @@ export const createSquadBatchSchema = z.object({
   new Set(slots.map(slot => slot.id)).size === slots.length &&
   slots.every(slot => slot.lastNumber + count <= 2_147_483_647),
 );
-export const insertParticipantSchema = createInsertSchema(participants).omit({ createdAt: true, arrivedAt: true, returnedAt: true });
+export const insertParticipantSchema = createInsertSchema(participants).omit({ createdAt: true, arrivedAt: true, returnedAt: true, deletedAt: true });
 export const insertShopItemSchema = createInsertSchema(shopItems);
 export const insertMealItemSchema = createInsertSchema(mealItems);
 export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ changedAt: true });

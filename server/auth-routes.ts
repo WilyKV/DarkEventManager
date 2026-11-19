@@ -3,7 +3,7 @@ import { sessionLogger } from "./session-logger";
 import { db } from "./db";
 import { users } from "@shared/schema";
 import { loginSchema, visitorLoginSchema, insertUserSchema, newStaffPasswordSchema, type InsertUser } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import crypto from "crypto";
 import { participants } from "@shared/schema";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
@@ -154,7 +154,7 @@ export function registerAuthRoutes(app: Express) {
       const [participant] = await db
         .select()
         .from(participants)
-        .where(eq(participants.secretCode, body.secretCode))
+        .where(and(eq(participants.secretCode, body.secretCode), isNull(participants.deletedAt)))
         .limit(1);
 
       if (!participant) {

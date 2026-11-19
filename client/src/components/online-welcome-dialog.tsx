@@ -1,6 +1,7 @@
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { checkInPath, checkInRosterPath, checkInTypes, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
+import { checkInPath, checkInRoles, checkInRosterPath, checkInTypes, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
 import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { apiRequest } from "@/lib/queryClient";
@@ -21,7 +22,7 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
       return response.json();
     },
   });
-  const canOpenLocal = hasAnyRole(["admin", "staff_zombie"]);
+  const canOpenLocal = hasAnyRole(checkInRoles);
   const profileTypes = hasAnyRole(["admin"]) ? checkInTypes
     : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
   const retry = () => { void query.refetch(); };
@@ -31,7 +32,7 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className="w-full text-sm text-muted-foreground">{online ? "Impossible de joindre le serveur." : "Vous êtes hors connexion."}</p>
         {online && <Button type="button" variant="outline" onClick={retry}>Réessayer</Button>}
-        {canOpenLocal && <Link href="/zombie/hors-ligne" className={buttonVariants()}>Ouvrir l’accueil zombie hors ligne</Link>}
+        {canOpenLocal && <Link href={offlineCheckInPage} className={buttonVariants()}>Ouvrir l’accueil hors ligne</Link>}
       </div>
     ) : <p role="status" className="text-sm text-muted-foreground">Chargement des listes…</p>}
     onSave={async (player, details) => {

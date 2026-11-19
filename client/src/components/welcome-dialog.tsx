@@ -1,7 +1,8 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Search, UserCheck } from "lucide-react";
-import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
+import { checkInProfileLabels, checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
+import { formatEventDay } from "@shared/event-day";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,6 @@ interface WelcomeDialogProps {
 }
 
 const selectClass = "min-h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:px-3";
-const profileLabels = { zombie: "Zombies", survivant: "Survivants", staff: "Staff" };
 const nameOrder = new Intl.Collator("fr", { sensitivity: "base" });
 
 export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload }: WelcomeDialogProps) {
@@ -103,6 +103,9 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
         <DialogHeader className="shrink-0 pr-7 text-left">
           <DialogTitle className="text-xl">{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
+          {step === "welcome" && roster?.eventDay && <time dateTime={roster.eventDay} className="text-xs capitalize text-muted-foreground">
+            {formatEventDay(roster.eventDay)}
+          </time>}
         </DialogHeader>
 
         {!roster ? unavailable : step === "count" ? (
@@ -146,7 +149,7 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
                           aria-pressed={type === value} className="px-1.5" onClick={() => {
                             setType(type === value ? "all" : value);
                             setSlotFilter("all");
-                          }}>{profileLabels[value]}</Button>
+                          }}>{checkInProfileLabels[value]}</Button>
                       ))}
                     </div>
                   )}

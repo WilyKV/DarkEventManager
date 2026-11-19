@@ -1,3 +1,5 @@
+import { checkInRoles } from "@shared/check-in";
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { lazy, Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, ChevronDown, Skull, WifiOff } from "lucide-react";
@@ -38,9 +40,9 @@ export default function OverviewPage() {
   return (
     <ManagementLayout title="Vue d’ensemble" subtitle="Zomb’in The Dark">
       <div className="space-y-6">
-        {hasAnyRole(["admin", "staff_zombie"]) && (
+        {hasAnyRole(checkInRoles) && (
           <section aria-label="Accueil zombie" className="grid gap-3 sm:grid-cols-[3fr_2fr]">
-            <Link href="/zombie" className="group flex items-center gap-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 to-card p-4 transition-colors hover:border-primary/60 sm:p-6">
+            {hasAnyRole(["admin", "staff_zombie"]) && <Link href="/zombie" className="group flex items-center gap-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 to-card p-4 transition-colors hover:border-primary/60 sm:p-6">
               <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/15 text-emerald-300 sm:size-14">
                 <Skull className="size-6" aria-hidden />
               </span>
@@ -49,8 +51,8 @@ export default function OverviewPage() {
                 <span className="block text-sm text-muted-foreground">Arrivées, checklist et équipes</span>
               </span>
               <ArrowUpRight className="size-5 shrink-0 text-emerald-300" aria-hidden />
-            </Link>
-            <Link href="/zombie/hors-ligne" className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 sm:p-6">
+            </Link>}
+            <Link href={offlineCheckInPage} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 sm:p-6">
               <WifiOff className="size-5 shrink-0 text-muted-foreground" aria-hidden />
               <span className="flex-1">
                 <span className="block font-semibold tracking-tight">Accueil hors ligne</span>

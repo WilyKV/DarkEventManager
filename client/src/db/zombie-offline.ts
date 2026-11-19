@@ -1,10 +1,15 @@
 import Dexie, { type Table } from "dexie";
-import type { ZombieSnapshot } from "@shared/zombie-offline";
+import type { OfflineSnapshot } from "@shared/zombie-offline";
 
-export type LocalZombieSession = ZombieSnapshot & {
+export type LocalOfflineSession = OfflineSnapshot & {
   preparedAt: string;
   pending: number[];
   conflicts: Record<number, string>;
+};
+
+type LegacySession = Omit<LocalOfflineSession, "profileTypes" | "eventDay" | "participants" | "squads"> & {
+  participants: Omit<OfflineSnapshot["participants"][number], "type">[];
+  squads: Omit<OfflineSnapshot["squads"][number], "type">[];
 };
 
 type Envelope = {
@@ -37,13 +42,24 @@ export async function offlineKey(passphrase: string, salt: Uint8Array): Promise<
     material, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 
-export async function openOfflineCopy(copy: Envelope, key: CryptoKey): Promise<LocalZombieSession> {
+export function readOfflineSession(session: LocalOfflineSession | LegacySession): LocalOfflineSession {
+  if ("profileTypes" in session) return session;
+  return {
+    ...session,
+    profileTypes: ["zombie"],
+    eventDay: null,
+    participants: session.participants.map(player => ({ ...player, type: "zombie" })),
+    squads: session.squads.map(team => ({ ...team, type: "zombie" })),
+  };
+}
+
+export async function openOfflineCopy(copy: Envelope, key: CryptoKey): Promise<LocalOfflineSession> {
   const plaintext = await crypto.subtle.decrypt({ name: "AES-GCM", iv: copy.iv }, key, copy.ciphertext);
-  return JSON.parse(new TextDecoder().decode(plaintext));
+  return readOfflineSession(JSON.parse(new TextDecoder().decode(plaintext)));
 }
 
 export async function storeOfflineCopy(
-  data: LocalZombieSession, key: CryptoKey, salt: Uint8Array, expected: Envelope | undefined,
+  data: LocalOfflineSession, key: CryptoKey, salt: Uint8Array, expected: Envelope | undefined,
 ): Promise<Envelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const ciphertext = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(data)));

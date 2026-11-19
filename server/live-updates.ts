@@ -7,7 +7,7 @@ function mutationScope(method: string, path: string): LiveScope | undefined {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
   if (liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(path, prefix)) || path === "/api/zombie-offline/sync") return "roster";
   if (liveQueryPrefixes.sales.some(prefix => matchesQueryPrefix(path, prefix))) return "sales";
-  if (path === "/api/sync/config") return "configuration";
+  if (liveQueryPrefixes.configuration.includes(path)) return "configuration";
   if ([demoDataPath, "/api/data/import-all", "/api/data/reset", "/api/data/qr-import", "/api/admin/end-event"].includes(path)) return "all";
 }
 

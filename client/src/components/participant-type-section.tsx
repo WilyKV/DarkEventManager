@@ -1,7 +1,14 @@
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { normalizePlayerName } from "@shared/zombie-offline";
+import { formatEventDay } from "@shared/event-day";
+import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
+import { useEventDay } from "@/hooks/use-event-day";
+import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { UserCog, Pencil, Trash2 } from "lucide-react";
 import { AddParticipantDialog } from "@/components/add-participant-dialog";
 import { EditParticipantDialog } from "@/components/edit-participant-dialog";
@@ -48,6 +55,25 @@ export function ParticipantTypeSection({
   onDeleteSquad,
 }: ParticipantTypeSectionProps) {
   const [activeSubTab, setActiveSubTab] = useState("participants");
+  const [participantSearch, setParticipantSearch] = useState("");
+  const [deletingParticipant, setDeletingParticipant] = useState<ParticipantWithRelations | null>(null);
+  const { data: event } = useEventDay();
+  const queryClient = useQueryClient();
+  const deleteParticipant = useMutation({
+    mutationFn: (id: number) => apiRequest("DELETE", `/api/participants/${id}`),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: ({ queryKey: [key] }) => typeof key === "string" &&
+          liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(key, prefix)),
+      });
+      setDeletingParticipant(null);
+    },
+  });
+  const searchWords = normalizePlayerName(participantSearch).trim().split(/\s+/).filter(Boolean);
+  const visibleParticipants = participants.filter(player => {
+    const name = normalizePlayerName(`${player.firstName} ${player.lastName}`);
+    return searchWords.every(word => name.includes(word));
+  }).sort((a, b) => a.firstName.localeCompare(b.firstName, "fr") || a.lastName.localeCompare(b.lastName, "fr"));
   const [editingParticipant, setEditingParticipant] = useState<ParticipantWithRelations | null>(null);
   const [editingTimeSlot, setEditingTimeSlot] = useState<TimeSlot | null>(null);
   const [deletingTimeSlotId, setDeletingTimeSlotId] = useState<number | null>(null);
@@ -66,7 +92,7 @@ export function ParticipantTypeSection({
 
         {/* Participants Tab */}
         <TabsContent value="participants" className="space-y-4 mt-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className={`text-lg font-semibold text-${color}-500`}>{title}</h3>
               <p className="text-sm text-muted-foreground">{participants.length} participant(s)</p>
@@ -97,18 +123,22 @@ export function ParticipantTypeSection({
               <CardDescription>{participants.length} participant(s) enregistré(s)</CardDescription>
             </CardHeader>
             <CardContent>
-              {participants.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Aucun participant enregistré</p>
+              {participants.length > 0 && <Input type="search" aria-label="Rechercher un participant" placeholder="Prénom ou nom"
+                value={participantSearch} onChange={event => setParticipantSearch(event.target.value)} className="mb-3 min-h-11" />}
+              {visibleParticipants.length === 0 ? (
+                <p role="status" className="text-sm text-muted-foreground text-center py-8">
+                  {participants.length ? "Aucun résultat." : "Aucun participant enregistré."}
+                </p>
               ) : (
                 <div className="space-y-2">
-                  {participants.map((participant) => (
+                  {visibleParticipants.map((participant) => (
                     <Card key={participant.id} className={`border-${color}-500/20`}>
-                      <CardContent className="p-4 flex items-center justify-between gap-4">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-sm">{participant.firstName} {participant.lastName}</p>
+                      <CardContent className="p-3 flex flex-wrap items-center justify-between gap-2 sm:p-4">
+                        <div className="min-w-0 flex-1 basis-full sm:basis-36">
+                          <p className="break-words font-semibold text-sm">{participant.firstName} {participant.lastName}</p>
                           <div className="flex flex-wrap gap-2 mt-1">
                             {participant.email && (
-                              <p className="text-xs text-muted-foreground">{participant.email}</p>
+                              <p className="break-all text-xs text-muted-foreground">{participant.email}</p>
                             )}
                             {participant.timeSlot && (
                               <span className="text-xs text-muted-foreground">• Créneau: {participant.timeSlot.name}</span>
@@ -122,22 +152,26 @@ export function ParticipantTypeSection({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
                             onClick={() => {
                               const url = `/badges?participantId=${participant.id}`;
                               window.open(url, '_blank');
                             }}
-                            title="Voir le badge"
+                            aria-label={`Voir le badge de ${participant.firstName} ${participant.lastName}`}
                           >
                             <UserCog className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8"
+                            aria-label={`Modifier ${participant.firstName} ${participant.lastName}`}
                             onClick={() => setEditingParticipant(participant)}
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-4 h-4" aria-hidden />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-destructive"
+                            aria-label={`Supprimer ${participant.firstName} ${participant.lastName}`}
+                            onClick={() => { deleteParticipant.reset(); setDeletingParticipant(participant); }}>
+                            <Trash2 aria-hidden />
                           </Button>
                         </div>
                       </CardContent>
@@ -154,7 +188,10 @@ export function ParticipantTypeSection({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className={`text-lg font-semibold text-${color}-500`}>Créneaux {title}</h3>
-              <p className="text-sm text-muted-foreground">{timeSlots.length} créneau(x)</p>
+              <p className="text-sm text-muted-foreground">
+                {event?.eventDay ? <time dateTime={event.eventDay} className="capitalize">{formatEventDay(event.eventDay)}</time>
+                  : "Date à définir dans Configuration"}
+              </p>
             </div>
             <AddTimeSlotDialog type={type} />
           </div>
@@ -262,6 +299,24 @@ export function ParticipantTypeSection({
       </Tabs>
 
       {/* Dialogs */}
+      <AlertDialog open={deletingParticipant !== null} onOpenChange={open => {
+        if (!open && !deleteParticipant.isPending) setDeletingParticipant(null);
+      }}>
+        <AlertDialogContent className="w-[calc(100%-1.25rem)] rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {deletingParticipant?.firstName} {deletingParticipant?.lastName} ?</AlertDialogTitle>
+            <AlertDialogDescription>La fiche sera retirée des listes d’accueil. L’historique des achats sera conservé.</AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteParticipant.isError && <p role="alert" className="text-sm text-destructive">Impossible de supprimer cette fiche. Réessayez.</p>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteParticipant.isPending}>Annuler</AlertDialogCancel>
+            <Button type="button" variant="destructive" disabled={deleteParticipant.isPending}
+              onClick={() => { if (deletingParticipant) deleteParticipant.mutate(deletingParticipant.id); }}>
+              {deleteParticipant.isPending ? "Suppression…" : "Supprimer le participant"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {editingParticipant && (
         <EditParticipantDialog
           participant={editingParticipant}

@@ -74,7 +74,8 @@ export interface IParticipantStorage {
   getParticipants(type?: string): Promise<ParticipantWithRelations[]>;
   getParticipant(id: number): Promise<ParticipantWithRelations | undefined>;
   createParticipant(participant: InsertParticipant): Promise<Participant>;
-  updateParticipant(id: number, participant: Partial<InsertParticipant>): Promise<Participant>;
+  updateParticipant(id: number, participant: Partial<InsertParticipant>): Promise<Participant | undefined>;
+  archiveParticipant(id: number): Promise<boolean>;
   batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]>;
   generateSecretCode(): Promise<string>;
 

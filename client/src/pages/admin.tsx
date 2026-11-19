@@ -11,6 +11,7 @@ import { MealDiscountManagement } from "@/components/meal-discount-management";
 import { ProductManagement } from "@/components/product-management";
 import { MealProductManagement } from "@/components/meal-product-management";
 import { DemoDataManager } from "@/components/demo-data-manager";
+import { EventDaySettings } from "@/components/event-day-settings";
 import { SyncModeManager } from "@/components/sync-mode-manager";
 import { UserManagement } from "@/components/user-management";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
@@ -186,6 +187,7 @@ export default function AdminPage() {
 
         {/* Configuration Tab */}
         <TabsContent value="config" className="space-y-4">
+          <EventDaySettings />
           <DemoDataManager />
           <SyncModeManager />
 

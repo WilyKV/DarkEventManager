@@ -17,6 +17,7 @@ import {
 import { generateParticipantPDF } from "./pdf-service";
 import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
 import { childLogger } from "./logger";
+import { eventDayPath, eventDaySchema } from "@shared/event-day";
 
 const routesLogger = childLogger('routes');
 const qrLogger = childLogger('qr-import');
@@ -27,6 +28,8 @@ const upload = multer({
 });
 
 const participantPatchSchema = insertParticipantSchema.omit({ secretCode: true }).partial().extend({
+  firstName: z.string().trim().min(1).optional(),
+  lastName: z.string().trim().min(1).optional(),
   arrivedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
   returnedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
 }).strict();
@@ -130,6 +133,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/discounts", shopStaff, checkSyncPermissions);
   app.use("/api/meal-discounts", mealStaff, checkSyncPermissions);
 
+  app.get(eventDayPath, requireAuth, async (_req, res) => {
+    const { eventDay } = await storage.getSyncConfig();
+    res.json({ eventDay: eventDay ?? null });
+  });
+
+  app.patch(eventDayPath, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const parsed = eventDaySchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Date de l’événement invalide." });
+    const { eventDay } = await storage.updateSyncConfig(parsed.data);
+    res.json({ eventDay });
+  });
+
   // ===== PARTICIPANTS =====
 
   // Get all participants (with optional type filter via query string)
@@ -230,6 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const previousSquadId = currentParticipant.squadId;
       const squadChanging = newSquadId !== undefined && newSquadId !== previousSquadId;
       const participant = await storage.updateParticipant(id, patch.data);
+      if (!participant) return res.status(404).json({ message: "Participant introuvable." });
       
       // Log audit trail with changes
       await createAuditLog('UPDATE', 'participants', id, req, participant, {
@@ -253,6 +269,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/participants/:id", requireRole("admin"), async (req, res) => {
+    const id = z.coerce.number().int().positive().safeParse(req.params.id);
+    if (!id.success) return res.status(400).json({ message: "Participant invalide." });
+    if (await storage.archiveParticipant(id.data)) {
+      await createAuditLog("DELETE", "participants", id.data, req);
+    }
+    res.sendStatus(204);
+  });
+
   // Regenerate secret code for a participant
   app.post("/api/participants/regenerate-code", requireAuth, async (req, res) => {
     try {
@@ -272,6 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update participant with new code
       const updated = await storage.updateParticipant(participantId, { secretCode });
+      if (!updated) return res.status(404).json({ message: "Participant introuvable." });
 
       res.json({ success: true, secretCode: updated.secretCode });
     } catch (error) {

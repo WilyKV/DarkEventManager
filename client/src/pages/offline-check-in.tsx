@@ -1,36 +1,39 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, LockKeyhole, UserCheck } from "lucide-react";
+import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, WifiOff } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
 import { WelcomeGuide } from "@/components/welcome-guide";
-import type { CheckInRoster } from "@shared/check-in";
+import { checkInProfileLabels, checkInProfiles, checkInRoles, type CheckInRoster, type CheckInType } from "@shared/check-in";
+import { formatEventDay } from "@shared/event-day";
+import { OfflineNavigation } from "@/components/offline-navigation";
+import { SheetClose } from "@/components/ui/sheet";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useAuth } from "@/lib/auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   checkOfflineShell, getOfflineCopy, offlineKey, openOfflineCopy, removeOfflineCopy, storeOfflineCopy,
-  type LocalZombieSession,
+  type LocalOfflineSession,
 } from "@/db/zombie-offline";
 import {
-  normalizePlayerName,
-  type OfflineZombie, type ZombieCheckIn, type ZombieSnapshot, type ZombieSyncResult,
+  normalizePlayerName, offlineCheckInApi,
+  type OfflineParticipant, type OfflineCheckIn, type OfflineSnapshot, type OfflineSyncResult,
 } from "@shared/zombie-offline";
 
 type Copy = NonNullable<Awaited<ReturnType<typeof getOfflineCopy>>>;
-type UnlockedCopy = { envelope: Copy; key: CryptoKey; data: LocalZombieSession };
-const apiUrl = "/api/zombie-offline";
+type UnlockedCopy = { envelope: Copy; key: CryptoKey; data: LocalOfflineSession };
+const apiUrl = offlineCheckInApi;
 
-async function fetchSnapshot(): Promise<ZombieSnapshot> {
+async function fetchSnapshot(): Promise<OfflineSnapshot> {
   const response = await fetch(apiUrl, { cache: "no-store", signal: AbortSignal.timeout(15_000) });
-  if (response.status === 401 || response.status === 403) throw new Error("Connectez-vous avec votre compte d’accueil zombie.");
+  if (response.status === 401 || response.status === 403) throw new Error("Connectez-vous avec votre compte d’accueil.");
   if (!response.ok) throw new Error("Impossible de charger la liste depuis le serveur.");
   return response.json();
 }
 
-function newLocalSession(snapshot: ZombieSnapshot): LocalZombieSession {
+function newLocalSession(snapshot: OfflineSnapshot): LocalOfflineSession {
   return { ...snapshot, preparedAt: new Date().toISOString(), pending: [], conflicts: {} };
 }
 
@@ -49,7 +52,7 @@ function errorMessage(error: unknown): string {
   return "L’opération a échoué.";
 }
 
-export default function ZombieOfflinePage() {
+export default function OfflineCheckInPage() {
   const { hasAnyRole, isLoading, user } = useAuth();
   const online = useOnlineStatus();
   const [copy, setCopy] = useState<Copy>();
@@ -58,6 +61,7 @@ export default function ZombieOfflinePage() {
   const [passphrase, setPassphrase] = useState("");
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [search, setSearch] = useState("");
+  const [profile, setProfile] = useState<CheckInType | "all">("all");
   const [selectedId, setSelectedId] = useState<number>();
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -101,7 +105,7 @@ export default function ZombieOfflinePage() {
         }
         await checkOfflineShell();
         const data = newLocalSession(await fetchSnapshot());
-        if (!data.participants.length) throw new Error("Importez la liste zombie avant de préparer cet appareil.");
+        if (!data.participants.length) throw new Error("Importez au moins un participant avant de préparer cet appareil.");
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const key = await offlineKey(passphrase, salt);
         const envelope = await storeOfflineCopy(data, key, salt, undefined);
@@ -115,7 +119,7 @@ export default function ZombieOfflinePage() {
     });
   }
 
-  async function persist(active: UnlockedCopy, data: LocalZombieSession): Promise<UnlockedCopy> {
+  async function persist(active: UnlockedCopy, data: LocalOfflineSession): Promise<UnlockedCopy> {
     const envelope = await storeOfflineCopy(data, active.key, active.envelope.salt, active.envelope);
     const next = { envelope, key: active.key, data };
     setCopy(envelope);
@@ -123,7 +127,7 @@ export default function ZombieOfflinePage() {
     return next;
   }
 
-  async function saveLocalCheckIn(active: UnlockedCopy, player: OfflineZombie, state: ZombieCheckIn) {
+  async function saveLocalCheckIn(active: UnlockedCopy, player: OfflineParticipant, state: OfflineCheckIn) {
     if (JSON.stringify(player.state) === JSON.stringify(state)) return;
     const { data } = active;
     await persist(active, {
@@ -143,7 +147,7 @@ export default function ZombieOfflinePage() {
     for (let start = 0; start < updates.length; start += 50) {
       const batch = updates.slice(start, start + 50);
       const response = await apiRequest("POST", `${apiUrl}/sync`, { ownerId: current.data.ownerId, updates: batch }, AbortSignal.timeout(20_000));
-      const { results } = await response.json() as { results: ZombieSyncResult[] };
+      const { results } = await response.json() as { results: OfflineSyncResult[] };
       const resultsById = new Map(results.map(result => [result.id, result]));
       if (results.length !== batch.length || batch.some(update => !resultsById.has(update.id))) {
         throw new Error("Réponse du serveur incomplète. Les modifications restent sur cet appareil.");
@@ -171,7 +175,7 @@ export default function ZombieOfflinePage() {
     if (sent) setNotice(`${sent} fiche(s) confirmée(s) par le serveur.`);
   }
 
-  function restoreFromServer(active: UnlockedCopy, player: OfflineZombie) {
+  function restoreFromServer(active: UnlockedCopy, player: OfflineParticipant) {
     if (!window.confirm(`Remplacer les modifications locales de ${player.firstName} ${player.lastName} par la fiche du serveur ?`)) return;
     void run(async () => {
       const snapshot = await fetchSnapshot();
@@ -181,6 +185,7 @@ export default function ZombieOfflinePage() {
       delete conflicts[player.id];
       await persist(active, {
         ...active.data,
+        eventDay: snapshot.eventDay,
         timeSlots: snapshot.timeSlots,
         squads: snapshot.squads,
         pending: active.data.pending.filter(id => id !== player.id),
@@ -196,35 +201,71 @@ export default function ZombieOfflinePage() {
   const participants = data?.participants ?? [];
   const selected = participants.find(player => player.id === selectedId);
   const words = normalizePlayerName(search).trim().split(/\s+/).filter(Boolean);
+  const visibleProfile = data?.profileTypes.some(type => type === profile) ? profile : "all";
   const matches = participants.filter(player => {
     const name = normalizePlayerName(`${player.firstName} ${player.lastName}`);
-    return words.every(word => name.includes(word));
-  }).sort((a, b) => a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr"));
+    return (visibleProfile === "all" || player.type === visibleProfile) && words.every(word => name.includes(word));
+  }).sort((a, b) => a.firstName.localeCompare(b.firstName, "fr") || a.lastName.localeCompare(b.lastName, "fr"));
   const slots = new Map(data?.timeSlots.map(slot => [slot.id, slot.name]));
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
   const pending = new Set(data?.pending);
-  const canPrepare = hasAnyRole(["admin", "staff_zombie"]);
+  const canPrepare = hasAnyRole(checkInRoles);
   const welcomeTeams = data && (welcomeOpen || selected) ? data.squads.map(team => ({
     ...team, members: participants.filter(player => player.state.squadId === team.id).length,
   })) : [];
   const welcomeRoster: CheckInRoster | undefined = welcomeOpen && data ? {
     players: participants.map(player => ({
-      id: player.id, firstName: player.firstName, lastName: player.lastName, type: "zombie",
+      id: player.id, firstName: player.firstName, lastName: player.lastName, type: player.type,
       timeSlotId: player.timeSlotId, arrived: player.state.arrived, returned: player.returned,
       details: { squadId: player.state.squadId, checklist: player.state.checklist }, revision: player.revision,
     })),
+    eventDay: data.eventDay,
     slots: data.timeSlots,
     teams: welcomeTeams,
   } : undefined;
 
+  function refreshList(active: UnlockedCopy) {
+    void run(async () => {
+      if (active.data.pending.length) throw new Error("Envoyez les fiches locales avant d’actualiser la liste.");
+      const snapshot = await fetchSnapshot();
+      if (snapshot.ownerId !== active.data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
+      await persist(active, newLocalSession(snapshot));
+      setNotice("Liste mise à jour sur cet appareil.");
+    });
+  }
+
+  function lockList() {
+    setUnlocked(undefined);
+    setSelectedId(undefined);
+    setWelcomeOpen(false);
+    setSearch("");
+    setProfile("all");
+    setError("");
+    setNotice("");
+  }
+
+  function deleteLocalCopy(active: UnlockedCopy) {
+    if (active.data.pending.length || !window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
+    void run(async () => {
+      await removeOfflineCopy(active.envelope);
+      lockList();
+      setCopy(undefined);
+      setNotice("Copie locale supprimée.");
+    });
+  }
+
   return (
-    <main className="mx-auto min-h-dvh max-w-3xl space-y-5 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(2.5rem+env(safe-area-inset-bottom))] sm:px-6">
+    <main className="mx-auto min-h-dvh max-w-3xl space-y-5 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6">
       <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
         <div>
-          {online && <Link href="/zombie" className="mb-2 inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="size-4" /> Zombies</Link>}
-          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Accueil zombie hors ligne</h1>
+          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Accueil hors ligne</h1>
+          {data?.eventDay && <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <CalendarDays className="size-4" aria-hidden /> <time dateTime={data.eventDay} className="capitalize">{formatEventDay(data.eventDay)}</time>
+          </p>}
         </div>
-        {unlocked && <Button variant="outline" disabled={busy} onClick={() => { setUnlocked(undefined); setSelectedId(undefined); setSearch(""); setNotice(""); setError(""); }}><LockKeyhole /> Verrouiller</Button>}
+        <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          <WifiOff className="size-4" aria-hidden /> Copie locale
+        </span>
       </header>
 
       {notice && <p role="status" className="rounded-lg border border-primary/40 p-3 text-sm">{notice}</p>}
@@ -238,19 +279,29 @@ export default function ZombieOfflinePage() {
               {!online && <p className="mt-1 text-sm text-amber-300">Hors connexion · Vous pouvez continuer la saisie.</p>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="button" disabled={busy} onClick={() => setWelcomeOpen(true)}><UserCheck aria-hidden /> Accueillir</Button>
-              {online && !isLoading && !user
+              {online && pending.size > 0 && (!isLoading && !user
                 ? <Link href="/login" className={buttonVariants({ variant: "outline" })}>Se reconnecter pour envoyer</Link>
-                : <Button variant="outline" disabled={busy || !online || !pending.size} onClick={() => run(() => sync(unlocked))}>Envoyer au serveur</Button>}
+                : <Button variant="outline" disabled={busy || isLoading} onClick={() => run(() => sync(unlocked))}>Envoyer au serveur</Button>)}
             </div>
           </section>
-          <Input type="search" aria-label="Rechercher un joueur" placeholder="Prénom ou nom" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11" />
+          {hasAnyRole(["admin"]) && data.profileTypes.length < 3 && (
+            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">Cette copie contient une partie des listes. Utilisez Menu → Actualiser la liste pour récupérer les autres profils.</p>
+          )}
+          <section id="offline-roster" aria-label="Liste des participants" className="space-y-2">
+            {data.profileTypes.length > 1 && <div role="group" aria-label="Filtrer par profil" className="grid grid-flow-col auto-cols-fr gap-1.5">
+              <Button type="button" className="px-1 text-xs sm:text-sm" aria-pressed={visibleProfile === "all"} variant={visibleProfile === "all" ? "default" : "outline"}
+                onClick={() => setProfile("all")}>Tous</Button>
+              {data.profileTypes.map(type => <Button key={type} type="button" className="px-1 text-xs sm:text-sm" aria-pressed={visibleProfile === type}
+                variant={visibleProfile === type ? "default" : "outline"} onClick={() => setProfile(type)}>{checkInProfileLabels[type]}</Button>)}
+            </div>}
+            <Input type="search" aria-label="Rechercher un participant" placeholder="Prénom ou nom" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11" />
+          </section>
           <ul className="divide-y divide-border rounded-xl border border-border bg-card">
             {matches.map(player => (
               <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
-                <div>
-                  <p className="font-medium">{player.firstName} {player.lastName}</p>
-                  <p className="text-sm text-muted-foreground">{slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · Équipe ${teams.get(player.state.squadId)}` : ""}</p>
+                <div className="min-w-0">
+                  <p className="break-words font-medium">{player.firstName} {player.lastName}</p>
+                  <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · Équipe ${teams.get(player.state.squadId)}` : ""}</p>
                   {data.conflicts[player.id] && <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>}
                 </div>
                 <Button variant={player.state.arrived ? "outline" : "default"} disabled={busy || player.returned} onClick={() => setSelectedId(player.id)}
@@ -260,26 +311,9 @@ export default function ZombieOfflinePage() {
               </li>
             ))}
           </ul>
-          {matches.length === 0 && <p role="status" className="text-sm text-muted-foreground">Aucun joueur trouvé.</p>}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" disabled={busy || !online || pending.size > 0} onClick={() => run(async () => {
-              const snapshot = await fetchSnapshot();
-              if (snapshot.ownerId !== data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
-              await persist(unlocked, newLocalSession(snapshot));
-              setNotice("Liste mise à jour sur cet appareil.");
-            })}>Actualiser la liste</Button>
-            <Button variant="ghost" disabled={busy || pending.size > 0} onClick={() => {
-              if (!window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
-              void run(async () => {
-                await removeOfflineCopy(unlocked.envelope);
-                setCopy(undefined);
-                setUnlocked(undefined);
-                setNotice("Copie locale supprimée.");
-              });
-            }}>Supprimer la copie locale</Button>
-          </div>
+          {matches.length === 0 && <p role="status" className="text-sm text-muted-foreground">Aucun participant trouvé.</p>}
           {welcomeOpen && (
-            <WelcomeDialog roster={welcomeRoster} profileTypes={["zombie"]} onClose={() => setWelcomeOpen(false)} onSave={async (player, details) => {
+            <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)} onSave={async (player, details) => {
               const saved = await run(async () => {
                 const local = data.participants.find(candidate => candidate.id === player.id && !candidate.returned);
                 if (!local) throw new Error("Cette fiche n’est plus disponible.");
@@ -296,7 +330,8 @@ export default function ZombieOfflinePage() {
           {selected && (
             <CheckInDialog key={selected.id} player={selected}
               slot={data.timeSlots.find(slot => slot.id === selected.timeSlotId)}
-              teams={welcomeTeams.filter(team => team.timeSlotId === selected.timeSlotId || team.id === selected.state.squadId)}
+              teams={welcomeTeams.filter(team => team.id === selected.state.squadId ||
+                (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
               conflict={data.conflicts[selected.id]} busy={busy} error={error}
               onClose={() => setSelectedId(undefined)} onRestore={online ? () => restoreFromServer(unlocked, selected) : undefined}
               onSave={state => run(async () => {
@@ -328,25 +363,42 @@ export default function ZombieOfflinePage() {
         <div className="space-y-3 rounded-xl border border-border bg-card p-4" role="status">
           {isLoading ? <p>Vérification du compte…</p> : online ? (
             <>
-              <p>Une connexion au serveur et un compte d’accueil zombie sont nécessaires pour télécharger la liste.</p>
+              <p>Une connexion au serveur et un compte d’accueil sont nécessaires pour télécharger la liste.</p>
               <Link href="/login" className={buttonVariants()}>Se connecter</Link>
             </>
           ) : <p>Aucune copie locale sur cet appareil. Rétablissez la connexion et préparez la liste avant de passer en mode avion.</p>}
         </div>
       )}
+      <OfflineNavigation ready={Boolean(unlocked)} busy={busy}
+        onList={() => document.getElementById("offline-roster")?.scrollIntoView({ block: "start" })}
+        onWelcome={() => setWelcomeOpen(true)}>
+        {unlocked && <>
+          <SheetClose asChild><Button type="button" variant="outline" disabled={busy || !online || !user || !pending.size}
+            onClick={() => run(() => sync(unlocked))}><Upload /> Envoyer au serveur</Button></SheetClose>
+          <SheetClose asChild><Button type="button" variant="outline" disabled={busy || !online || !user || pending.size > 0}
+            onClick={() => refreshList(unlocked)}><RefreshCw /> Actualiser la liste</Button></SheetClose>
+          <SheetClose asChild><Button type="button" variant="outline" disabled={busy} onClick={lockList}><LockKeyhole /> Verrouiller</Button></SheetClose>
+          <SheetClose asChild><Button type="button" variant="ghost" disabled={busy || pending.size > 0}
+            onClick={() => deleteLocalCopy(unlocked)}><Trash2 /> Supprimer la copie locale</Button></SheetClose>
+        </>}
+        {online && <SheetClose asChild><Link href={user ? "/overview" : "/login"} className={buttonVariants({ variant: "outline" })}>
+          <ArrowLeft /> {user ? "Accueil en ligne" : "Se connecter"}
+        </Link></SheetClose>}
+        {!unlocked && !online && <p className="text-sm text-muted-foreground">Ouvrez la copie locale pour accéder à la liste et à l’accueil.</p>}
+      </OfflineNavigation>
     </main>
   );
 }
 
 function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, onSave, onRestore }: {
-  player: OfflineZombie;
+  player: OfflineParticipant;
   slot?: CheckInRoster["slots"][number];
   teams: CheckInRoster["teams"];
   conflict?: string;
   busy: boolean;
   error: string;
   onClose: () => void;
-  onSave: (state: ZombieCheckIn) => void;
+  onSave: (state: OfflineCheckIn) => void;
   onRestore?: () => void;
 }) {
   const [arrived, setArrived] = useState(true);
@@ -359,7 +411,7 @@ function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, on
           <DialogTitle>{player.firstName} {player.lastName}</DialogTitle>
           <DialogDescription>Modifications enregistrées sur cet appareil.</DialogDescription>
         </DialogHeader>
-        <WelcomeGuide type="zombie" initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
+        <WelcomeGuide type={player.type} initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
           slot={slot} teams={teams} review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
           saveLabel="Enregistrer sur cet appareil"
           onSave={details => onSave({

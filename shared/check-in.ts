@@ -6,6 +6,7 @@ export const checkInPath = "/api/check-in";
 export const checkInRosterPath = `${checkInPath}/roster`;
 export const checkInTypes = ["zombie", "survivant", "staff"] as const;
 export type CheckInType = typeof checkInTypes[number];
+export const checkInProfileLabels = { zombie: "Zombies", survivant: "Survivants", staff: "Staff" } satisfies Record<CheckInType, string>;
 export type ChecklistItem = keyof typeof zombieChecklist;
 
 export const checkInProfiles = {
@@ -46,6 +47,7 @@ export type CheckInPlayer = {
 };
 
 export type CheckInRoster = {
+  eventDay?: string | null;
   players: CheckInPlayer[];
   slots: WelcomeTimeSlot[];
   teams: { id: number; number: number; timeSlotId: number; type?: string; maxMembers: number | null; members: number; briefing?: string | null }[];

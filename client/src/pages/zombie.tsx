@@ -1,3 +1,4 @@
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ParticipantListByTimeslot } from "@/components/participant-list-by-timeslot";
@@ -42,7 +43,7 @@ export default function ZombiePage() {
 
   return (
     <ManagementLayout title="Accueil zombie" subtitle="Arrivées, checklist et équipes"
-      actions={<Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Accueil hors ligne</Link>}>
+      actions={<Link href={offlineCheckInPage} className={buttonVariants({ variant: "outline" })}>Accueil hors ligne</Link>}>
       <Tabs defaultValue="participants" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-3 border border-border sm:inline-grid sm:w-auto">
           <TabsTrigger className="min-h-11" value="participants">Participants</TabsTrigger>
@@ -97,7 +98,7 @@ export default function ZombiePage() {
                 <CardTitle className="flex items-center gap-2"><WifiOff className="size-5" /> Accueil hors ligne</CardTitle>
                 <CardDescription>Téléchargez la liste chiffrée pour cocher les arrivées et attribuer les équipes sans réseau.</CardDescription>
               </CardHeader>
-              <CardContent><Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
+              <CardContent><Link href={offlineCheckInPage} className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
             </Card>
 
             <Card>

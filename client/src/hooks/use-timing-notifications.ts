@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TimeSlot } from "@shared/schema";
-import { format, parseISO, isBefore, differenceInMinutes, addMinutes } from "date-fns";
-import { fr } from "date-fns/locale";
+import type { TimeSlot } from "@shared/schema";
+import { format, differenceInMinutes } from "date-fns";
+import { useEventDay } from "./use-event-day";
 
 export interface TimingEvent {
   id: string;
@@ -24,6 +24,7 @@ const NOTIFICATION_WINDOW_MINUTES = 60; // Show events within next 60 minutes
 
 export function useTimingNotifications() {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { data: event } = useEventDay();
 
   // Fetch all time slots
   const { data: timeSlots = [] } = useQuery<TimeSlot[]>({
@@ -39,28 +40,23 @@ export function useTimingNotifications() {
     return () => clearInterval(interval);
   }, []);
 
-  // Parse time string (HH:MM) and create a Date object for today
-  const parseTime = (timeString: string): Date => {
-    const [hours, minutes] = timeString.split(":").map(Number);
-    const date = new Date();
-    date.setHours(hours, minutes, 0, 0);
-    return date;
-  };
+  const day = event?.eventDay ?? format(currentTime, "yyyy-MM-dd");
 
   // Calculate upcoming events
   const upcomingEvents: TimingEvent[] = timeSlots.flatMap(slot => {
-    return EVENT_TYPES.map(({ key, type, label }) => {
-      const time = parseTime(slot[key]);
+    return EVENT_TYPES.flatMap(({ key, type, label }) => {
+      if (!/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(slot[key])) return [];
+      const time = new Date(`${day}T${slot[key]}`);
       const minutesUntil = differenceInMinutes(time, currentTime);
       
-      return {
+      return [{
         id: `${slot.id}-${type}`,
         type,
         timeSlot: slot,
         time,
         label: `${label} - ${slot.name}`,
         minutesUntil,
-      };
+      }];
     });
   })
   .filter(event => {

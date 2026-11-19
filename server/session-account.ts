@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { RequestHandler } from "express";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { participants, users } from "@shared/schema";
 import { db } from "./db";
 
@@ -20,7 +20,7 @@ export const validateSessionAccount: RequestHandler = async (req, _res, next) =>
     if (account && req.session.staffRevision === accountRevision(account)) return next();
   } else if (visitor) {
     const [participant] = await db.select({ secretCode: participants.secretCode })
-      .from(participants).where(eq(participants.id, visitor.participantId)).limit(1);
+      .from(participants).where(and(eq(participants.id, visitor.participantId), isNull(participants.deletedAt))).limit(1);
     if (participant?.secretCode && participant.secretCode === visitor.secretCode) return next();
   } else {
     return next();

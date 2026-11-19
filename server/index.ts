@@ -8,7 +8,7 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { registerCheckInRoutes } from "./check-in-routes";
 import { registerDemoDataRoutes } from "./demo-data-routes";
-import { registerZombieOfflineRoutes } from "./zombie-offline-routes";
+import { registerOfflineCheckInRoutes } from "./zombie-offline-routes";
 import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
@@ -103,7 +103,7 @@ app.use(publishLiveChanges);
 
   // Register main routes
   registerDemoDataRoutes(app);
-  registerZombieOfflineRoutes(app);
+  registerOfflineCheckInRoutes(app);
   registerCheckInRoutes(app);
   const server = await registerRoutes(app);
 

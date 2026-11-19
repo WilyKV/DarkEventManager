@@ -1,5 +1,10 @@
 import { z } from "zod";
 import type { WelcomeTimeSlot } from "./time-slot-notes";
+import type { CheckInType } from "./check-in";
+
+export const offlineCheckInPage = "/hors-ligne";
+export const legacyOfflineCheckInPage = "/zombie/hors-ligne";
+export const offlineCheckInApi = "/api/check-in/offline";
 
 export const zombieChecklist = {
   squadExplained: "Équipe présentée",
@@ -28,36 +33,34 @@ export const checkInStateSchema = z.object({
   message: "L’heure d’arrivée doit correspondre au statut de présence.",
 });
 
-export const zombieUpdateSchema = z.object({
+export const offlineUpdateSchema = z.object({
   id: z.number().int().positive(),
   identity: z.string().length(64),
   revision: z.string().length(64),
   state: checkInStateSchema,
 }).strict();
 
-export type ZombieCheckIn = z.infer<typeof checkInStateSchema>;
-export type ZombieUpdate = z.infer<typeof zombieUpdateSchema>;
-export type OfflineZombie = ZombieUpdate & {
+export type OfflineCheckIn = z.infer<typeof checkInStateSchema>;
+type OfflineUpdate = z.infer<typeof offlineUpdateSchema>;
+export type OfflineParticipant = OfflineUpdate & {
+  type: CheckInType;
   firstName: string;
   lastName: string;
   timeSlotId: number | null;
   returned: boolean;
 };
-export type ZombieSnapshot = {
+export type OfflineSnapshot = {
   ownerId: number;
-  participants: OfflineZombie[];
+  profileTypes: CheckInType[];
+  eventDay: string | null;
+  participants: OfflineParticipant[];
   timeSlots: WelcomeTimeSlot[];
-  squads: { id: number; number: number; timeSlotId: number; maxMembers: number | null; briefing?: string | null }[];
+  squads: { id: number; number: number; timeSlotId: number; type: CheckInType; maxMembers: number | null; briefing?: string | null }[];
 };
 
-export type ZombieSyncResult =
+export type OfflineSyncResult =
   | { id: number; revision: string }
   | { id: number; error: string };
-
-export function checklistComplete(checklist: ZombieCheckIn["checklist"]): boolean {
-  return checklist.squadExplained && checklist.briefingExplained && checklist.mealTicketGiven &&
-    checklist.waterBottleGiven && checklist.makeupWaitExplained;
-}
 
 export function normalizePlayerName(name: string): string {
   return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("fr");

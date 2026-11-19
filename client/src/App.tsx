@@ -9,13 +9,14 @@ import { PwaProvider } from "@/components/install-prompt";
 import { LiveUpdatesProvider } from "@/lib/live-updates";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { getOfflineCopy } from "@/db/zombie-offline";
+import { legacyOfflineCheckInPage, offlineCheckInPage } from "@shared/zombie-offline";
 
 const LoginPage = React.lazy(() => import("@/pages/login"));
 const VisitorPage = React.lazy(() => import("@/pages/visitor"));
 const OverviewPage = React.lazy(() => import("@/pages/overview"));
 const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
 const ZombiePage = React.lazy(() => import("@/pages/zombie"));
-const ZombieOfflinePage = React.lazy(() => import("@/pages/zombie-offline"));
+const OfflineCheckInPage = React.lazy(() => import("@/pages/offline-check-in"));
 const SurvivantPage = React.lazy(() => import("@/pages/survivant"));
 const StaffPage = React.lazy(() => import("@/pages/staff"));
 const BoutiquePage = React.lazy(() => import("@/pages/boutique"));
@@ -44,7 +45,7 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
-  if (data?.needsSetup === true && location !== "/setup" && location !== "/zombie/hors-ligne") {
+  if (data?.needsSetup === true && location !== "/setup" && location !== offlineCheckInPage && location !== legacyOfflineCheckInPage) {
     setLocation("/setup");
     return null;
   }
@@ -64,20 +65,19 @@ function AppHome() {
     return (
       <main className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-3 p-4">
         <p role="status" className="text-sm text-muted-foreground">Connexion au serveur…</p>
-        <Link href="/zombie/hors-ligne" className="rounded-lg border border-border px-4 py-3 font-medium hover:bg-muted">Ouvrir la copie hors ligne</Link>
+        <Link href={offlineCheckInPage} className="rounded-lg border border-border px-4 py-3 font-medium hover:bg-muted">Ouvrir la copie hors ligne</Link>
       </main>
     );
   }
-  return <Redirect to={hasOfflineCopy && (!online || !user) ? "/zombie/hors-ligne" : "/overview"} />;
-}
-
-function ZombieEntry() {
-  const online = useOnlineStatus();
-  if (!online) return <AppHome />;
-  return <RequireAuth><ZombiePage /></RequireAuth>;
+  return <Redirect to={hasOfflineCopy && (!online || !user) ? offlineCheckInPage : "/overview"} />;
 }
 
 function Router() {
+  const [location] = useLocation();
+  const online = useOnlineStatus();
+  if (!online && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
+    return <Redirect to={offlineCheckInPage} />;
+  }
   return (
     <Switch>
       <Route path="/setup" component={SetupPage} />
@@ -106,9 +106,10 @@ function Router() {
         </RequireAuth>
       </Route>
 
-      <Route path="/zombie/hors-ligne" component={ZombieOfflinePage} />
+      <Route path={offlineCheckInPage} component={OfflineCheckInPage} />
+      <Route path={legacyOfflineCheckInPage}><Redirect to={offlineCheckInPage} /></Route>
       <Route path="/zombie">
-        <ZombieEntry />
+        <RequireAuth><ZombiePage /></RequireAuth>
       </Route>
       <Route path="/survivant">
         <RequireAuth>

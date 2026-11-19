@@ -56,20 +56,15 @@ export type { IStorage, DashboardStats } from "./storage-interfaces";
 export class DatabaseStorage implements IStorage {
   // Participants
   async getParticipants(type?: string): Promise<ParticipantWithRelations[]> {
-    const query = type 
-      ? db.query.participants.findMany({
-          where: eq(participants.type, type),
-          with: { timeSlot: true, squad: true },
-        })
-      : db.query.participants.findMany({
-          with: { timeSlot: true, squad: true },
-        });
-    return await query;
+    return db.query.participants.findMany({
+      where: and(isNull(participants.deletedAt), type ? eq(participants.type, type) : undefined),
+      with: { timeSlot: true, squad: true },
+    });
   }
 
   async getParticipant(id: number): Promise<ParticipantWithRelations | undefined> {
     return await db.query.participants.findFirst({
-      where: eq(participants.id, id),
+      where: and(eq(participants.id, id), isNull(participants.deletedAt)),
       with: { timeSlot: true, squad: true },
     });
   }
@@ -82,13 +77,21 @@ export class DatabaseStorage implements IStorage {
     return participant;
   }
 
-  async updateParticipant(id: number, data: Partial<InsertParticipant>): Promise<Participant> {
+  async updateParticipant(id: number, data: Partial<InsertParticipant>): Promise<Participant | undefined> {
     const [participant] = await db
       .update(participants)
       .set(data)
-      .where(eq(participants.id, id))
+      .where(and(eq(participants.id, id), isNull(participants.deletedAt)))
       .returning();
     return participant;
+  }
+
+  async archiveParticipant(id: number): Promise<boolean> {
+    const [archived] = await db.update(participants)
+      .set({ deletedAt: new Date(), squadId: null, timeSlotId: null })
+      .where(and(eq(participants.id, id), isNull(participants.deletedAt)))
+      .returning({ id: participants.id });
+    return Boolean(archived);
   }
 
   async batchUpdateParticipants(updates: Array<{ id: number; data: Partial<InsertParticipant> }>): Promise<Participant[]> {
@@ -98,7 +101,7 @@ export class DatabaseStorage implements IStorage {
       for (const { id, data } of updates) {
         // Get current participant to check for squad changes
         const currentParticipant = await tx.query.participants.findFirst({
-          where: eq(participants.id, id),
+          where: and(eq(participants.id, id), isNull(participants.deletedAt)),
         });
 
         if (!currentParticipant) {
@@ -109,8 +112,9 @@ export class DatabaseStorage implements IStorage {
         const [updated] = await tx
           .update(participants)
           .set(data)
-          .where(eq(participants.id, id))
+          .where(and(eq(participants.id, id), isNull(participants.deletedAt)))
           .returning();
+        if (!updated) throw new Error(`Participant ${id} introuvable`);
         
         results.push(updated);
 
@@ -491,7 +495,7 @@ export class DatabaseStorage implements IStorage {
   // ===== SYNC CONFIGURATION =====
 
   async getSyncConfig(): Promise<AppConfig> {
-    const config = await db.select().from(appConfig).limit(1);
+    const config = await db.select().from(appConfig).orderBy(appConfig.id).limit(1);
 
     if (config.length === 0) {
       // Initialize default config if not exists

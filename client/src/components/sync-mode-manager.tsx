@@ -1,3 +1,4 @@
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -46,16 +47,16 @@ export function SyncModeManager() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base"><WifiOff className="size-5 shrink-0" /> Accueil zombie hors ligne</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base"><WifiOff className="size-5 shrink-0" /> Accueil hors ligne</CardTitle>
             <CardDescription>Préparez une copie chiffrée de la liste pour travailler sur cet appareil en mode avion.</CardDescription>
           </CardHeader>
-          <CardContent><Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
+          <CardContent><Link href={offlineCheckInPage} className={buttonVariants({ variant: "outline" })}>Ouvrir l’accueil hors ligne</Link></CardContent>
         </Card>
       </div>
       <details className="rounded-xl border border-border bg-card p-4 sm:p-6">
         <summary className="cursor-pointer font-medium"><Shield className="mr-2 inline size-4" aria-hidden /> Restriction d’écriture sur le serveur</summary>
         <p className="mb-4 mt-2 text-sm text-muted-foreground">
-          Ce réglage réserve les modifications sur le serveur à un seul navigateur désigné. Pour la saisie sans réseau, utilisez l’accueil zombie hors ligne.
+          Ce réglage réserve les modifications sur le serveur à un seul navigateur désigné. Pour la saisie sans réseau, utilisez l’accueil hors ligne.
         </p>
         {isError ? (
           <Button variant="outline" onClick={() => void refetch()}>Recharger le réglage</Button>

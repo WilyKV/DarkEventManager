@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, RefreshCw } from "lucide-react";
-import { ParticipantWithRelations, TimeSlot } from "@shared/schema";
+import type { InsertParticipant, ParticipantWithRelations, TimeSlot } from "@shared/schema";
+import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,12 +36,13 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (data: any) => {
+    mutationFn: async (data: Partial<InsertParticipant>) => {
       return apiRequest("PATCH", `/api/participants/${participant.id}`, data);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        predicate: (query) => query.queryKey[0] === "/api/participants"
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: ({ queryKey: [key] }) => typeof key === "string" &&
+          liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(key, prefix)),
       });
       toast({
         title: "Participant modifié",
@@ -90,9 +92,10 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const updateData: any = {
-      firstName: formData.firstName,
-      lastName: formData.lastName,
+    if (!formData.firstName.trim() || !formData.lastName.trim() || updateMutation.isPending) return;
+    const updateData = {
+      firstName: formData.firstName.trim(),
+      lastName: formData.lastName.trim(),
       email: formData.email || null,
       timeSlotId: formData.timeSlotId && formData.timeSlotId !== "none" ? parseInt(formData.timeSlotId) : null,
     };
@@ -101,10 +104,11 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
   };
 
   return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+    <Dialog open onOpenChange={open => { if (!open && !updateMutation.isPending) onClose(); }}>
+      <DialogContent className="max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.25rem)] max-w-md overflow-y-auto rounded-xl p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>Modifier le participant</DialogTitle>
+          <DialogDescription>{participant.firstName} {participant.lastName}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -198,7 +202,7 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
             </Button>
             <Button
               type="submit"
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || !formData.firstName.trim() || !formData.lastName.trim()}
               className="flex-1"
             >
               {updateMutation.isPending ? (

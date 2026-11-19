@@ -1,3 +1,5 @@
+import { checkInRoles } from "@shared/check-in";
+import { offlineCheckInPage } from "@shared/zombie-offline";
 import { Home, IdCard, LayoutDashboard, QrCode, Settings, ShoppingBag, Skull, UserCog, Users, Utensils, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -9,7 +11,7 @@ const modules = [
   { label: "Boutique", icon: ShoppingBag, path: "/boutique", roles: ["admin", "staff_boutique"] },
   { label: "Repas", icon: Utensils, path: "/repas", roles: ["admin", "staff_repas"] },
   { label: "Scanner un badge", icon: QrCode, path: "/scan", roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
-  { label: "Hors ligne", icon: WifiOff, path: "/zombie/hors-ligne", roles: zombieRoles },
+  { label: "Hors ligne", icon: WifiOff, path: offlineCheckInPage, roles: checkInRoles },
   { label: "Staff", icon: UserCog, path: "/staff", roles: ["admin"] },
   { label: "Badges", icon: IdCard, path: "/badges", roles: ["admin"] },
   { label: "Statistiques", icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },

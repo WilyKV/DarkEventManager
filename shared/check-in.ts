@@ -46,8 +46,8 @@ export type CheckInPlayer = {
 
 export type CheckInRoster = {
   players: CheckInPlayer[];
-  slots: { id: number; name: string; briefingTime: string; gameTime: string }[];
-  teams: { id: number; number: number; timeSlotId: number; maxMembers: number | null; members: number }[];
+  slots: { id: number; name: string; briefingTime: string; gameTime: string; mealTime?: string; exitTime?: string }[];
+  teams: { id: number; number: number; timeSlotId: number; maxMembers: number | null; members: number; briefing?: string | null }[];
 };
 
 export function checkInChecklistComplete(type: CheckInType, details: CheckInDetails) {

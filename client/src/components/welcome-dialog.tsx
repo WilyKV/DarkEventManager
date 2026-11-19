@@ -1,11 +1,12 @@
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Search, UserCheck } from "lucide-react";
-import { checkInChecklistComplete, checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
-import { normalizePlayerName, zombieChecklist } from "@shared/zombie-offline";
+import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
+import { normalizePlayerName } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { WelcomeGuide } from "./welcome-guide";
 
 type Step = "count" | "select" | "welcome" | "done";
 
@@ -188,8 +189,13 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
           </>
         ) : step === "welcome" ? (
           current ? (
-            <WelcomeForm key={`${current.id}:${current.revision}`} player={current} roster={roster}
-              last={savedCount + 1 === selection.length} save={save} saving={saving} error={error} onReload={onReload && (() => { setError(""); onReload(); })} />
+            <WelcomeGuide key={`${current.id}:${current.revision}`} type={current.type} initialDetails={current.details}
+              slot={slots.get(current.timeSlotId ?? 0)}
+              teams={roster.teams.filter(team => team.timeSlotId === current.timeSlotId || team.id === current.details.squadId)}
+              summary={current.arrived && <p className="text-sm font-medium text-primary">Arrivée déjà enregistrée</p>}
+              onSave={details => { void save(details); }} saving={saving} error={error}
+              saveLabel={savedCount + 1 === selection.length ? "Enregistrer et terminer" : "Enregistrer et continuer"}
+              onReload={onReload && (() => { setError(""); onReload(); })} />
           ) : (
             <p role="alert" className="text-sm text-muted-foreground">
               Cette fiche n’est plus disponible. Les arrivées déjà enregistrées sont conservées.
@@ -215,65 +221,5 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function WelcomeForm({ player, roster, last, save, saving, error, onReload }: {
-  player: CheckInPlayer;
-  roster: CheckInRoster;
-  last: boolean;
-  save: (details: CheckInDetails) => Promise<void>;
-  saving: boolean;
-  error: string;
-  onReload?: () => void;
-}) {
-  const [details, setDetails] = useState(player.details);
-  const slot = roster.slots.find(slot => slot.id === player.timeSlotId);
-  const teams = roster.teams.filter(team => team.timeSlotId === player.timeSlotId || team.id === player.details.squadId);
-  const checklist = checkInProfiles[player.type].checklist;
-
-  return (
-    <form className="flex min-h-0 flex-col" onSubmit={event => { event.preventDefault(); void save(details); }}>
-      <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain pb-3">
-        <div className="rounded-lg border border-border bg-card p-3 text-sm">
-          <p className="font-medium">{slot?.name ?? "Sans créneau"}</p>
-          {slot && <p className="text-muted-foreground">Briefing {slot.briefingTime} · Jeu {slot.gameTime}</p>}
-          {player.arrived && <p className="text-emerald-300">Arrivée déjà enregistrée</p>}
-        </div>
-        {player.type !== "staff" && (
-          <label className="block space-y-1 text-sm font-medium">Équipe
-            <select className={selectClass} value={details.squadId ?? ""} disabled={saving}
-              onChange={event => setDetails({ ...details, squadId: event.target.value ? Number(event.target.value) : null })}>
-              <option value="">Sans équipe</option>
-              {teams.map(team => {
-                const full = team.maxMembers != null && team.members >= team.maxMembers && team.id !== player.details.squadId;
-                return <option key={team.id} value={team.id} disabled={full}>Équipe {team.number}{full ? " (complète)" : ""}</option>;
-              })}
-            </select>
-          </label>
-        )}
-        {checklist.length > 0 && (
-          <fieldset className="space-y-0.5" disabled={saving}>
-            <legend className="text-sm font-semibold">{checkInChecklistComplete(player.type, details) ? "Checklist terminée" : "Checklist"}</legend>
-            {checklist.map(item => (
-              <label key={item} className="flex min-h-10 items-center gap-3 text-sm">
-                <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={Boolean(details.checklist[item])}
-                  onChange={event => setDetails({ ...details, checklist: { ...details.checklist, [item]: event.target.checked } })} />
-                {zombieChecklist[item]}
-              </label>
-            ))}
-          </fieldset>
-        )}
-        {error && (
-          <div className="space-y-2">
-            <p role="alert" className="text-sm text-destructive">{error}</p>
-            {onReload && <Button type="button" size="sm" variant="outline" onClick={onReload}>Actualiser la fiche</Button>}
-          </div>
-        )}
-      </div>
-      <Button type="submit" className="w-full shrink-0" disabled={saving}>
-        {saving ? "Enregistrement…" : last ? "Enregistrer et terminer" : "Enregistrer et continuer"}
-      </Button>
-    </form>
   );
 }

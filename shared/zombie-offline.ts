@@ -45,8 +45,8 @@ export type OfflineZombie = ZombieUpdate & {
 export type ZombieSnapshot = {
   ownerId: number;
   participants: OfflineZombie[];
-  timeSlots: { id: number; name: string; briefingTime: string; gameTime: string }[];
-  squads: { id: number; number: number; timeSlotId: number; maxMembers: number | null }[];
+  timeSlots: { id: number; name: string; briefingTime: string; gameTime: string; mealTime?: string; exitTime?: string }[];
+  squads: { id: number; number: number; timeSlotId: number; maxMembers: number | null; briefing?: string | null }[];
 };
 
 export type ZombieSyncResult =

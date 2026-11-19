@@ -5,6 +5,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
+import { WelcomeGuide } from "@/components/welcome-guide";
 import type { CheckInRoster } from "@shared/check-in";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +15,7 @@ import {
   type LocalZombieSession,
 } from "@/db/zombie-offline";
 import {
-  checklistComplete, normalizePlayerName, zombieChecklist,
+  normalizePlayerName,
   type OfflineZombie, type ZombieCheckIn, type ZombieSnapshot, type ZombieSyncResult,
 } from "@shared/zombie-offline";
 
@@ -203,16 +204,17 @@ export default function ZombieOfflinePage() {
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
   const pending = new Set(data?.pending);
   const canPrepare = hasAnyRole(["admin", "staff_zombie"]);
+  const welcomeTeams = data && (welcomeOpen || selected) ? data.squads.map(team => ({
+    ...team, members: participants.filter(player => player.state.squadId === team.id).length,
+  })) : [];
   const welcomeRoster: CheckInRoster | undefined = welcomeOpen && data ? {
     players: participants.map(player => ({
       id: player.id, firstName: player.firstName, lastName: player.lastName, type: "zombie",
       timeSlotId: player.timeSlotId, arrived: player.state.arrived, returned: player.returned,
-      details: player.state, revision: player.revision,
+      details: { squadId: player.state.squadId, checklist: player.state.checklist }, revision: player.revision,
     })),
     slots: data.timeSlots,
-    teams: data.squads.map(team => ({
-      ...team, members: participants.filter(player => player.state.squadId === team.id).length,
-    })),
+    teams: welcomeTeams,
   } : undefined;
 
   return (
@@ -292,7 +294,10 @@ export default function ZombieOfflinePage() {
             }} />
           )}
           {selected && (
-            <CheckInDialog key={selected.id} player={selected} data={data} busy={busy} error={error}
+            <CheckInDialog key={selected.id} player={selected}
+              slot={data.timeSlots.find(slot => slot.id === selected.timeSlotId)}
+              teams={welcomeTeams.filter(team => team.timeSlotId === selected.timeSlotId || team.id === selected.state.squadId)}
+              conflict={data.conflicts[selected.id]} busy={busy} error={error}
               onClose={() => setSelectedId(undefined)} onRestore={online ? () => restoreFromServer(unlocked, selected) : undefined}
               onSave={state => run(async () => {
                 await saveLocalCheckIn(unlocked, selected, state);
@@ -333,69 +338,49 @@ export default function ZombieOfflinePage() {
   );
 }
 
-function CheckInDialog({ player, data, busy, error, onClose, onSave, onRestore }: {
+function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, onSave, onRestore }: {
   player: OfflineZombie;
-  data: LocalZombieSession;
+  slot?: CheckInRoster["slots"][number];
+  teams: CheckInRoster["teams"];
+  conflict?: string;
   busy: boolean;
   error: string;
   onClose: () => void;
   onSave: (state: ZombieCheckIn) => void;
   onRestore?: () => void;
 }) {
-  const [state, setState] = useState(player.state);
-  const counts = new Map<number, number>();
-  for (const other of data.participants) {
-    const id = other.state.squadId;
-    if (other.id !== player.id && id != null) counts.set(id, (counts.get(id) ?? 0) + 1);
-  }
-  const teams = data.squads.filter(team => team.timeSlotId === player.timeSlotId || team.id === player.state.squadId);
+  const [arrived, setArrived] = useState(true);
   return (
     <Dialog open onOpenChange={open => { if (!open && !busy) onClose(); }}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.25rem)] max-w-xl flex-col overflow-hidden rounded-xl p-4 sm:p-6"
+        onInteractOutside={event => event.preventDefault()}
+        onEscapeKeyDown={event => { if (busy) event.preventDefault(); }}>
+        <DialogHeader className="shrink-0 pr-7 text-left">
           <DialogTitle>{player.firstName} {player.lastName}</DialogTitle>
           <DialogDescription>Modifications enregistrées sur cet appareil.</DialogDescription>
         </DialogHeader>
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <form className="space-y-4" onSubmit={event => { event.preventDefault(); onSave(state); }}>
-          <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm font-semibold">
-            <input type="checkbox" className="size-5 accent-primary" checked={state.arrived} onChange={event => {
-              const arrived = event.target.checked;
-              setState({ ...state, arrived, arrivedAt: arrived ? player.state.arrivedAt ?? new Date().toISOString() : null });
-            }} /> Arrivé
-          </label>
-          <label className="block space-y-1 text-sm">Équipe
-            <select className="block min-h-11 w-full rounded-md border border-input bg-background px-3" value={state.squadId ?? ""}
-              onChange={event => setState({ ...state, squadId: event.target.value ? Number(event.target.value) : null })}>
-              <option value="">Sans équipe</option>
-              {teams.map(team => {
-                const count = counts.get(team.id) ?? 0;
-                const full = team.maxMembers != null && count >= team.maxMembers && team.id !== player.state.squadId;
-                return <option key={team.id} value={team.id} disabled={full}>Équipe {team.number}{full ? " (complète)" : ""}</option>;
-              })}
-            </select>
-          </label>
-          <fieldset className="space-y-1">
-            <legend className="text-sm font-semibold">{checklistComplete(state.checklist) ? "Checklist terminée" : "Checklist"}</legend>
-            {(Object.keys(zombieChecklist) as Array<keyof typeof zombieChecklist>).map(key => (
-              <label key={key} className="flex min-h-10 items-center gap-3 text-sm">
-                <input type="checkbox" className="size-5 accent-primary" checked={state.checklist[key]}
-                  onChange={event => setState({ ...state, checklist: { ...state.checklist, [key]: event.target.checked } })} />
-                {zombieChecklist[key]}
-              </label>
-            ))}
-          </fieldset>
-          {data.conflicts[player.id] && (
-            <div className="space-y-2 border-t border-border pt-3">
-              <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>
-              <Button type="button" variant="outline" disabled={busy || !onRestore} onClick={onRestore}>Reprendre la fiche serveur</Button>
-            </div>
-          )}
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button type="button" variant="ghost" disabled={busy} onClick={onClose}>Annuler</Button>
-            <Button type="submit" disabled={busy}>Enregistrer sur cet appareil</Button>
-          </div>
-        </form>
+        <WelcomeGuide type="zombie" initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
+          slot={slot} teams={teams} review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
+          saveLabel="Enregistrer sur cet appareil"
+          onSave={details => onSave({
+            arrived,
+            arrivedAt: arrived ? player.state.arrivedAt ?? new Date().toISOString() : null,
+            squadId: details.squadId,
+            checklist: { ...player.state.checklist, ...details.checklist },
+          })}
+          summary={<>
+            <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm font-semibold">
+              <input type="checkbox" className="size-5 accent-primary" checked={arrived} disabled={busy}
+                onChange={event => setArrived(event.target.checked)} /> Arrivé
+            </label>
+            {conflict && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-sm text-amber-400">{conflict}</p>
+                <Button type="button" variant="outline" disabled={busy || !onRestore} onClick={onRestore}>Reprendre la fiche serveur</Button>
+              </div>
+            )}
+          </>}
+        />
       </DialogContent>
     </Dialog>
   );

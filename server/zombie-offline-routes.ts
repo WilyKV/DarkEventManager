@@ -61,9 +61,10 @@ export function registerZombieOfflineRoutes(app: Express): void {
         ownerId: req.session.user!.id,
         participants: (await tx.select().from(participants).where(eq(participants.type, "zombie"))).map(offlineParticipant),
         timeSlots: await tx.select({ id: timeSlots.id, name: timeSlots.name,
-          briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime })
+          briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime, exitTime: timeSlots.exitTime })
           .from(timeSlots).where(eq(timeSlots.type, "zombie")),
-        squads: await tx.select({ id: squads.id, number: squads.number, timeSlotId: squads.timeSlotId, maxMembers: squads.maxMembers })
+        squads: await tx.select({ id: squads.id, number: squads.number, timeSlotId: squads.timeSlotId,
+          maxMembers: squads.maxMembers, briefing: squads.briefing })
           .from(squads).where(eq(squads.type, "zombie")),
       }), { isolationLevel: "repeatable read", accessMode: "read only" });
       res.json(snapshot);

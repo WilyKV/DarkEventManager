@@ -11,6 +11,7 @@ type Step = "count" | "select" | "welcome" | "done";
 
 interface WelcomeDialogProps {
   roster?: CheckInRoster;
+  profileTypes?: readonly CheckInType[];
   unavailable?: ReactNode;
   onClose: () => void;
   onSave: (player: CheckInPlayer, details: CheckInDetails) => Promise<void>;
@@ -18,8 +19,10 @@ interface WelcomeDialogProps {
 }
 
 const selectClass = "min-h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:px-3";
+const profileLabels = { zombie: "Zombies", survivant: "Survivants", staff: "Staff" };
+const nameOrder = new Intl.Collator("fr", { sensitivity: "base" });
 
-export function WelcomeDialog({ roster, unavailable, onClose, onSave, onReload }: WelcomeDialogProps) {
+export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload }: WelcomeDialogProps) {
   const countId = useId();
   const [step, setStep] = useState<Step>("count");
   const [quantity, setQuantity] = useState("1");
@@ -34,11 +37,9 @@ export function WelcomeDialog({ roster, unavailable, onClose, onSave, onReload }
 
   const eligible = useMemo(() => (roster?.players ?? [])
     .filter(player => !player.returned)
-    .sort((a, b) => Number(a.arrived) - Number(b.arrived) ||
-      a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr")), [roster]);
+    .sort((a, b) => nameOrder.compare(a.firstName, b.firstName) || nameOrder.compare(a.lastName, b.lastName)), [roster]);
   const byId = new Map(eligible.map(player => [player.id, player]));
   const slots = new Map(roster?.slots.map(slot => [slot.id, slot]));
-  const visibleTypes = checkInTypes.filter(value => eligible.some(player => player.type === value));
   const visibleSlots = roster?.slots.filter(slot => eligible.some(player => player.timeSlotId === slot.id && (type === "all" || player.type === type))) ?? [];
   const total = Number(quantity);
   const validCount = Number.isInteger(total) && total >= 1 && total <= eligible.length;
@@ -121,29 +122,29 @@ export function WelcomeDialog({ roster, unavailable, onClose, onSave, onReload }
             <div className="shrink-0 space-y-2">
               {!selectedOnly && (
                 <>
+                  {profileTypes.length > 1 && (
+                    <div role="group" aria-label="Filtrer par profil" className="grid grid-flow-col auto-cols-fr gap-1.5">
+                      {profileTypes.map(value => (
+                        <Button key={value} type="button" variant={type === value ? "default" : "outline"}
+                          aria-pressed={type === value} className="px-1.5" onClick={() => {
+                            setType(type === value ? "all" : value);
+                            setSlotFilter("all");
+                          }}>{profileLabels[value]}</Button>
+                      ))}
+                    </div>
+                  )}
                   <div className="relative">
                     <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden />
                     <Input type="search" aria-label="Rechercher une personne" placeholder="Prénom ou nom"
                       className="min-h-11 pl-9" value={search} onChange={event => setSearch(event.target.value)} />
                   </div>
-                  <div className={cn("grid gap-2", visibleTypes.length > 1 && "grid-cols-2")}>
-                    {visibleTypes.length > 1 && (
-                      <select aria-label="Filtrer par profil" className={selectClass} value={type} onChange={event => {
-                        setType(event.target.value as typeof type);
-                        setSlotFilter("all");
-                      }}>
-                        <option value="all">Tous les profils</option>
-                        {visibleTypes.map(value => <option key={value} value={value}>{checkInProfiles[value].label}</option>)}
-                      </select>
-                    )}
-                    <select aria-label="Filtrer par créneau" className={selectClass} value={slotFilter}
-                      onChange={event => setSlotFilter(event.target.value)}>
-                      <option value="all">Tous les créneaux</option>
-                      {visibleSlots.map(slot => <option key={slot.id} value={slot.id}>{slot.name}</option>)}
-                      {eligible.some(player => player.timeSlotId == null && (type === "all" || player.type === type)) &&
-                        <option value="none">Sans créneau</option>}
-                    </select>
-                  </div>
+                  <select aria-label="Filtrer par créneau" className={selectClass} value={slotFilter}
+                    onChange={event => setSlotFilter(event.target.value)}>
+                    <option value="all">Tous les créneaux</option>
+                    {visibleSlots.map(slot => <option key={slot.id} value={slot.id}>{slot.name}</option>)}
+                    {eligible.some(player => player.timeSlotId == null && (type === "all" || player.type === type)) &&
+                      <option value="none">Sans créneau</option>}
+                  </select>
                 </>
               )}
               <div className="flex flex-wrap items-center justify-between gap-x-2">

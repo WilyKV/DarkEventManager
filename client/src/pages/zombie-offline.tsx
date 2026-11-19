@@ -277,7 +277,7 @@ export default function ZombieOfflinePage() {
             }}>Supprimer la copie locale</Button>
           </div>
           {welcomeOpen && (
-            <WelcomeDialog roster={welcomeRoster} onClose={() => setWelcomeOpen(false)} onSave={async (player, details) => {
+            <WelcomeDialog roster={welcomeRoster} profileTypes={["zombie"]} onClose={() => setWelcomeOpen(false)} onSave={async (player, details) => {
               const saved = await run(async () => {
                 const local = data.participants.find(candidate => candidate.id === player.id && !candidate.returned);
                 if (!local) throw new Error("Cette fiche n’est plus disponible.");

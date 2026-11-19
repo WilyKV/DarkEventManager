@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { checkInPath, checkInRosterPath, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
+import { checkInPath, checkInRosterPath, checkInTypes, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
 import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { apiRequest } from "@/lib/queryClient";
@@ -22,9 +22,11 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
     },
   });
   const canOpenLocal = hasAnyRole(["admin", "staff_zombie"]);
+  const profileTypes = hasAnyRole(["admin"]) ? checkInTypes
+    : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
   const retry = () => { void query.refetch(); };
 
-  return <WelcomeDialog onClose={onClose} roster={online ? query.data : undefined} onReload={retry}
+  return <WelcomeDialog onClose={onClose} roster={online ? query.data : undefined} profileTypes={profileTypes} onReload={retry}
     unavailable={!online || query.isError ? (
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className="w-full text-sm text-muted-foreground">{online ? "Impossible de joindre le serveur." : "Vous êtes hors connexion."}</p>

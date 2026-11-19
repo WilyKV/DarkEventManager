@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { WelcomeDialog } from "@/components/welcome-dialog";
@@ -11,7 +11,7 @@ const roster: CheckInRoster = {
       revision: "zombie", details: { squadId: null, checklist: {} } },
     { id: 2, firstName: "Gaël", lastName: "Durand", type: "survivant", timeSlotId: 2, arrived: false, returned: false,
       revision: "survivant", details: { squadId: null, checklist: {} } },
-    { id: 3, firstName: "Aline", lastName: "Borel", type: "staff", timeSlotId: null, arrived: false, returned: false,
+    { id: 3, firstName: "Aline", lastName: "Borel", type: "staff", timeSlotId: null, arrived: true, returned: false,
       revision: "staff", details: { squadId: null, checklist: {} } },
     { id: 4, firstName: "Sam", lastName: "Sorti", type: "zombie", timeSlotId: 1, arrived: true, returned: true,
       revision: "sorti", details: { squadId: null, checklist: {} } },
@@ -34,15 +34,26 @@ describe("Accueil groupé", () => {
     const begin = screen.getByRole("button", { name: "Commencer l’accueil" });
     expect(begin).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Sam Sorti/ })).toBeNull();
+    const players = within(screen.getByRole("list", { name: "Personnes à accueillir" })).getAllByRole("button");
+    expect(players[0]).toHaveTextContent("Aline Borel");
+    expect(players[1]).toHaveTextContent("Élodie Martin");
+    expect(players[2]).toHaveTextContent("Gaël Durand");
+    const zombies = screen.getByRole("button", { name: "Zombies", exact: true });
+    await user.click(zombies);
+    expect(zombies).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /Gaël Durand/ })).toBeNull();
+    await user.click(zombies);
+    expect(zombies).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /Gaël Durand/ })).toBeVisible();
     await user.type(screen.getByRole("searchbox"), "martin elodie");
     await user.click(screen.getByRole("button", { name: /Élodie Martin/ }));
     await user.clear(screen.getByRole("searchbox"));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Filtrer par profil" }), "survivant");
+    await user.click(screen.getByRole("button", { name: "Survivants", exact: true }));
     await user.selectOptions(screen.getByRole("combobox", { name: "Filtrer par créneau" }), "2");
     await user.click(screen.getByRole("button", { name: /Gaël Durand/ }));
     expect(begin).toBeDisabled();
     expect(screen.getByText("2 sur 3 sélectionnées")).toBeVisible();
-    await user.selectOptions(screen.getByRole("combobox", { name: "Filtrer par profil" }), "staff");
+    await user.click(screen.getByRole("button", { name: "Staff", exact: true }));
     await user.click(screen.getByRole("button", { name: /Aline Borel/ }));
     await user.click(screen.getByRole("button", { name: "Voir ma sélection" }));
     expect(screen.getByRole("button", { name: /Élodie Martin/, pressed: true })).toBeVisible();
@@ -64,6 +75,16 @@ describe("Accueil groupé", () => {
     expect(save.mock.calls.map(([player]) => player.id)).toEqual([1, 2, 3]);
     expect(save).toHaveBeenNthCalledWith(1, roster.players[0], { squadId: null, checklist: { waterBottleGiven: true } });
     expect(save).toHaveBeenNthCalledWith(2, roster.players[1], { squadId: null, checklist: { briefingExplained: true } });
+  });
+
+  it("affiche les profils accessibles même si leur liste est vide", async () => {
+    const user = userEvent.setup();
+    render(<WelcomeDialog roster={{ ...roster, players: [roster.players[0]] }} onClose={vi.fn()} onSave={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
+    const filters = within(screen.getByRole("group", { name: "Filtrer par profil" }));
+    expect(filters.getAllByRole("button")).toHaveLength(3);
+    await user.click(filters.getByRole("button", { name: "Staff" }));
+    expect(screen.getByText("Aucun résultat.")).toBeVisible();
   });
 
   it("conserve la fiche en cours en cas d’erreur d’enregistrement", async () => {

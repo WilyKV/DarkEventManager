@@ -1,128 +1,75 @@
 import { useState } from "react";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SquadWithRelations } from "@shared/schema";
-import { Users, UserPlus } from "lucide-react";
+import type { ParticipantWithRelations, SquadWithRelations } from "@shared/schema";
+import { orderSquads, recommendSquad, SquadPlacementCard, squadPlaces } from "./squad-placement";
 
 interface SquadSelectorProps {
   squads: SquadWithRelations[];
+  players: readonly Pick<ParticipantWithRelations, "squadId">[];
   selectedSquadId: string;
   onSquadSelect: (squadId: string) => void;
 }
 
-export function SquadSelector({ 
-  squads, 
-  selectedSquadId, 
-  onSquadSelect,
-}: SquadSelectorProps) {
+export function SquadSelector({ squads, players, selectedSquadId, onSquadSelect }: SquadSelectorProps) {
   const [expandedSquad, setExpandedSquad] = useState<number | null>(null);
-
-  const toggleSquad = (squadId: number) => {
-    setExpandedSquad(expandedSquad === squadId ? null : squadId);
-  };
+  const alreadyAssigned = new Map<number, number>();
+  for (const { squadId } of players) {
+    if (squadId !== null) alreadyAssigned.set(squadId, (alreadyAssigned.get(squadId) ?? 0) + 1);
+  }
+  const teams = squads.map(squad => ({ ...squad, members: squad.participants?.length ?? 0 }));
+  const seatsNeeded = (id: number) => players.length - (alreadyAssigned.get(id) ?? 0);
+  const recommendation = recommendSquad(teams, seatsNeeded);
 
   return (
-    <div className="space-y-3">
-      <Label className="text-base font-semibold">
-        Attribution à une Squad
-      </Label>
-      
-      <div className="space-y-2">
-        <Button
-          variant={selectedSquadId === "" ? "default" : "outline"}
-          className="w-full justify-start gap-2"
-          onClick={() => onSquadSelect("")}
-          data-testid="button-no-squad"
-        >
-          Aucune squad
-        </Button>
+    <div className="space-y-2">
+      <Button type="button" variant={selectedSquadId === "" ? "default" : "outline"}
+        className="w-full justify-start" onClick={() => onSquadSelect("")} data-testid="button-no-squad">
+        Sans équipe
+      </Button>
 
-        <ScrollArea className="h-[300px] rounded-md border p-2">
-          <div className="space-y-2">
-            {squads.map((squad) => {
-              const memberCount = squad.participants?.length || 0;
-              const isSelected = selectedSquadId === squad.id.toString();
-              const isExpanded = expandedSquad === squad.id;
-
-              return (
-                <div
-                  key={squad.id}
-                  className="rounded-lg border bg-card"
-                  data-testid={`squad-card-${squad.id}`}
-                >
-                  <div className="flex items-center gap-2 p-3">
-                    <Button
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      className="flex-1 justify-start gap-2"
-                      onClick={() => onSquadSelect(squad.id.toString())}
-                      data-testid={`button-select-squad-${squad.id}`}
-                    >
-                      <UserPlus className="w-4 h-4" />
-                      <span className="font-semibold">
-                        Squad {squad.number}
-                      </span>
+      {teams.length === 0 ? <p className="p-3 text-sm text-muted-foreground">Aucune squad disponible pour ce créneau.</p> : (
+        <>
+          {players.length > 1 && (
+            <p className="text-sm text-muted-foreground">
+              {recommendation ? `Attribution de ${players.length} personnes.` : `Aucune équipe ne peut accueillir les ${players.length} personnes ensemble.`}
+            </p>
+          )}
+          <ScrollArea className="h-[300px] rounded-lg border p-2">
+            <ul className="space-y-2 pr-1" aria-label="Squads disponibles">
+              {orderSquads(teams, seatsNeeded, recommendation?.id).map(team => {
+                const isExpanded = expandedSquad === team.id;
+                return (
+                  <li key={team.id} className="rounded-lg bg-card" data-testid={`squad-card-${team.id}`}>
+                    <SquadPlacementCard team={team} selected={selectedSquadId === String(team.id)}
+                      label={team.id === recommendation?.id ? "Recommandée" : undefined}
+                      disabled={squadPlaces(team) < seatsNeeded(team.id)} onSelect={() => onSquadSelect(String(team.id))} />
+                    <Button type="button" variant="ghost" size="sm" className="min-h-11 text-muted-foreground"
+                      aria-expanded={isExpanded} onClick={() => setExpandedSquad(isExpanded ? null : team.id)}
+                      data-testid={`button-toggle-squad-${team.id}`}>
+                      Membres <ChevronDown className={isExpanded ? "rotate-180" : undefined} />
                     </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleSquad(squad.id)}
-                      data-testid={`button-toggle-squad-${squad.id}`}
-                    >
-                      <Users className="w-4 h-4 mr-1" />
-                      <Badge variant="secondary" className="ml-1">
-                        {memberCount}
-                        {squad.maxMembers && `/${squad.maxMembers}`}
-                      </Badge>
-                    </Button>
-                  </div>
-
-                  {isExpanded && memberCount > 0 && (
-                    <div className="border-t p-3 bg-muted/30">
-                      <p className="text-xs text-muted-foreground mb-2 font-semibold">
-                        Membres ({memberCount})
-                      </p>
-                      <div className="space-y-1">
-                        {squad.participants?.map((participant) => (
-                          <div
-                            key={participant.id}
-                            className="flex items-center gap-2 text-sm p-1.5 rounded bg-background"
-                            data-testid={`participant-${participant.id}`}
-                          >
-                            <span className="font-medium">
-                              {participant.firstName} {participant.lastName}
-                            </span>
-                          </div>
-                        ))}
+                    {isExpanded && (
+                      <div className="border-t border-border px-3 py-2 text-sm">
+                        {team.members === 0 ? <p className="text-muted-foreground">Aucun membre</p> : (
+                          <ul className="space-y-1">
+                            {team.participants?.map(participant => (
+                              <li key={participant.id} data-testid={`participant-${participant.id}`}>
+                                {participant.firstName} {participant.lastName}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
-                    </div>
-                  )}
-
-                  {isExpanded && memberCount === 0 && (
-                    <div className="border-t p-3 bg-muted/30">
-                      <p className="text-sm text-muted-foreground italic text-center">
-                        Aucun membre dans cette squad
-                      </p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {squads.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Aucune squad disponible</p>
-                <p className="text-sm mt-1">
-                  Créez des squads pour ce créneau
-                </p>
-              </div>
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </ScrollArea>
+        </>
+      )}
     </div>
   );
 }

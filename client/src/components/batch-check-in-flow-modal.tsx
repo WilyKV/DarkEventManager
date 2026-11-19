@@ -222,6 +222,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                   <h4 className="font-semibold text-sm">{!participants[0]?.timeSlotId ? "2. " : ""}Sélectionner une squad</h4>
                   <SquadSelector
                     squads={squadsWithParticipants}
+                    players={participants}
                     selectedSquadId={selectedSquad}
                     onSquadSelect={setSelectedSquad}
                   />

@@ -45,6 +45,7 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
         try { if (response) message = JSON.parse(response[1]).message; } catch {}
         throw new Error(message || "Impossible d’enregistrer cette fiche. Vérifiez la connexion.");
       }
+      await queryClient.cancelQueries({ queryKey, exact: true });
       queryClient.setQueryData<CheckInRoster>(queryKey, old => {
         if (!old) return old;
         const previous = old.players.find(candidate => candidate.id === saved.id)?.details.squadId;

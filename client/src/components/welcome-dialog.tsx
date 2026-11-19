@@ -28,6 +28,7 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
   const [step, setStep] = useState<Step>("count");
   const [quantity, setQuantity] = useState("1");
   const [selection, setSelection] = useState<number[]>([]);
+  const [plannedTeams, setPlannedTeams] = useState<Map<number, number>>(() => new Map());
   const [savedCount, setSavedCount] = useState(0);
   const [search, setSearch] = useState("");
   const [type, setType] = useState<CheckInType | "all">("all");
@@ -54,13 +55,28 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
       terms.every(word => name.includes(word));
   });
   const current = byId.get(selection[savedCount]);
+  const groupToPlace = current && current.type !== "staff" && current.timeSlotId !== null
+    ? selection.slice(savedCount + 1).filter(id => {
+      const player = byId.get(id);
+      return player?.type === current.type && player.timeSlotId === current.timeSlotId &&
+        player.details.squadId === null && !plannedTeams.has(id);
+    })
+    : [];
 
-  async function save(details: CheckInDetails) {
+  async function save(details: CheckInDetails, keepTeamForGroup: boolean) {
     if (saving || !current) return;
     setSaving(true);
     setError("");
     try {
       await onSave(current, details);
+      const teamId = details.squadId;
+      if (keepTeamForGroup && teamId !== null) {
+        setPlannedTeams(previous => {
+          const planned = new Map(previous);
+          for (const id of groupToPlace) planned.set(id, teamId);
+          return planned;
+        });
+      }
       const next = savedCount + 1;
       setSavedCount(next);
       if (next === selection.length) setStep("done");
@@ -191,9 +207,12 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
           current ? (
             <WelcomeGuide key={`${current.id}:${current.revision}`} type={current.type} initialDetails={current.details}
               slot={slots.get(current.timeSlotId ?? 0)}
-              teams={roster.teams.filter(team => team.timeSlotId === current.timeSlotId || team.id === current.details.squadId)}
+              teams={roster.teams.filter(team => team.id === current.details.squadId ||
+                (team.timeSlotId === current.timeSlotId && (!team.type || team.type === current.type)))}
+              groupSize={groupToPlace.length + 1}
+              plannedTeamId={current.details.squadId === null ? plannedTeams.get(current.id) : undefined}
               summary={current.arrived && <p className="text-sm font-medium text-primary">Arrivée déjà enregistrée</p>}
-              onSave={details => { void save(details); }} saving={saving} error={error}
+              onSave={(details, keepTeamForGroup) => { void save(details, keepTeamForGroup); }} saving={saving} error={error}
               saveLabel={savedCount + 1 === selection.length ? "Enregistrer et terminer" : "Enregistrer et continuer"}
               onReload={onReload && (() => { setError(""); onReload(); })} />
           ) : (
@@ -209,6 +228,7 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
                 setStep("count");
                 setQuantity("1");
                 setSelection([]);
+                setPlannedTeams(new Map());
                 setSavedCount(0);
                 setSearch("");
                 setType("all");

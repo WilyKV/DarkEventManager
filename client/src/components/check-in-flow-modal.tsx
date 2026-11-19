@@ -197,6 +197,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                   <h4 className="font-semibold text-sm">{!participant.timeSlotId ? "2. " : ""}Sélectionner une squad</h4>
                   <SquadSelector
                     squads={squadsWithParticipants}
+                    players={[participant]}
                     selectedSquadId={selectedSquad}
                     onSquadSelect={setSelectedSquad}
                   />

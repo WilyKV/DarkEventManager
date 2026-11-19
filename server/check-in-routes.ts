@@ -43,7 +43,7 @@ export function registerCheckInRoutes(app: Express) {
       const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name,
         briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime, exitTime: timeSlots.exitTime })
         .from(timeSlots).where(inArray(timeSlots.type, types));
-      const teams = await tx.select({ id: squads.id, number: squads.number,
+      const teams = await tx.select({ id: squads.id, number: squads.number, type: squads.type,
         timeSlotId: squads.timeSlotId, maxMembers: squads.maxMembers, briefing: squads.briefing, members: count(participants.id) })
         .from(squads).leftJoin(participants, eq(participants.squadId, squads.id))
         .where(inArray(squads.type, types)).groupBy(squads.id);

@@ -152,6 +152,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
 
               <SquadSelector
                 squads={squadsWithParticipants}
+                players={[participant]}
                 selectedSquadId={selectedSquad}
                 onSquadSelect={setSelectedSquad}
               />

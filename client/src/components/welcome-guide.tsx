@@ -4,12 +4,13 @@ import { checkInProfiles, type ChecklistItem, type CheckInDetails, type CheckInR
 import { zombieChecklist } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { orderSquads, recommendSquad, SquadPlacementCard, squadPlaces } from "./squad-placement";
 
 const instructions = {
   squadExplained: {
     title: "Présenter l’équipe",
     icon: Users,
-    text: "Annoncez le numéro de l’équipe et indiquez où retrouver ses coéquipiers après le briefing.",
+    text: "Annoncez le numéro de l’équipe et où retrouver ses coéquipiers après le briefing.",
   },
   briefingExplained: {
     title: "Annoncer les horaires",
@@ -46,20 +47,25 @@ interface WelcomeGuideProps {
   initialDetails: CheckInDetails;
   slot?: WelcomeSlot;
   teams: WelcomeTeam[];
+  groupSize?: number;
+  plannedTeamId?: number;
   review?: boolean;
   summary?: ReactNode;
   saving: boolean;
   error: string;
   onReload?: () => void;
-  onSave: (details: CheckInDetails) => void;
+  onSave: (details: CheckInDetails, keepTeamForGroup: boolean) => void;
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, review, summary, saving, error, onReload, onSave, saveLabel }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel }: WelcomeGuideProps) {
   const items = checkInProfiles[type].checklist;
   const [index, setIndex] = useState(review ? items.length : 0);
   const [editing, setEditing] = useState(false);
-  const [details, setDetails] = useState(initialDetails);
+  const [details, setDetails] = useState(() => plannedTeamId === undefined ? initialDetails : {
+    ...initialDetails, squadId: plannedTeamId, checklist: { ...initialDetails.checklist, squadExplained: false },
+  });
+  const [keepTeamForGroup, setKeepTeamForGroup] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const item = items[index];
@@ -67,6 +73,14 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
   const complete = item !== undefined && Boolean(details.checklist[item]);
   const canConfirm = item !== "squadExplained" || details.squadId !== null;
   const selectedTeam = teams.find(team => team.id === details.squadId);
+  const newSeatNeeded = (id: number) => Number(id !== initialDetails.squadId);
+  const seatsForGroup = (id: number) => groupSize - 1 + newSeatNeeded(id);
+  const groupRecommendation = recommendSquad(teams, seatsForGroup);
+  const recommendation = groupRecommendation ?? (groupSize > 1 ? recommendSquad(teams, newSeatNeeded) : undefined);
+  const teamUnavailable = details.squadId !== null && details.squadId !== initialDetails.squadId &&
+    (!selectedTeam || squadPlaces(selectedTeam) === 0);
+  const fitsGroup = groupSize > 1 && Boolean(selectedTeam && squadPlaces(selectedTeam) >= seatsForGroup(selectedTeam.id));
+  const groupUnavailable = keepTeamForGroup && groupSize > 1 && !fitsGroup;
 
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 0;
@@ -88,10 +102,19 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
     setEditing(false);
   }
 
+  function chooseTeam(squadId: number | null) {
+    if (details.squadId === squadId) return;
+    setKeepTeamForGroup(false);
+    setDetails(previous => ({
+      ...previous, squadId,
+      checklist: previous.checklist.squadExplained ? { ...previous.checklist, squadExplained: false } : previous.checklist,
+    }));
+  }
+
   return (
     <form className="flex min-h-0 flex-col" onSubmit={event => {
       event.preventDefault();
-      if (!stage && !saving) onSave(details);
+      if (!stage && !saving && !teamUnavailable && !groupUnavailable) onSave(details, keepTeamForGroup && fitsGroup);
     }}>
       {items.length > 0 && (
         <div className="shrink-0 space-y-1 pb-3">
@@ -122,22 +145,36 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
             </div>
             <p className="text-sm leading-relaxed text-foreground">{stage.text}</p>
             {item === "squadExplained" && (
-              <label className="block space-y-1.5 text-sm font-medium">Équipe
-                <select className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={details.squadId ?? ""} onChange={event => {
-                    const squadId = event.target.value ? Number(event.target.value) : null;
-                    setDetails(previous => ({
-                      ...previous, squadId,
-                      checklist: previous.checklist.squadExplained ? { ...previous.checklist, squadExplained: false } : previous.checklist,
-                    }));
-                  }}>
-                  <option value="">Sans équipe</option>
-                  {teams.map(team => {
-                    const full = team.maxMembers != null && team.members >= team.maxMembers && team.id !== initialDetails.squadId;
-                    return <option key={team.id} value={team.id} disabled={full}>Équipe {team.number}{full ? " (complète)" : ""}</option>;
-                  })}
-                </select>
-              </label>
+              <div className="space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-x-2">
+                  <p className="min-w-0 break-words text-sm font-semibold">{slot?.name ?? "Sans créneau"}</p>
+                  {details.squadId !== null && <Button type="button" variant="ghost" className="px-2 text-muted-foreground"
+                    onClick={() => chooseTeam(null)}>Sans équipe</Button>}
+                </div>
+                {teams.length === 0 ? <p className="text-sm text-muted-foreground">Aucune équipe disponible pour ce créneau.</p> : (
+                  <>
+                    {(!recommendation || groupSize > 1) && (
+                      <p className="text-sm text-muted-foreground">
+                        {!recommendation ? "Aucune place disponible. Vous pouvez continuer sans équipe." : groupRecommendation
+                          ? `${groupSize} personnes de ce créneau peuvent être placées ensemble.`
+                          : `Aucune équipe n’a assez de place pour les ${groupSize} personnes. Répartissez-les entre les équipes disponibles.`}
+                      </p>
+                    )}
+                    <ul aria-label="Équipes du créneau" className="space-y-2">
+                      {orderSquads(teams, newSeatNeeded, plannedTeamId ?? recommendation?.id).map(team => {
+                        const label = team.id === plannedTeamId ? "Choix du groupe"
+                          : team.id === recommendation?.id ? (groupRecommendation ? "Recommandée" : "Pour ce joueur") : undefined;
+                        return (
+                          <li key={team.id}>
+                            <SquadPlacementCard team={team} label={label} selected={team.id === details.squadId}
+                              disabled={squadPlaces(team) < newSeatNeeded(team.id)} onSelect={() => chooseTeam(team.id)} />
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+              </div>
             )}
             {item === "briefingExplained" && (
               <>
@@ -173,6 +210,9 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
               <p className="mt-1 break-words text-sm text-muted-foreground">
                 {slot?.name ?? "Sans créneau"}{type !== "staff" && (selectedTeam ? ` · Équipe ${selectedTeam.number}` : " · Sans équipe")}
               </p>
+              {keepTeamForGroup && fitsGroup && (
+                <p className="mt-1 text-sm text-muted-foreground">Équipe proposée aux {groupSize} personnes de ce créneau.</p>
+              )}
             </div>
             {summary}
             {items.length > 0 && (
@@ -201,6 +241,12 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
         )}
       </div>
       <div className="shrink-0 space-y-2 border-t border-border pt-3">
+        {(teamUnavailable || groupUnavailable) && (!stage || item === "squadExplained") && (
+          <p role="alert" className="text-sm text-destructive">
+            {teamUnavailable ? "Cette équipe n’a plus de place ou n’est plus disponible. Choisissez une autre équipe."
+              : "L’équipe n’a plus assez de place pour tout le groupe. Choisissez une autre équipe ou poursuivez individuellement."}
+          </p>
+        )}
         {error && (
           <div className="space-y-2">
             <p role="alert" className="text-sm text-destructive">{error}</p>
@@ -209,7 +255,14 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
         )}
         {stage && item ? (
           <>
-            <Button type="button" className="w-full" onClick={() => {
+            {item === "squadExplained" && groupSize > 1 && (fitsGroup || keepTeamForGroup) && (
+              <label className="flex min-h-11 items-center gap-2.5 rounded-lg bg-muted/45 px-3 py-2 text-sm font-medium">
+                <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={keepTeamForGroup}
+                  onChange={event => setKeepTeamForGroup(event.target.checked)} />
+                Proposer cette équipe aux {groupSize} personnes
+              </label>
+            )}
+            <Button type="button" className="w-full" disabled={item === "squadExplained" && (teamUnavailable || groupUnavailable)} onClick={() => {
               if (complete || !canConfirm) next();
               else mark(item, true);
             }}>
@@ -229,7 +282,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, review, summar
             )}
           </>
         ) : (
-          <Button type="submit" className="w-full whitespace-normal" loading={saving}>
+          <Button type="submit" className="w-full whitespace-normal" disabled={teamUnavailable || groupUnavailable} loading={saving}>
             {saving ? "Enregistrement…" : saveLabel}
           </Button>
         )}

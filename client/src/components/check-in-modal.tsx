@@ -139,6 +139,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
           {/* Squad Assignment */}
           <SquadSelector
             squads={filteredSquads}
+            players={[participant]}
             selectedSquadId={selectedSquad}
             onSquadSelect={setSelectedSquad}
           />

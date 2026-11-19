@@ -18,6 +18,7 @@ import { generateParticipantPDF } from "./pdf-service";
 import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
 import { childLogger } from "./logger";
 import { eventDayPath, eventDaySchema } from "@shared/event-day";
+import { dashboardReportsPath } from "@shared/dashboard";
 
 const routesLogger = childLogger('routes');
 const qrLogger = childLogger('qr-import');
@@ -962,6 +963,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Error fetching dashboard stats" });
     }
+  });
+
+  app.get(dashboardReportsPath, async (_req, res) => {
+    const { analyticsStartedAt } = await storage.getSyncConfig();
+    const stats = await storage.getDashboardStats(analyticsStartedAt ?? undefined);
+    res.json({ ...stats, startedAt: analyticsStartedAt ?? null });
+  });
+
+  app.post(`${dashboardReportsPath}/reset`, requireRole("admin"), checkSyncPermissions, async (_req, res) => {
+    const { analyticsStartedAt } = await storage.updateSyncConfig({ analyticsStartedAt: new Date() });
+    res.json({ startedAt: analyticsStartedAt });
   });
 
   // ===== EXPORT REPORTS =====

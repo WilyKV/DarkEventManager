@@ -38,32 +38,8 @@ import type {
   AuditLogWithUser,
   InsertServerEvent,
 } from "@shared/schema";
-// DashboardStats est déclaré ici pour éviter un import circulaire avec storage.ts
-export interface DashboardStats {
-  participants: {
-    total: number;
-    zombies: number;
-    survivors: number;
-    arrived: number;
-    pending: number;
-    arrivalRate: number;
-  };
-  squads: {
-    name: string;
-    type: string;
-    currentMembers: number;
-    maxMembers: number;
-  }[];
-  checklist: {
-    totalCompleted: number;
-    totalParticipants: number;
-    completionRate: number;
-  };
-  stock: {
-    shopItems: { name: string; stock: number; category: string }[];
-    mealItems: { name: string; stock: number; category: string }[];
-  };
-}
+import type { DashboardStats } from "@shared/dashboard";
+export type { DashboardStats } from "@shared/dashboard";
 
 // ---------------------------------------------------------------------------
 // Sous-interfaces
@@ -96,7 +72,7 @@ export interface IParticipantStorage {
   deleteSquad(id: number): Promise<void>;
 
   // Dashboard Stats
-  getDashboardStats(): Promise<DashboardStats>;
+  getDashboardStats(startedAt?: Date): Promise<DashboardStats>;
 
   // Squad Audit Log
   createSquadAuditLog(log: InsertSquadAuditLog): Promise<SquadAuditLog>;

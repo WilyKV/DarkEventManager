@@ -12,6 +12,8 @@ import { ProductManagement } from "@/components/product-management";
 import { MealProductManagement } from "@/components/meal-product-management";
 import { DemoDataManager } from "@/components/demo-data-manager";
 import { EventDaySettings } from "@/components/event-day-settings";
+import { EventBackupManager } from "@/components/event-backup-manager";
+import { AnalyticsSettings } from "@/components/analytics-settings";
 import { SyncModeManager } from "@/components/sync-mode-manager";
 import { UserManagement } from "@/components/user-management";
 import { AuditLogViewer } from "@/components/audit-log-viewer";
@@ -188,6 +190,8 @@ export default function AdminPage() {
         {/* Configuration Tab */}
         <TabsContent value="config" className="space-y-4">
           <EventDaySettings />
+          <EventBackupManager />
+          <AnalyticsSettings />
           <DemoDataManager />
           <SyncModeManager />
 
@@ -196,10 +200,11 @@ export default function AdminPage() {
 
           {/* Reset All Data Section */}
           <ResetDataSection
-            title="Réinitialisation globale"
-            description="Réinitialiser toutes les données de l'événement (ATTENTION : irréversible)"
+            title="Réinitialisation de l’événement"
+            description="Téléchargez et vérifiez une sauvegarde complète avant d’effacer les données de l’événement."
             options={[
-              { label: "Reset TOUTES les données", module: "all", description: "Supprime absolument tout" },
+              { label: "Réinitialiser les données de l’événement", module: "all",
+                description: "Les fiches, les équipes, les créneaux, la date, les achats, le catalogue et les remises seront effacés. Vos comptes permettent de vous reconnecter pour restaurer la sauvegarde." },
             ]}
           />
         </TabsContent>

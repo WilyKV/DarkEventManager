@@ -51,6 +51,7 @@ import {
 import { db } from "./db";
 import { eq, and, isNull, desc, inArray, isNotNull, max, sql } from "drizzle-orm";
 import type { IStorage, DashboardStats } from "./storage-interfaces";
+import { resetEventData } from "./event-backup-data";
 export type { IStorage, DashboardStats } from "./storage-interfaces";
 
 export class DatabaseStorage implements IStorage {
@@ -361,15 +362,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Dashboard Stats
-  async getDashboardStats(): Promise<DashboardStats> {
-    const allParticipants = await this.getParticipants();
+  async getDashboardStats(startedAt?: Date): Promise<DashboardStats> {
+    const roster = await this.getParticipants();
+    const inPeriod = (date: Date | null) => !startedAt || (date !== null && date >= startedAt);
+    const allParticipants = roster.filter(player => inPeriod(player.createdAt) || (player.arrived && inPeriod(player.arrivedAt)));
     const allSquads = await db.select().from(squads);
     const allShopItems = await this.getShopItems();
     const allMealItems = await this.getMealItems();
 
     const zombieCount = allParticipants.filter(p => p.type === "zombie").length;
     const survivorCount = allParticipants.filter(p => p.type === "survivant").length;
-    const arrivedCount = allParticipants.filter(p => p.arrived).length;
+    const staffCount = allParticipants.filter(p => p.type === "staff").length;
+    const arrivedCount = allParticipants.filter(p => p.arrived && inPeriod(p.arrivedAt)).length;
     
     const completedChecklist = allParticipants.filter(p => p.checklistCompleted).length;
 
@@ -378,13 +382,14 @@ export class DatabaseStorage implements IStorage {
       type: squad.type,
       currentMembers: allParticipants.filter(p => p.squadId === squad.id).length,
       maxMembers: squad.maxMembers ?? 0,
-    }));
+    })).filter(squad => !startedAt || squad.currentMembers > 0);
 
     return {
       participants: {
         total: allParticipants.length,
         zombies: zombieCount,
         survivors: survivorCount,
+        staff: staffCount,
         arrived: arrivedCount,
         pending: allParticipants.length - arrivedCount,
         arrivalRate: allParticipants.length > 0 
@@ -477,14 +482,7 @@ export class DatabaseStorage implements IStorage {
         break;
 
       case "all":
-        // Reset all data in proper order to respect foreign keys
-        await db.update(participants).set({ squadId: null, timeSlotId: null });
-        await db.delete(squadAuditLog);
-        await db.delete(squads);
-        await db.delete(participants);
-        await db.delete(timeSlots);
-        await db.delete(shopItems);
-        await db.delete(mealItems);
+        await resetEventData();
         break;
 
       default:

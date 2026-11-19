@@ -7,7 +7,6 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -35,7 +34,7 @@ export function ResetDataSection({
   description = "Supprimer définitivement les données (action irréversible)"
 }: ResetDataSectionProps) {
   const { toast } = useToast();
-  const [resetDialog, setResetDialog] = useState<{ module: string; type?: string; label: string } | null>(null);
+  const [resetDialog, setResetDialog] = useState<ResetOption | null>(null);
 
   // Reset mutation
   const resetMutation = useMutation({
@@ -48,7 +47,7 @@ export function ResetDataSection({
       if (!response.ok) throw new Error("Reset failed");
       return response.json();
     },
-    onSuccess: (_, variables) => {
+    onSuccess: () => {
       queryClient.invalidateQueries();
       toast({
         title: "Données réinitialisées",
@@ -81,12 +80,8 @@ export function ResetDataSection({
               <Button
                 key={index}
                 variant="destructive"
-                className={`w-full gap-2 ${option.module === "all" ? "md:col-span-2" : ""}`}
-                onClick={() => setResetDialog({ 
-                  module: option.module, 
-                  type: option.type,
-                  label: option.label 
-                })}
+                className={`w-full gap-2 whitespace-normal ${option.module === "all" ? "md:col-span-2" : ""}`}
+                onClick={() => setResetDialog(option)}
               >
                 <Trash2 className="w-4 h-4" />
                 {option.label}
@@ -97,32 +92,29 @@ export function ResetDataSection({
       </Card>
 
       {/* Reset Confirmation Dialog */}
-      <AlertDialog open={!!resetDialog} onOpenChange={(open) => !open && setResetDialog(null)}>
-        <AlertDialogContent>
+      <AlertDialog open={!!resetDialog} onOpenChange={open => { if (!open && !resetMutation.isPending) setResetDialog(null); }}>
+        <AlertDialogContent className="w-[calc(100%-1.25rem)] rounded-xl p-4 sm:p-6">
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-destructive" />
               Confirmer la réinitialisation
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous absolument sûr de vouloir supprimer <strong>{resetDialog?.label}</strong> ?
+              {resetDialog?.description ?? "Cette action efface les données sélectionnées."}
               <br /><br />
-              <strong className="text-destructive">Cette action est irréversible.</strong>
-              <br /><br />
-              Il est fortement recommandé d'exporter vos données avant de procéder.
+              Vérifiez votre sauvegarde avant de continuer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
+            <AlertDialogCancel disabled={resetMutation.isPending}>Annuler</AlertDialogCancel>
+            <Button type="button" variant="destructive" loading={resetMutation.isPending}
               onClick={() => resetDialog && resetMutation.mutate({
                 module: resetDialog.module,
                 type: resetDialog.type
               })}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Confirmer la suppression
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { dashboardReportsPath, type DashboardReport } from "@shared/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, CheckCircle, Package, TrendingUp } from "lucide-react";
 import {
@@ -14,42 +15,18 @@ import {
   Legend,
 } from "recharts";
 
-interface DashboardStats {
-  participants: {
-    total: number;
-    zombies: number;
-    survivors: number;
-    arrived: number;
-    pending: number;
-    arrivalRate: number;
-  };
-  squads: {
-    name: string;
-    type: string;
-    currentMembers: number;
-    maxMembers: number;
-  }[];
-  checklist: {
-    totalCompleted: number;
-    totalParticipants: number;
-    completionRate: number;
-  };
-  stock: {
-    shopItems: { name: string; stock: number; category: string }[];
-    mealItems: { name: string; stock: number; category: string }[];
-  };
-}
-
 interface DashboardAnalyticsProps {
   /** Polling en ms (défaut : 5000). Passer 0 pour désactiver. */
   refetchInterval?: number;
 }
 
 export function DashboardAnalytics({ refetchInterval = 5000 }: DashboardAnalyticsProps) {
-  const { data: stats, isLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/dashboard/stats"],
+  const { data: stats, isLoading, isError } = useQuery<DashboardReport>({
+    queryKey: [dashboardReportsPath],
     refetchInterval,
   });
+
+  if (isError) return <p role="alert" className="text-sm text-destructive">Les analyses sont indisponibles.</p>;
 
   if (isLoading || !stats) {
     return (
@@ -66,6 +43,7 @@ export function DashboardAnalytics({ refetchInterval = 5000 }: DashboardAnalytic
   const participantTypeData = [
     { name: "Zombies",    value: stats.participants.zombies,   color: "hsl(var(--primary))" },
     { name: "Survivants", value: stats.participants.survivors, color: "hsl(var(--chart-3))" },
+    { name: "Staff", value: stats.participants.staff, color: "hsl(var(--chart-4))" },
   ];
 
   const arrivalData = [
@@ -85,6 +63,9 @@ export function DashboardAnalytics({ refetchInterval = 5000 }: DashboardAnalytic
 
   return (
     <div className="space-y-6">
+      {stats.startedAt && <p className="text-sm text-muted-foreground">
+        Activité depuis le {new Date(stats.startedAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}.
+      </p>}
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card
@@ -167,7 +148,7 @@ export function DashboardAnalytics({ refetchInterval = 5000 }: DashboardAnalytic
             <div className="text-3xl font-bold bg-gradient-to-br from-orange-600 to-orange-500 bg-clip-text text-transparent">
               {lowStockShop.length + lowStockMeals.length}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Articles à faible stock</p>
+            <p className="text-xs text-muted-foreground mt-1">Articles à faible stock actuellement</p>
           </CardContent>
         </Card>
       </div>

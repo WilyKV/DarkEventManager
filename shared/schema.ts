@@ -161,6 +161,7 @@ export const appConfig = pgTable("app_config", {
   masterDeviceName: text("master_device_name"), // Friendly name of the master device
   lastSyncAt: timestamp("last_sync_at"),
   eventDay: date("event_day", { mode: "string" }),
+  analyticsStartedAt: timestamp("analytics_started_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at").defaultNow(),
   serverLamportTs: integer("server_lamport_ts").notNull().default(0),
 });

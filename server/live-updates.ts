@@ -1,10 +1,12 @@
 import { demoDataPath } from "../shared/demo-data";
+import { eventBackupPath } from "../shared/event-backup";
 import type { RequestHandler } from "express";
 import { liveQueryPrefixes, matchesQueryPrefix, type LiveScope } from "../shared/live-updates";
 import { wsSyncServer } from "./websocket-sync";
 
 function mutationScope(method: string, path: string): LiveScope | undefined {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return;
+  if (path === `${eventBackupPath}/restore`) return "all";
   if (liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(path, prefix)) || path === "/api/zombie-offline/sync") return "roster";
   if (liveQueryPrefixes.sales.some(prefix => matchesQueryPrefix(path, prefix))) return "sales";
   if (liveQueryPrefixes.configuration.includes(path)) return "configuration";

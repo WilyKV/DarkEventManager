@@ -41,7 +41,7 @@ export default function ZombiePage() {
   ] : [];
 
   return (
-    <ManagementLayout title="Accueil zombie" subtitle="Arrivées, checklist et équipes" showScanButton
+    <ManagementLayout title="Accueil zombie" subtitle="Arrivées, checklist et équipes"
       actions={<Link href="/zombie/hors-ligne" className={buttonVariants({ variant: "outline" })}>Accueil hors ligne</Link>}>
       <Tabs defaultValue="participants" className="space-y-4">
         <TabsList className="grid h-auto w-full grid-cols-3 border border-border sm:inline-grid sm:w-auto">

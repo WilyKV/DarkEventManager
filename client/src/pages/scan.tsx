@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { ManagementLayout } from "@/components/management-layout";
 import { UnifiedScanModal } from "@/components/unified-scan-modal";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { QrCode } from "lucide-react";
 
 export default function ScanPage() {
@@ -17,7 +18,6 @@ export default function ScanPage() {
       title="Scanner"
       subtitle="Scanner les QR codes des participants"
       useHistoryBack={true}
-      showScanButton={true}
     >
       <Card>
         <CardHeader>
@@ -30,9 +30,7 @@ export default function ScanPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">
-            Utilisez le bouton "Scanner" dans l'en-tête pour ouvrir à nouveau la modale de scan.
-          </p>
+          <Button type="button" onClick={() => setModalOpen(true)}><QrCode aria-hidden /> Scanner un badge</Button>
         </CardContent>
       </Card>
 

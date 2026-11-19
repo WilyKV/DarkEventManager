@@ -165,8 +165,6 @@ export default function AdminPage() {
     <ManagementLayout
       title="Administration"
       subtitle="Comptes, données et réglages"
-      showScanButton={true}
-      scanLink="/scan"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList aria-label="Sections d’administration" className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border p-1 min-[480px]:grid-cols-4 xl:grid-cols-8">

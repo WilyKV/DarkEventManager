@@ -38,8 +38,6 @@ export default function SurvivantPage() {
     <ManagementLayout
       title="Survivants"
       subtitle="Gestion des participants survivants"
-      showScanButton={true}
-      scanLink="/scan?type=survivant"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-muted/50 border border-border/50">

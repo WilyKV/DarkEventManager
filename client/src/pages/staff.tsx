@@ -34,8 +34,6 @@ export default function StaffPage() {
     <ManagementLayout
       title="Staff"
       subtitle="Gestion des membres du staff"
-      showScanButton={true}
-      scanLink="/scan?type=staff"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="bg-muted/50 border border-border/50">

@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ArrowLeft, QrCode, Skull } from "lucide-react";
+import { ArrowLeft, Skull, UserCheck } from "lucide-react";
 import { PageTransition } from "./page-transition";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "./notification-center";
-import { UnifiedScanModal } from "./unified-scan-modal";
+import { OnlineWelcomeDialog } from "./online-welcome-dialog";
+import { checkInRoles } from "@shared/check-in";
 import { useAuth } from "@/lib/auth";
 import { SideRail } from "./side-rail";
 import { BottomNav } from "./bottom-nav";
@@ -16,9 +17,7 @@ interface ManagementLayoutProps {
   subtitle: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
-  showScanButton?: boolean;
   showHomeButton?: boolean; // Unused: kept for compatibility with boutique/repas pages
-  scanLink?: string;        // Deprecated: kept for compatibility
   useHistoryBack?: boolean; // Prop pour utiliser l'historique du navigateur
 }
 
@@ -27,11 +26,12 @@ export function ManagementLayout({
   subtitle,
   children,
   actions,
-  showScanButton = false,
   useHistoryBack = false,
 }: ManagementLayoutProps) {
-  const { visitor } = useAuth();
-  const [scanModalOpen, setScanModalOpen] = useState(false);
+  const { visitor, hasAnyRole } = useAuth();
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const canWelcome = hasAnyRole(checkInRoles);
+  const openWelcome = () => setWelcomeOpen(true);
 
   const handleBackClick = () => {
     if (useHistoryBack) {
@@ -78,20 +78,12 @@ export function ManagementLayout({
                 <ConnectionIndicator />
                 <SyncPendingBadge />
                 <NotificationCenter />
-                {showScanButton && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="hidden gap-2 border-primary/50 text-primary hover:bg-primary hover:text-primary-foreground md:inline-flex"
-                    title="Scanner QR Code"
-                    onClick={() => setScanModalOpen(true)}
-                  >
-                    <QrCode className="w-4 h-4" />
-                    Scanner
+                {canWelcome && (
+                  <Button type="button" className="hidden md:inline-flex" onClick={openWelcome}>
+                    <UserCheck aria-hidden /> Accueillir
                   </Button>
                 )}
                 {actions}
-
               </div>
             </header>
 
@@ -103,14 +95,8 @@ export function ManagementLayout({
         </div>
       </div>
 
-      {/* Bottom nav — mobile only */}
-      <BottomNav />
-
-      {/* Unified Scan Modal */}
-      <UnifiedScanModal
-        open={scanModalOpen}
-        onOpenChange={setScanModalOpen}
-      />
+      <BottomNav onWelcome={canWelcome ? openWelcome : undefined} />
+      {canWelcome && welcomeOpen && <OnlineWelcomeDialog onClose={() => setWelcomeOpen(false)} />}
     </div>
   );
 }

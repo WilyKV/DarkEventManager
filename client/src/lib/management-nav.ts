@@ -8,7 +8,7 @@ const modules = [
   { label: "Survivants", icon: Users, path: "/survivant", roles: ["admin", "staff_survivant"] },
   { label: "Boutique", icon: ShoppingBag, path: "/boutique", roles: ["admin", "staff_boutique"] },
   { label: "Repas", icon: Utensils, path: "/repas", roles: ["admin", "staff_repas"] },
-  { label: "Scanner", icon: QrCode, path: "/scan", roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
+  { label: "Scanner un badge", icon: QrCode, path: "/scan", roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
   { label: "Hors ligne", icon: WifiOff, path: "/zombie/hors-ligne", roles: zombieRoles },
   { label: "Staff", icon: UserCog, path: "/staff", roles: ["admin"] },
   { label: "Badges", icon: IdCard, path: "/badges", roles: ["admin"] },

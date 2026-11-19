@@ -6,6 +6,7 @@ import { publishLiveChanges } from "./live-updates";
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import { registerRoutes } from "./routes";
+import { registerCheckInRoutes } from "./check-in-routes";
 import { registerDemoDataRoutes } from "./demo-data-routes";
 import { registerZombieOfflineRoutes } from "./zombie-offline-routes";
 import { registerSyncRoutes } from "./sync-routes";
@@ -103,6 +104,7 @@ app.use(publishLiveChanges);
   // Register main routes
   registerDemoDataRoutes(app);
   registerZombieOfflineRoutes(app);
+  registerCheckInRoutes(app);
   const server = await registerRoutes(app);
 
   app.use("/api", (_req, res) => res.status(404).json({ message: "Route API introuvable" }));

@@ -10,14 +10,12 @@ interface SquadSelectorProps {
   squads: SquadWithRelations[];
   selectedSquadId: string;
   onSquadSelect: (squadId: string) => void;
-  participantType: "zombie" | "survivant";
 }
 
 export function SquadSelector({ 
   squads, 
   selectedSquadId, 
   onSquadSelect,
-  participantType 
 }: SquadSelectorProps) {
   const [expandedSquad, setExpandedSquad] = useState<number | null>(null);
 
@@ -29,11 +27,6 @@ export function SquadSelector({
     <div className="space-y-3">
       <Label className="text-base font-semibold">
         Attribution à une Squad
-        {participantType === "zombie" && (
-          <span className="text-sm text-muted-foreground font-normal ml-2">
-            (Maximum 8 squads par créneau)
-          </span>
-        )}
       </Label>
       
       <div className="space-y-2">

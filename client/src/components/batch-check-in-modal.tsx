@@ -213,7 +213,6 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
                     squads={squadsWithParticipants}
                     selectedSquadId={selectedSquad}
                     onSquadSelect={setSelectedSquad}
-                    participantType={participantType as "zombie" | "survivant"}
                   />
                 </div>
               )}

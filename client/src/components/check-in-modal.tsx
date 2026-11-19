@@ -141,7 +141,6 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
             squads={filteredSquads}
             selectedSquadId={selectedSquad}
             onSquadSelect={setSelectedSquad}
-            participantType={participant.type as "zombie" | "survivant"}
           />
 
           {/* Locker Number Display */}

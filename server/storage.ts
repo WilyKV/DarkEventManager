@@ -22,6 +22,7 @@ import {
   type InsertTimeSlot,
   type Squad,
   type InsertSquad,
+  type CreateSquadBatch,
   type SquadWithRelations,
   type ShopItem,
   type InsertShopItem,
@@ -48,7 +49,7 @@ import {
   type InsertServerEvent,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, isNull, desc, isNotNull, sql } from "drizzle-orm";
+import { eq, and, isNull, desc, inArray, isNotNull, max, sql } from "drizzle-orm";
 import type { IStorage, DashboardStats } from "./storage-interfaces";
 export type { IStorage, DashboardStats } from "./storage-interfaces";
 
@@ -213,6 +214,33 @@ export class DatabaseStorage implements IStorage {
       .values(insertSquad)
       .returning();
     return squad;
+  }
+
+  async createSquadBatch({ type, count, maxMembers, briefing, slots }: CreateSquadBatch): Promise<boolean> {
+    return db.transaction(async tx => {
+      await tx.execute(sql`SET LOCAL statement_timeout = '10s'`);
+      const ids = slots.map(slot => slot.id);
+      const validSlots = await tx.select({ id: timeSlots.id }).from(timeSlots)
+        .where(and(eq(timeSlots.type, type), inArray(timeSlots.id, ids))).for("share");
+      if (validSlots.length !== ids.length) return false;
+
+      // Serialize number allocation with other writes to squads, including single-team edits and imports.
+      await tx.execute(sql`LOCK TABLE squads IN SHARE ROW EXCLUSIVE MODE`);
+      const latest = await tx.select({ id: squads.timeSlotId, number: max(squads.number) }).from(squads)
+        .where(and(eq(squads.type, type), inArray(squads.timeSlotId, ids))).groupBy(squads.timeSlotId);
+      const lastNumbers = new Map(latest.map(({ id, number }) => [id, Math.max(0, number ?? 0)]));
+      if (slots.some(({ id, lastNumber }) => (lastNumbers.get(id) ?? 0) !== lastNumber)) return false;
+
+      const rows = sql.join(slots.map(({ id, lastNumber }) => sql`(${id}::integer, ${lastNumber}::integer)`), sql`, `);
+      await tx.execute(sql`
+        INSERT INTO ${squads} (number, type, time_slot_id, max_members, briefing)
+        SELECT requested.last_number + sequence.value, ${type}, requested.slot_id, ${maxMembers}, ${briefing}
+        FROM (VALUES ${rows}) AS requested(slot_id, last_number)
+        CROSS JOIN generate_series(1, ${count}::integer) AS sequence(value)
+        ORDER BY requested.slot_id, sequence.value
+      `);
+      return true;
+    }, { isolationLevel: "read committed" });
   }
 
   async updateSquad(id: number, data: Partial<InsertSquad>): Promise<Squad> {

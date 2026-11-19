@@ -18,7 +18,7 @@ export const timeSlots = pgTable("time_slots", {
 // Squads Table
 export const squads = pgTable("squads", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
-  number: integer("number").notNull(), // 1-8, can repeat across different timeslots
+  number: integer("number").notNull(), // Can repeat across different time slots
   type: text("type").notNull(), // 'zombie', 'survivant' or 'staff'
   timeSlotId: integer("time_slot_id").notNull().references(() => timeSlots.id),
   maxMembers: integer("max_members").default(8),
@@ -351,6 +351,16 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 export const insertServerEventSchema = createInsertSchema(serverEvents);
 export const insertTimeSlotSchema = createInsertSchema(timeSlots);
 export const insertSquadSchema = createInsertSchema(squads);
+export const createSquadBatchSchema = z.object({
+  type: z.enum(["zombie", "survivant"]),
+  count: z.int32().positive(),
+  maxMembers: z.int32().positive(),
+  briefing: z.string().nullable(),
+  slots: z.array(z.object({ id: z.int32().positive(), lastNumber: z.int32().nonnegative() })).min(1),
+}).strict().refine(({ slots, count }) =>
+  new Set(slots.map(slot => slot.id)).size === slots.length &&
+  slots.every(slot => slot.lastNumber + count <= 2_147_483_647),
+);
 export const insertParticipantSchema = createInsertSchema(participants).omit({ createdAt: true, arrivedAt: true, returnedAt: true });
 export const insertShopItemSchema = createInsertSchema(shopItems);
 export const insertMealItemSchema = createInsertSchema(mealItems);
@@ -379,6 +389,7 @@ export type InsertTimeSlot = typeof timeSlots.$inferInsert;
 
 export type Squad = typeof squads.$inferSelect;
 export type InsertSquad = typeof squads.$inferInsert;
+export type CreateSquadBatch = z.infer<typeof createSquadBatchSchema>;
 
 export type Participant = typeof participants.$inferSelect;
 export type InsertParticipant = typeof participants.$inferInsert;

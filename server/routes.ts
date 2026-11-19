@@ -9,7 +9,11 @@ import { z } from "zod";
 import ExcelJS from "exceljs";
 import crypto from "crypto";
 import pako from "pako";
-import { insertParticipantSchema, insertTimeSlotSchema, insertSquadSchema, insertShopItemSchema, insertMealItemSchema, createParticipantSchema, insertPurchaseSchema, type InsertTimeSlot, type InsertSquad, type InsertShopItem, type InsertMealItem, type InsertPurchase } from "@shared/schema";
+import {
+  createParticipantSchema, createSquadBatchSchema, insertMealItemSchema, insertParticipantSchema,
+  insertPurchaseSchema, insertShopItemSchema, insertSquadSchema, insertTimeSlotSchema,
+  type InsertMealItem, type InsertPurchase, type InsertShopItem, type InsertSquad, type InsertTimeSlot,
+} from "@shared/schema";
 import { generateParticipantPDF } from "./pdf-service";
 import { encryptQRPayload, decryptQRPayload, deriveKeyFromEnv } from "./qr-encryption";
 import { childLogger } from "./logger";
@@ -455,6 +459,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(squad);
     } catch (error) {
       res.status(400).json({ message: "Invalid squad data" });
+    }
+  });
+
+  app.post("/api/squads/batch", requireRole("admin"), async (req, res) => {
+    const batch = createSquadBatchSchema.safeParse(req.body);
+    if (!batch.success) {
+      return res.status(400).json({ message: "Les créneaux, le nombre de squads ou la capacité sont invalides." });
+    }
+    try {
+      if (!await storage.createSquadBatch(batch.data)) {
+        return res.status(409).json({ message: "La liste des squads ou des créneaux a changé. Vérifiez les numéros avant de réessayer." });
+      }
+      res.status(201).json({ created: batch.data.count * batch.data.slots.length });
+    } catch (error) {
+      routesLogger.error({ err: error }, "Échec de la création groupée des squads");
+      res.status(500).json({ message: "Impossible de créer les squads. Vérifiez la liste avant de réessayer." });
     }
   });
 

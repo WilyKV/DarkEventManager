@@ -199,7 +199,6 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                     squads={squadsWithParticipants}
                     selectedSquadId={selectedSquad}
                     onSquadSelect={setSelectedSquad}
-                    participantType={participant.type as "zombie" | "survivant"}
                   />
                 </div>
               )}

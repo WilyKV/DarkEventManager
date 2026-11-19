@@ -14,6 +14,7 @@ import type {
   InsertTimeSlot,
   Squad,
   InsertSquad,
+  CreateSquadBatch,
   SquadWithRelations,
   ShopItem,
   InsertShopItem,
@@ -89,6 +90,7 @@ export interface IParticipantStorage {
   getSquad(id: number): Promise<Squad | undefined>;
   getSquadsWithParticipants(type?: string, timeSlotId?: number): Promise<SquadWithRelations[]>;
   createSquad(squad: InsertSquad): Promise<Squad>;
+  createSquadBatch(batch: CreateSquadBatch): Promise<boolean>;
   updateSquad(id: number, squad: Partial<InsertSquad>): Promise<Squad>;
   deleteSquad(id: number): Promise<void>;
 

@@ -16,7 +16,7 @@ Le type discrimine le flux UI, les réductions applicables, et l'accès aux menu
 
 ### Concept de « Squad » (Équipe)
 
-Une **squad** est une petite équipe constituée de **3-8 participants** du même type, assignée à un **créneau horaire** et identifiée par un **numéro (1-8 par créneau)**.
+Une **squad** est une petite équipe constituée de **3-8 participants** du même type, assignée à un **créneau horaire** et identifiée par un **numéro au sein du créneau**.
 
 Les squads permettent :
 - **Briefing collectif** : Expliquer les règles à un groupe

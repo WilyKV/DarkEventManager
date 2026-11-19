@@ -154,7 +154,6 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                 squads={squadsWithParticipants}
                 selectedSquadId={selectedSquad}
                 onSquadSelect={setSelectedSquad}
-                participantType={participant.type as "zombie" | "survivant"}
               />
             </div>
           )}

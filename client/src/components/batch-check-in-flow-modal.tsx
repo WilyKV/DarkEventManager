@@ -224,7 +224,6 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                     squads={squadsWithParticipants}
                     selectedSquadId={selectedSquad}
                     onSquadSelect={setSelectedSquad}
-                    participantType={participantType}
                   />
                 </div>
               )}

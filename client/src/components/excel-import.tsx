@@ -139,7 +139,7 @@ export function ExcelImport({ type, module = "participants" }: ExcelImportProps)
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <input
               ref={fileInputRef}
               type="file"
@@ -153,7 +153,7 @@ export function ExcelImport({ type, module = "participants" }: ExcelImportProps)
               <Button
                 type="button"
                 variant="outline"
-                className="w-full gap-2"
+                className="w-full gap-2 whitespace-normal [overflow-wrap:anywhere]"
                 onClick={() => fileInputRef.current?.click()}
                 data-testid="button-select-file"
               >

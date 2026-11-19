@@ -57,11 +57,11 @@ export function ParticipantTypeSection({
   return (
     <>
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-        <TabsList className="bg-muted/30">
-          <TabsTrigger value="participants">Participants</TabsTrigger>
-          <TabsTrigger value="creneaux">Créneaux</TabsTrigger>
-          <TabsTrigger value="squads">Squads</TabsTrigger>
-          <TabsTrigger value="tout">Tout</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-4 bg-muted/30 sm:inline-flex sm:w-auto">
+          <TabsTrigger value="participants" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Participants</TabsTrigger>
+          <TabsTrigger value="creneaux" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Créneaux</TabsTrigger>
+          <TabsTrigger value="squads" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Squads</TabsTrigger>
+          <TabsTrigger value="tout" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Tout</TabsTrigger>
         </TabsList>
 
         {/* Participants Tab */}
@@ -151,7 +151,7 @@ export function ParticipantTypeSection({
 
         {/* Créneaux Tab */}
         <TabsContent value="creneaux" className="space-y-4 mt-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className={`text-lg font-semibold text-${color}-500`}>Créneaux {title}</h3>
               <p className="text-sm text-muted-foreground">{timeSlots.length} créneau(x)</p>
@@ -188,8 +188,8 @@ export function ParticipantTypeSection({
                     <Card key={slot.id} className={`border-${color}-500/20`}>
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start gap-2">
-                          <div className="flex-1">
-                            <p className="font-semibold text-sm">{slot.name}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="break-words font-semibold text-sm">{slot.name}</p>
                             <p className="text-xs text-muted-foreground mt-1">
                               Jeu: {slot.gameTime} — Sortie: {slot.exitTime}
                             </p>
@@ -197,22 +197,23 @@ export function ParticipantTypeSection({
                               Repas: {slot.mealTime}
                             </p>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex shrink-0 gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7"
+                              aria-label={`Modifier le créneau ${slot.name}`}
                               onClick={() => setEditingTimeSlot(slot)}
                             >
-                              <Pencil className="w-3 h-3" />
+                              <Pencil className="size-4" aria-hidden />
                             </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 text-destructive"
+                              className="text-destructive"
+                              aria-label={`Supprimer le créneau ${slot.name}`}
                               onClick={() => setDeletingTimeSlotId(slot.id)}
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash2 className="size-4" aria-hidden />
                             </Button>
                           </div>
                         </div>

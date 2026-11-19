@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { WelcomeTimeSlot } from "./time-slot-notes";
 
 export const zombieChecklist = {
   squadExplained: "Équipe présentée",
@@ -45,7 +46,7 @@ export type OfflineZombie = ZombieUpdate & {
 export type ZombieSnapshot = {
   ownerId: number;
   participants: OfflineZombie[];
-  timeSlots: { id: number; name: string; briefingTime: string; gameTime: string; mealTime?: string; exitTime?: string }[];
+  timeSlots: WelcomeTimeSlot[];
   squads: { id: number; number: number; timeSlotId: number; maxMembers: number | null; briefing?: string | null }[];
 };
 

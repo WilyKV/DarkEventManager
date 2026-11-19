@@ -3,12 +3,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { ParticipantWithRelations, SquadWithRelations } from "@shared/schema";
+import type { ParticipantWithRelations, SquadWithRelations, TimeSlot } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronLeft, CheckCircle, Users, Utensils, Paintbrush, MapPin, Loader2 } from "lucide-react";
 import { SquadSelector } from "./squad-selector";
+import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -30,7 +31,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
 
   const participantType = (participants[0]?.type || "zombie") as "zombie" | "survivant";
 
-  const { data: timeSlots = [] } = useQuery({
+  const { data: timeSlots = [] } = useQuery<TimeSlot[]>({
     queryKey: ["/api/time-slots", { type: participantType }],
     queryFn: async () => {
       const response = await fetch(`/api/time-slots?type=${participantType}`);
@@ -103,6 +104,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
   };
 
   const selectedSquadData = squadsWithParticipants.find(s => s.id.toString() === selectedSquad);
+  const slot = timeSlots.find(slot => slot.id === selectedTimeSlotId) ?? selectedSquadData?.timeSlot;
 
   const steps = [
     { num: 1, title: "Squad", icon: Users },
@@ -194,7 +196,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
                   <h4 className="font-semibold text-sm">1. Sélectionner un créneau horaire</h4>
                   <div className="grid grid-cols-1 gap-2">
-                    {timeSlots.map((slot: any) => (
+                    {timeSlots.map(slot => (
                       <Button
                         key={slot.id}
                         variant={selectedTimeSlotId === slot.id ? "default" : "outline"}
@@ -239,6 +241,8 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 <p className="text-muted-foreground">Détails du créneau et briefing</p>
               </div>
 
+              <WelcomeSchedule slot={slot} />
+
               {selectedSquadData ? (
                 <div className="space-y-4">
                   <div className="p-6 rounded-lg bg-primary/5 border-2 border-primary/20">
@@ -257,16 +261,6 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                             </Badge>
                           ))}
                         </div>
-                      </div>
-                    )}
-
-                    {selectedSquadData?.timeSlot && (
-                      <div className="border-t border-primary/20 pt-4 mt-4">
-                        <p className="text-sm font-semibold text-foreground mb-2">Créneau horaire :</p>
-                        <p className="text-lg">
-                          <span className="font-semibold">Briefing:</span> {selectedSquadData.timeSlot.briefingTime} •{" "}
-                          <span className="font-semibold">Jeu:</span> {selectedSquadData.timeSlot.gameTime}
-                        </p>
                       </div>
                     )}
 
@@ -309,11 +303,13 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                       <p className="text-sm text-muted-foreground mb-4">
                         Les participants doivent présenter leur <strong>badge numérique ou imprimé</strong> pour bénéficier de leur repas gratuit à la buvette.
                       </p>
-                      <div className="bg-background/80 p-3 rounded-md">
-                        <p className="text-sm">
-                          <strong>Horaires disponibles :</strong> À partir de 18h00 - <em>Allez-y dès que possible pour éviter l'affluence</em>
-                        </p>
-                      </div>
+                      {slot?.mealTime || slot?.welcomeNotes?.meal ? <WelcomeSchedule slot={slot} phases={["meal"]} /> : (
+                        <div className="bg-background/80 p-3 rounded-md">
+                          <p className="text-sm">
+                            <strong>Horaires disponibles :</strong> À partir de 18h00 - <em>Allez-y dès que possible pour éviter l'affluence</em>
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -429,6 +425,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                   </div>
                 )}
               </div>
+              <OtherWelcomeNote slot={slot} />
             </div>
           )}
         </div>

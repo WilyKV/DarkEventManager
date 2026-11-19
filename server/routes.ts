@@ -164,6 +164,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!participant) {
         return res.status(404).json({ message: "Participant not found" });
       }
+      if (!req.session?.user && participant.timeSlot) {
+        const { welcomeNotes, ...publicTimeSlot } = participant.timeSlot;
+        return res.json({ ...participant, timeSlot: publicTimeSlot });
+      }
       res.json(participant);
     } catch (error) {
       res.status(500).json({ message: "Error fetching participant" });
@@ -410,9 +414,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.patch("/api/time-slots/:id", requireRole("admin"), async (req, res) => {
+    const data = insertTimeSlotSchema.partial().safeParse(req.body);
+    if (!data.success) return res.status(400).json({ message: "Données du créneau invalides." });
     try {
       const id = parseInt(String(req.params.id), 10);
-      const timeSlot = await storage.updateTimeSlot(id, req.body);
+      const timeSlot = await storage.updateTimeSlot(id, data.data);
       res.json(timeSlot);
     } catch (error) {
       res.status(500).json({ message: "Error updating time slot" });
@@ -1723,7 +1729,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timeSlotIdMap.set(oldId, duplicate.id);
               stats.imported++;
             } else {
-              const newTimeSlot = await storage.createTimeSlot(timeSlotData);
+              const newTimeSlot = await storage.createTimeSlot(insertTimeSlotSchema.parse(timeSlotData));
               timeSlotIdMap.set(oldId, newTimeSlot.id);
               stats.imported++;
               qrLogger.debug({ oldId, newId: newTimeSlot.id }, 'Créneau horaire créé');

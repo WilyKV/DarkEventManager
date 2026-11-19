@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ParticipantWithRelations, SquadWithRelations } from "@shared/schema";
+import type { ParticipantWithRelations, SquadWithRelations } from "@shared/schema";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronLeft, CheckCircle, Users, Utensils, Paintbrush, MapPin, Loader2 } from "lucide-react";
 import { SquadSelector } from "./squad-selector";
+import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 
 interface SimpleCheckInModalProps {
   participant: ParticipantWithRelations;
@@ -81,6 +82,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
   };
 
   const selectedSquadData = squadsWithParticipants.find(s => s.id.toString() === selectedSquad);
+  const slot = selectedSquadData?.timeSlot ?? participant.timeSlot;
 
   const steps = [
     { num: 1, title: "Squad", icon: Users },
@@ -167,6 +169,8 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                 <p className="text-muted-foreground">Détails du créneau et briefing</p>
               </div>
 
+              <WelcomeSchedule slot={slot} />
+
               {selectedSquadData ? (
                 <div className="space-y-4">
                   <div className="p-6 rounded-lg bg-primary/5 border-2 border-primary/20">
@@ -174,16 +178,6 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                       <h4 className="text-xl font-bold text-primary">Squad {selectedSquadData.number}</h4>
                       <Badge className="bg-primary">{selectedSquadData.type}</Badge>
                     </div>
-
-                    {/* Timeslot hours */}
-                    {selectedSquadData.timeSlot && (
-                      <div className="mb-4">
-                        <p className="text-sm font-semibold text-foreground mb-2">Créneau horaire :</p>
-                        <p className="text-sm text-muted-foreground">
-                          Briefing: {selectedSquadData.timeSlot.briefingTime} • Jeu: {selectedSquadData.timeSlot.gameTime} • Sortie: {selectedSquadData.timeSlot.exitTime}
-                        </p>
-                      </div>
-                    )}
 
                     {/* Squad members */}
                     {selectedSquadData.participants && selectedSquadData.participants.length > 0 && (
@@ -224,6 +218,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Informations repas</h3>
               </div>
+              <WelcomeSchedule slot={slot} phases={["meal"]} />
               <div className="p-6 rounded-lg bg-chart-5/10 border-2 border-chart-5/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit + Bouteille d'eau</h4>
                 <p className="text-sm text-muted-foreground">
@@ -264,6 +259,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                   Disponible pour reconnaître le terrain avant le briefing.
                 </p>
               </div>
+              <OtherWelcomeNote slot={slot} />
             </div>
           )}
         </div>

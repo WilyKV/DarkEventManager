@@ -17,7 +17,9 @@ const roster: CheckInRoster = {
       revision: "sorti", details: { squadId: null, checklist: {} } },
   ],
   slots: [
-    { id: 1, name: "Vague 18 h", mealTime: "17:45", briefingTime: "18:00", gameTime: "19:00", exitTime: "22:00" },
+    { id: 1, name: "Vague 18 h", mealTime: "17:45", briefingTime: "18:00", gameTime: "19:00", exitTime: "22:00",
+      welcomeNotes: { meal: "Repas à la buvette.", briefing: "Rendez-vous sous le préau.",
+        game: "Départ au portail vert.", exit: "Retour par le parking.", other: "Récupérez vos sacs en repartant." } },
     { id: 2, name: "Vague 20 h", briefingTime: "20:00", gameTime: "21:00" },
   ],
   teams: [
@@ -69,12 +71,19 @@ describe("Accueil groupé", () => {
     expect(screen.getByText("18:00")).toBeVisible();
     expect(screen.getByText("22:00")).toBeVisible();
     expect(screen.getByText("Rendez-vous au portail nord.")).toBeVisible();
+    expect(screen.getByText("Rendez-vous sous le préau.")).toBeVisible();
+    expect(screen.getByText("Départ au portail vert.")).toBeVisible();
+    expect(screen.getByText("Retour par le parking.")).toBeVisible();
+    expect(screen.queryByText("Repas à la buvette.")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Autre" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Briefing expliqué" }));
     expect(screen.getByText("17:45")).toBeVisible();
+    expect(screen.getByText("Repas à la buvette.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
     await user.click(screen.getByRole("button", { name: "Bouteille d’eau remise" }));
     await user.click(screen.getByRole("button", { name: "Attente maquillage expliquée" }));
     await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
+    expect(within(screen.getByRole("region", { name: "Autre" })).getByText("Récupérez vos sacs en repartant.")).toBeVisible();
     expect(screen.getByRole("button", { name: /Remettre le ticket repas À faire/ })).toBeVisible();
     expect(screen.getByRole("button", { name: /Proposer une carte Facultatif/ })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
@@ -83,6 +92,7 @@ describe("Accueil groupé", () => {
     await user.click(screen.getByRole("button", { name: "Continuer sans équipe" }));
     await user.click(screen.getByRole("button", { name: "Briefing expliqué" }));
     await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
+    expect(screen.queryByRole("region", { name: "Autre" })).toBeNull();
     expect(screen.queryByRole("button", { name: /maquillage/ })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
     expect(await screen.findByRole("heading", { name: "Aline Borel" })).toBeVisible();

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { zombieChecklist, zombieChecklistSchema } from "./zombie-offline";
+import type { WelcomeTimeSlot } from "./time-slot-notes";
 
 export const checkInPath = "/api/check-in";
 export const checkInRosterPath = `${checkInPath}/roster`;
@@ -46,7 +47,7 @@ export type CheckInPlayer = {
 
 export type CheckInRoster = {
   players: CheckInPlayer[];
-  slots: { id: number; name: string; briefingTime: string; gameTime: string; mealTime?: string; exitTime?: string }[];
+  slots: WelcomeTimeSlot[];
   teams: { id: number; number: number; timeSlotId: number; type?: string; maxMembers: number | null; members: number; briefing?: string | null }[];
 };
 

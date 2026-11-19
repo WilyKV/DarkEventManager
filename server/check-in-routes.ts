@@ -41,7 +41,8 @@ export function registerCheckInRoutes(app: Express) {
       const players = (await tx.select().from(participants).where(inArray(participants.type, types)))
         .flatMap(row => isCheckInType(row.type) ? [asCheckInPlayer(row, row.type)] : []);
       const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name,
-        briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime, exitTime: timeSlots.exitTime })
+        briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime, exitTime: timeSlots.exitTime,
+        welcomeNotes: timeSlots.welcomeNotes })
         .from(timeSlots).where(inArray(timeSlots.type, types));
       const teams = await tx.select({ id: squads.id, number: squads.number, type: squads.type,
         timeSlotId: squads.timeSlotId, maxMembers: squads.maxMembers, briefing: squads.briefing, members: count(participants.id) })

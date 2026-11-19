@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Map, Paintbrush, Ticket, Users } from "lucide-react";
 import { checkInProfiles, type ChecklistItem, type CheckInDetails, type CheckInRoster, type CheckInType } from "@shared/check-in";
+import { timeSlotPhases } from "@shared/time-slot-notes";
 import { zombieChecklist } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { orderSquads, recommendSquad, SquadPlacementCard, squadPlaces } from "./squad-placement";
+import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 
 const instructions = {
   squadExplained: {
@@ -179,13 +181,10 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             {item === "briefingExplained" && (
               <>
                 {slot ? (
-                  <div className="space-y-2 rounded-lg bg-muted/60 p-3">
+                  <div className="space-y-2">
                     <p className="break-words text-sm font-semibold">{slot.name}</p>
-                    <dl className="grid gap-1.5 text-sm">
-                      <Time label="Briefing" value={slot.briefingTime} />
-                      <Time label="Début du jeu" value={slot.gameTime} />
-                      <Time label="Sortie" value={slot.exitTime} />
-                    </dl>
+                    <WelcomeSchedule slot={slot}
+                      phases={type === "survivant" && slot.welcomeNotes?.meal?.trim() ? timeSlotPhases : undefined} />
                   </div>
                 ) : <p className="text-sm text-muted-foreground">Aucun créneau attribué. Vérifiez l’horaire avec l’organisation.</p>}
                 {selectedTeam?.briefing?.trim() && (
@@ -196,9 +195,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 )}
               </>
             )}
-            {item === "mealTicketGiven" && slot?.mealTime && (
-              <dl className="rounded-lg bg-muted/60 p-3 text-sm"><Time label="Repas" value={slot.mealTime} /></dl>
-            )}
+            {item === "mealTicketGiven" && <WelcomeSchedule slot={slot} phases={["meal"]} />}
             {complete && <p className="flex items-center gap-1.5 text-sm font-medium text-primary"><Check className="size-4" aria-hidden /> Déjà confirmé</p>}
           </section>
         ) : (
@@ -214,6 +211,8 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 <p className="mt-1 text-sm text-muted-foreground">Équipe proposée aux {groupSize} personnes de ce créneau.</p>
               )}
             </div>
+            {type === "staff" && <WelcomeSchedule slot={slot} phases={timeSlotPhases} notesOnly />}
+            <OtherWelcomeNote slot={slot} />
             {summary}
             {items.length > 0 && (
               <ul aria-label="Étapes de l’accueil" className="divide-y divide-border rounded-lg border border-border">
@@ -288,15 +287,5 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
         )}
       </div>
     </form>
-  );
-}
-
-function Time({ label, value }: { label: string; value?: string }) {
-  if (!value) return null;
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold tabular-nums">{value}</dd>
-    </div>
   );
 }

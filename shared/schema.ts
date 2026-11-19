@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, json, jsonb, bigin
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+import { timeSlotNotesSchema, type TimeSlotNotes } from "./time-slot-notes";
 
 // Time Slots Table
 export const timeSlots = pgTable("time_slots", {
@@ -13,6 +14,7 @@ export const timeSlots = pgTable("time_slots", {
   briefingTime: text("briefing_time").notNull(),
   gameTime: text("game_time").notNull(),
   exitTime: text("exit_time").notNull(),
+  welcomeNotes: jsonb("welcome_notes").$type<TimeSlotNotes>(),
 });
 
 // Squads Table
@@ -349,7 +351,9 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 
 // Insert Schemas
 export const insertServerEventSchema = createInsertSchema(serverEvents);
-export const insertTimeSlotSchema = createInsertSchema(timeSlots);
+export const insertTimeSlotSchema = createInsertSchema(timeSlots, {
+  welcomeNotes: timeSlotNotesSchema.nullish(),
+});
 export const insertSquadSchema = createInsertSchema(squads);
 export const createSquadBatchSchema = z.object({
   type: z.enum(["zombie", "survivant"]),

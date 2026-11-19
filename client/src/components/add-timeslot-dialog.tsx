@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
 import {
   Dialog,
   DialogContent,
@@ -12,28 +12,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Clock } from "lucide-react";
-
-const timeSlotFormSchema = z.object({
-  name: z.string().min(1, "Le nom du créneau est obligatoire"),
-  mealTime: z.string().min(1, "L'heure du repas est obligatoire"),
-  briefingTime: z.string().min(1, "L'heure du briefing est obligatoire"),
-  gameTime: z.string().min(1, "L'heure de jeu est obligatoire"),
-  exitTime: z.string().min(1, "L'heure de sortie est obligatoire"),
-});
-
-type TimeSlotFormData = z.infer<typeof timeSlotFormSchema>;
+import { TimeSlotFields, timeSlotDialogClass, timeSlotFormSchema, timeSlotFormValues, type TimeSlotFormData } from "./time-slot-fields";
 
 interface AddTimeSlotDialogProps {
   type: "zombie" | "survivant" | "staff";
@@ -45,13 +28,7 @@ export function AddTimeSlotDialog({ type }: AddTimeSlotDialogProps) {
 
   const form = useForm<TimeSlotFormData>({
     resolver: zodResolver(timeSlotFormSchema),
-    defaultValues: {
-      name: "",
-      mealTime: "",
-      briefingTime: "",
-      gameTime: "",
-      exitTime: "",
-    },
+    defaultValues: timeSlotFormValues(),
   });
 
   const createMutation = useMutation({
@@ -62,12 +39,10 @@ export function AddTimeSlotDialog({ type }: AddTimeSlotDialogProps) {
       };
       return await apiRequest("POST", "/api/time-slots", timeSlotData);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ 
-        predicate: (query) => {
-          const key = query.queryKey[0];
-          return typeof key === "string" && key.startsWith("/api/time-slots");
-        }
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        predicate: ({ queryKey: [key] }) => typeof key === "string" &&
+          liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(key, prefix)),
       });
       toast({
         title: "Créneau ajouté",
@@ -98,106 +73,18 @@ export function AddTimeSlotDialog({ type }: AddTimeSlotDialogProps) {
           Ajouter {type === "staff" ? "une attribution" : "un créneau"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={timeSlotDialogClass}>
         <DialogHeader>
           <DialogTitle>
             Ajouter un créneau horaire ({type})
           </DialogTitle>
           <DialogDescription>
-            Remplissez les informations pour créer un nouveau créneau horaire.
+            Les précisions facultatives s’affichent à l’accueil des personnes de ce créneau.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom du créneau</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="Ex: Créneau 1, Matin, Après-midi..." 
-                      {...field}
-                      data-testid="input-timeslot-name"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="mealTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure du repas</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="time"
-                      {...field}
-                      data-testid="input-meal-time"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="briefingTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure du briefing</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="time"
-                      {...field}
-                      data-testid="input-briefing-time"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="gameTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure de jeu</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="time"
-                      {...field}
-                      data-testid="input-game-time"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="exitTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Heure de sortie</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="time"
-                      {...field}
-                      data-testid="input-exit-time"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <TimeSlotFields control={form.control} />
 
             <div className="flex justify-end gap-3 pt-2">
               <Button

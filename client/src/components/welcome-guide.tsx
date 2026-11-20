@@ -22,7 +22,7 @@ const instructions = {
   mealTicketGiven: {
     title: "Remettre le ticket repas",
     icon: Ticket,
-    text: "Donnez le ticket repas et indiquez qu’il est à utiliser à la buvette.",
+    text: "Donnez au joueur un ticket repas numéroté à utiliser à la buvette.",
   },
   waterBottleGiven: {
     title: "Donner la bouteille d’eau",
@@ -32,7 +32,7 @@ const instructions = {
   makeupWaitExplained: {
     title: "Orienter vers le maquillage",
     icon: Paintbrush,
-    text: "Montrez le stand de maquillage. Demandez au joueur d’y présenter son badge, puis d’attendre son tour en gardant l’heure du briefing en tête.",
+    text: "Le numéro inscrit sur le ticket repas indique l’ordre de passage au maquillage. À son tour, le joueur présente son badge au stand. Rappelez-lui l’heure du briefing.",
   },
   mapGiven: {
     title: "Proposer une carte",

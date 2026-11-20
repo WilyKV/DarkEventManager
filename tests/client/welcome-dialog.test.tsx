@@ -80,8 +80,8 @@ describe("Accueil groupé", () => {
     expect(screen.getByText("17:45")).toBeVisible();
     expect(screen.getByText("Repas à la buvette.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
+    await user.click(screen.getByRole("button", { name: "Ordre de passage au maquillage expliqué" }));
     await user.click(screen.getByRole("button", { name: "Bouteille d’eau remise" }));
-    await user.click(screen.getByRole("button", { name: "Attente maquillage expliquée" }));
     await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
     expect(within(screen.getByRole("region", { name: "Autre" })).getByText("Récupérez vos sacs en repartant.")).toBeVisible();
     expect(screen.getByRole("button", { name: /Remettre le ticket repas À faire/ })).toBeVisible();

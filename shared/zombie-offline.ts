@@ -11,7 +11,7 @@ export const zombieChecklist = {
   briefingExplained: "Briefing expliqué",
   mealTicketGiven: "Ticket repas remis",
   waterBottleGiven: "Bouteille d’eau remise",
-  makeupWaitExplained: "Attente maquillage expliquée",
+  makeupWaitExplained: "Ordre de passage au maquillage expliqué",
   mapGiven: "Carte remise (facultatif)",
 } as const;
 

@@ -12,7 +12,7 @@ export type ChecklistItem = keyof typeof zombieChecklist;
 export const checkInProfiles = {
   zombie: {
     label: "Zombie",
-    checklist: ["squadExplained", "briefingExplained", "mealTicketGiven", "waterBottleGiven", "makeupWaitExplained", "mapGiven"],
+    checklist: ["squadExplained", "briefingExplained", "mealTicketGiven", "makeupWaitExplained", "waterBottleGiven", "mapGiven"],
   },
   survivant: {
     label: "Survivant",

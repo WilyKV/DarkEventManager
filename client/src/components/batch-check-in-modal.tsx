@@ -283,7 +283,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
               <div className="p-6 rounded-lg bg-chart-5/10 border-2 border-chart-5/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit + Bouteille d'eau</h4>
                 <p className="text-sm text-muted-foreground">
-                  Badge requis pour le repas. Donner une bouteille d'eau à remplir aux jerricanes.
+                  Remettre un ticket repas numéroté à chaque participant. Badge requis à la buvette. Donner une bouteille d'eau à remplir aux jerricanes.
                 </p>
               </div>
             </div>
@@ -298,7 +298,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
               <div className="p-6 rounded-lg bg-chart-4/10 border-2 border-chart-4/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Badge requis</h4>
                 <p className="text-sm text-muted-foreground">
-                  Présenter le badge au stand maquillage. Patienter son tour.
+                  Le numéro inscrit sur le ticket repas indique l'ordre de passage. Se présenter au stand de maquillage avec son badge à son tour.
                 </p>
               </div>
             </div>

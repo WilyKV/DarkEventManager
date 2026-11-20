@@ -211,7 +211,19 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                   data-testid="checkbox-meal-ticket"
                 />
                 <Label htmlFor="check-meal" className="cursor-pointer leading-relaxed">
-                  <strong>Ticket repas:</strong> Donner un ticket repas à utiliser à la buvette (ouvre à 18h - allez-y dès que possible)
+                  <strong>Ticket repas:</strong> Donner un ticket repas numéroté à utiliser à la buvette (ouvre à 18h - allez-y dès que possible)
+                </Label>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="check-makeup"
+                  checked={!!checklist.makeup}
+                  onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, makeup: checked as boolean }))}
+                  data-testid="checkbox-makeup-explained"
+                />
+                <Label htmlFor="check-makeup" className="cursor-pointer leading-relaxed">
+                  <strong>Maquillage:</strong> Expliquer que le numéro inscrit sur le ticket repas indique l'ordre de passage au maquillage.
                 </Label>
               </div>
 
@@ -248,18 +260,6 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                 />
                 <Label htmlFor="check-briefing" className="cursor-pointer leading-relaxed">
                   <strong>Briefing:</strong> Expliquer qu'ils doivent être prêts pour le briefing. Quand ils ont terminé la course, ils reviennent au stand "Arrivée" pour qu'on coche qu'ils sont bien rentrés
-                </Label>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Checkbox
-                  id="check-makeup"
-                  checked={!!checklist.makeup}
-                  onCheckedChange={(checked) => setChecklist(prev => ({ ...prev, makeup: checked as boolean }))}
-                  data-testid="checkbox-makeup-explained"
-                />
-                <Label htmlFor="check-makeup" className="cursor-pointer leading-relaxed">
-                  <strong>Maquillage:</strong> Les laisser patienter en attendant leur tour de maquillage
                 </Label>
               </div>
 

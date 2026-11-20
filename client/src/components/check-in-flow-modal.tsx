@@ -272,7 +272,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Informations repas</h3>
-                <p className="text-muted-foreground">Badge et bouteille d'eau</p>
+                <p className="text-muted-foreground">Ticket repas et bouteille d'eau</p>
               </div>
 
               <div className="space-y-4">
@@ -282,7 +282,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                     <div className="flex-1">
                       <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le participant doit présenter son <strong>badge numérique ou imprimé</strong> pour bénéficier de son repas gratuit à la buvette.
+                        Le participant doit présenter son <strong>badge numérique ou imprimé</strong> pour bénéficier de son repas gratuit à la buvette. Remettez-lui un <strong>ticket repas numéroté</strong>.
                       </p>
                       <div className="bg-background/80 p-3 rounded-md">
                         <p className="text-sm">
@@ -325,9 +325,9 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                   <Paintbrush className="w-8 h-8 text-chart-4 flex-shrink-0 mt-1" />
                   <div className="flex-1 space-y-4">
                     <div>
-                      <h4 className="text-lg font-semibold text-foreground mb-3">Badge requis</h4>
+                      <h4 className="text-lg font-semibold text-foreground mb-3">Ordre de passage</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le participant doit présenter son <strong>badge numérique ou imprimé</strong> au stand de maquillage pour se faire maquiller.
+                        Le <strong>numéro inscrit sur le ticket repas</strong> indique l'ordre de passage au maquillage.
                       </p>
                     </div>
 
@@ -336,7 +336,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                         <strong>Instructions :</strong>
                       </p>
                       <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
-                        <li>Le participant doit patienter son tour pour le maquillage</li>
+                        <li>À son tour, le participant présente son badge numérique ou imprimé au stand de maquillage</li>
                         <li>Il doit être prêt pour le briefing à l'heure prévue</li>
                         <li>Une fois maquillé, il peut rejoindre sa squad</li>
                       </ul>

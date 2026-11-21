@@ -8,22 +8,28 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { WelcomeGuide } from "./welcome-guide";
+import { OfflineGroupWelcome, type OfflineArrival } from "./offline-group-welcome";
 
 type Step = "count" | "select" | "welcome" | "done";
 
-interface WelcomeDialogProps {
+type WelcomeDialogProps = {
   roster?: CheckInRoster;
   profileTypes?: readonly CheckInType[];
   unavailable?: ReactNode;
   onClose: () => void;
-  onSave: (player: CheckInPlayer, details: CheckInDetails) => Promise<void>;
   onReload?: () => void;
-}
+} & ({
+  onSave: (player: CheckInPlayer, details: CheckInDetails) => Promise<void>;
+  onSaveOfflineGroup?: never;
+} | {
+  onSave?: never;
+  onSaveOfflineGroup: (arrivals: OfflineArrival[]) => Promise<void>;
+});
 
 const selectClass = "min-h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:px-3";
 const nameOrder = new Intl.Collator("fr", { sensitivity: "base" });
 
-export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload }: WelcomeDialogProps) {
+export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps) {
   const countId = useId();
   const [step, setStep] = useState<Step>("count");
   const [quantity, setQuantity] = useState("1");
@@ -55,6 +61,7 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
       terms.every(word => name.includes(word));
   });
   const current = byId.get(selection[savedCount]);
+  const offlineArrivals = onSaveOfflineGroup && step === "welcome";
   const groupToPlace = current && current.type !== "staff" && current.timeSlotId !== null
     ? selection.slice(savedCount + 1).filter(id => {
       const player = byId.get(id);
@@ -64,7 +71,7 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
     : [];
 
   async function save(details: CheckInDetails, keepTeamForGroup: boolean) {
-    if (saving || !current) return;
+    if (saving || !current || !onSave) return;
     setSaving(true);
     setError("");
     try {
@@ -88,10 +95,12 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
   }
 
   const title = step === "done" ? "Accueil terminé"
-    : step === "welcome" && current ? `${current.firstName} ${current.lastName}` : "Accueillir";
+    : offlineArrivals ? (selection.length > 1 ? "Accueillir le groupe" : `${current?.firstName ?? ""} ${current?.lastName ?? ""}`.trim())
+      : step === "welcome" && current ? `${current.firstName} ${current.lastName}` : "Accueillir";
   const description = !roster ? "Choisissez des personnes à accueillir."
     : step === "count" ? "Combien de personnes se présentent ?"
       : step === "select" ? "Sélectionnez les personnes à accueillir ensemble."
+        : offlineArrivals ? `${selection.length} à accueillir · Enregistrement sur cet appareil`
         : step === "welcome" ? `Personne ${savedCount + 1} sur ${selection.length}${current ? ` · ${checkInProfiles[current.type].label}` : ""}`
           : `${savedCount} ${savedCount === 1 ? "personne accueillie" : "personnes accueillies"}.`;
 
@@ -206,6 +215,21 @@ export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable
               }}>Commencer l’accueil <ArrowRight /></Button>
             </div>
           </>
+        ) : offlineArrivals && onSaveOfflineGroup ? (
+          <OfflineGroupWelcome roster={roster} ids={selection} saving={saving} error={error}
+            onConfirm={async arrivals => {
+              setSaving(true);
+              setError("");
+              try {
+                await onSaveOfflineGroup(arrivals);
+                setSavedCount(arrivals.length);
+                setStep("done");
+              } catch (reason) {
+                setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
+              } finally {
+                setSaving(false);
+              }
+            }} />
         ) : step === "welcome" ? (
           current ? (
             <WelcomeGuide key={`${current.id}:${current.revision}`} type={current.type} initialDetails={current.details}

@@ -1,20 +1,23 @@
 import type { ReactNode } from "react";
-import { List, Menu, UserCheck } from "lucide-react";
+import { List, Menu, UserCheck, Users } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 const itemClass = "flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs font-medium hover:bg-muted disabled:opacity-45";
 
-export function OfflineNavigation({ ready, busy, onList, onWelcome, children }: {
+export function OfflineNavigation({ ready, busy, view, onList, onSquads, onWelcome, children }: {
   ready: boolean;
   busy: boolean;
   onList: () => void;
+  onSquads: () => void;
+  view: "list" | "squads";
   onWelcome: () => void;
   children: ReactNode;
 }) {
   return (
     <nav aria-label="Navigation hors ligne" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
-      <div className="mx-auto grid max-w-3xl grid-cols-3 gap-1 px-2 py-1">
-        <button type="button" className={itemClass} disabled={!ready} onClick={onList}><List className="size-5" aria-hidden /> Liste</button>
+      <div className="mx-auto grid max-w-3xl grid-cols-4 gap-1 px-2 py-1">
+        <button type="button" className={itemClass} disabled={!ready} aria-pressed={ready && view === "list"} onClick={onList}><List className="size-5" aria-hidden /> Liste</button>
+        <button type="button" className={itemClass} disabled={!ready} aria-pressed={ready && view === "squads"} onClick={onSquads}><Users className="size-5" aria-hidden /> Squads</button>
         <button type="button" className={`${itemClass} text-primary`} disabled={!ready || busy} onClick={onWelcome}>
           <UserCheck className="size-5" aria-hidden /> Accueillir
         </button>

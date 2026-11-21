@@ -137,10 +137,16 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
             continue;
           }
           const team = squadId == null ? undefined : teamById.get(squadId);
-          if (squadId !== row.squadId && squadId != null && (!team || team.type !== type || team.timeSlotId !== row.timeSlotId ||
-            (team.maxMembers != null && (teamCounts.get(squadId) ?? 0) >= team.maxMembers))) {
-            results.push({ id: update.id, error: "Cette équipe est pleine ou ne correspond plus au créneau." });
-            continue;
+          if (squadId !== row.squadId && squadId != null) {
+            if (!team || team.type !== type || team.timeSlotId !== row.timeSlotId) {
+              results.push({ id: update.id, error: "Cette équipe ne correspond plus au profil ou au créneau." });
+              continue;
+            }
+            const overflowConfirmed = !legacyTypes && update.allowOverCapacity === true;
+            if (!overflowConfirmed && team.maxMembers != null && (teamCounts.get(squadId) ?? 0) >= team.maxMembers) {
+              results.push({ id: update.id, error: "Cette équipe est pleine. Reprenez la fiche du serveur pour revoir l’affectation." });
+              continue;
+            }
           }
           const arrivalDate = arrivedAt ? new Date(arrivedAt) : null;
           if (arrivalDate && arrivalDate.getTime() > Date.now() + 10 * 60_000) {

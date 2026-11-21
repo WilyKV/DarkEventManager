@@ -50,17 +50,20 @@ interface WelcomeGuideProps {
   slot?: WelcomeSlot;
   teams: WelcomeTeam[];
   groupSize?: number;
+  /** All listed attendees share the chosen squad in the offline group guide. */
+  sharedArrival?: boolean;
+  allowCapacityOverride?: boolean;
   plannedTeamId?: number;
   review?: boolean;
   summary?: ReactNode;
   saving: boolean;
   error: string;
   onReload?: () => void;
-  onSave: (details: CheckInDetails, keepTeamForGroup: boolean) => void;
+  onSave: (details: CheckInDetails, keepTeamForGroup: boolean, overflowConfirmed: boolean) => void;
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false }: WelcomeGuideProps) {
   const items = checkInProfiles[type].checklist;
   const [index, setIndex] = useState(review ? items.length : 0);
   const [editing, setEditing] = useState(false);
@@ -68,6 +71,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
     ...initialDetails, squadId: plannedTeamId, checklist: { ...initialDetails.checklist, squadExplained: false },
   });
   const [keepTeamForGroup, setKeepTeamForGroup] = useState(false);
+  const [overflowTeamId, setOverflowTeamId] = useState<number>();
   const heading = useRef<HTMLHeadingElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const item = items[index];
@@ -76,11 +80,16 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   const canConfirm = item !== "squadExplained" || details.squadId !== null;
   const selectedTeam = teams.find(team => team.id === details.squadId);
   const newSeatNeeded = (id: number) => Number(id !== initialDetails.squadId);
-  const seatsForGroup = (id: number) => groupSize - 1 + newSeatNeeded(id);
+  const seatsForGroup = (id: number) => sharedArrival
+    ? groupSize * newSeatNeeded(id)
+    : groupSize - 1 + newSeatNeeded(id);
   const groupRecommendation = recommendSquad(teams, seatsForGroup);
   const recommendation = groupRecommendation ?? (groupSize > 1 ? recommendSquad(teams, newSeatNeeded) : undefined);
+  const seats = selectedTeam ? (sharedArrival ? seatsForGroup(selectedTeam.id) : newSeatNeeded(selectedTeam.id)) : 0;
+  const needsOverride = Boolean(selectedTeam && seats > squadPlaces(selectedTeam));
+  const overflowConfirmed = selectedTeam !== undefined && overflowTeamId === selectedTeam.id;
   const teamUnavailable = details.squadId !== null && details.squadId !== initialDetails.squadId &&
-    (!selectedTeam || squadPlaces(selectedTeam) === 0);
+    (!selectedTeam || (needsOverride && (!allowCapacityOverride || !overflowConfirmed)));
   const fitsGroup = groupSize > 1 && Boolean(selectedTeam && squadPlaces(selectedTeam) >= seatsForGroup(selectedTeam.id));
   const groupUnavailable = keepTeamForGroup && groupSize > 1 && !fitsGroup;
 
@@ -107,6 +116,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   function chooseTeam(squadId: number | null) {
     if (details.squadId === squadId) return;
     setKeepTeamForGroup(false);
+    setOverflowTeamId(undefined);
     setDetails(previous => ({
       ...previous, squadId,
       checklist: previous.checklist.squadExplained ? { ...previous.checklist, squadExplained: false } : previous.checklist,
@@ -116,7 +126,9 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   return (
     <form className="flex min-h-0 flex-col" onSubmit={event => {
       event.preventDefault();
-      if (!stage && !saving && !teamUnavailable && !groupUnavailable) onSave(details, keepTeamForGroup && fitsGroup);
+      if (!stage && !saving && !teamUnavailable && !groupUnavailable) {
+        onSave(details, keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
+      }
     }}>
       {items.length > 0 && (
         <div className="shrink-0 space-y-1 pb-3">
@@ -155,7 +167,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 </div>
                 {teams.length === 0 ? <p className="text-sm text-muted-foreground">Aucune équipe disponible pour ce créneau.</p> : (
                   <>
-                    {(!recommendation || groupSize > 1) && (
+                    {!allowCapacityOverride && (!recommendation || groupSize > 1) && (
                       <p className="text-sm text-muted-foreground">
                         {!recommendation ? "Aucune place disponible. Vous pouvez continuer sans équipe." : groupRecommendation
                           ? `${groupSize} personnes de ce créneau peuvent être placées ensemble.`
@@ -169,7 +181,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                         return (
                           <li key={team.id}>
                             <SquadPlacementCard team={team} label={label} selected={team.id === details.squadId}
-                              disabled={squadPlaces(team) < newSeatNeeded(team.id)} onSelect={() => chooseTeam(team.id)} />
+                              disabled={!allowCapacityOverride && squadPlaces(team) < newSeatNeeded(team.id)} onSelect={() => chooseTeam(team.id)} />
                           </li>
                         );
                       })}
@@ -240,7 +252,14 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
         )}
       </div>
       <div className="shrink-0 space-y-2 border-t border-border pt-3">
-        {(teamUnavailable || groupUnavailable) && (!stage || item === "squadExplained") && (
+        {allowCapacityOverride && selectedTeam && needsOverride && (!stage || item === "squadExplained") && (
+          <label className="flex items-start gap-2 rounded-lg border border-amber-500/50 p-2.5 text-sm">
+            <input type="checkbox" className="mt-0.5 size-5 shrink-0 accent-primary" checked={overflowConfirmed}
+              onChange={event => setOverflowTeamId(event.target.checked ? selectedTeam.id : undefined)} />
+            <span>Confirmer le dépassement · {selectedTeam.members + seats} / {selectedTeam.maxMembers} affectés</span>
+          </label>
+        )}
+        {(teamUnavailable || groupUnavailable) && (!stage || item === "squadExplained") && !(allowCapacityOverride && needsOverride) && (
           <p role="alert" className="text-sm text-destructive">
             {teamUnavailable ? "Cette équipe n’a plus de place ou n’est plus disponible. Choisissez une autre équipe."
               : "L’équipe n’a plus assez de place pour tout le groupe. Choisissez une autre équipe ou poursuivez individuellement."}
@@ -254,7 +273,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
         )}
         {stage && item ? (
           <>
-            {item === "squadExplained" && groupSize > 1 && (fitsGroup || keepTeamForGroup) && (
+            {item === "squadExplained" && !sharedArrival && groupSize > 1 && (fitsGroup || keepTeamForGroup) && (
               <label className="flex min-h-11 items-center gap-2.5 rounded-lg bg-muted/45 px-3 py-2 text-sm font-medium">
                 <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={keepTeamForGroup}
                   onChange={event => setKeepTeamForGroup(event.target.checked)} />

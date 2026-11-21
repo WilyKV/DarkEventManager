@@ -38,6 +38,7 @@ export const offlineUpdateSchema = z.object({
   identity: z.string().length(64),
   revision: z.string().length(64),
   state: checkInStateSchema,
+  allowOverCapacity: z.boolean().optional(),
 }).strict();
 
 export type OfflineCheckIn = z.infer<typeof checkInStateSchema>;

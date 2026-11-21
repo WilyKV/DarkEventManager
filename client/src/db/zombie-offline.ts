@@ -5,6 +5,8 @@ export type LocalOfflineSession = OfflineSnapshot & {
   preparedAt: string;
   pending: number[];
   conflicts: Record<number, string>;
+  /** Confirmed overflow, keyed by participant and tied to the selected squad. */
+  capacityOverrides?: Record<number, number>;
 };
 
 type LegacySession = Omit<LocalOfflineSession, "profileTypes" | "eventDay" | "participants" | "squads"> & {

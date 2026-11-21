@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
 import { WelcomeGuide } from "@/components/welcome-guide";
+import type { OfflineArrival } from "@/components/offline-group-welcome";
+import { OfflineSquadRoster } from "@/components/offline-squad-roster";
 import { checkInProfileLabels, checkInProfiles, checkInRoles, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { formatEventDay } from "@shared/event-day";
 import { OfflineNavigation } from "@/components/offline-navigation";
@@ -62,6 +64,7 @@ export default function OfflineCheckInPage() {
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
   const [search, setSearch] = useState("");
   const [profile, setProfile] = useState<CheckInType | "all">("all");
+  const [view, setView] = useState<"list" | "squads">("list");
   const [selectedId, setSelectedId] = useState<number>();
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -127,22 +130,66 @@ export default function OfflineCheckInPage() {
     return next;
   }
 
-  async function saveLocalCheckIn(active: UnlockedCopy, player: OfflineParticipant, state: OfflineCheckIn) {
-    if (JSON.stringify(player.state) === JSON.stringify(state)) return;
+  async function saveLocalCheckIns(active: UnlockedCopy, changes: {
+    player: OfflineParticipant; state: OfflineCheckIn; overflowConfirmed: boolean;
+  }[]) {
     const { data } = active;
+    const updates = new Map<number, OfflineCheckIn>();
+    const capacityOverrides = { ...data.capacityOverrides };
+    for (const { player, state, overflowConfirmed } of changes) {
+      if (JSON.stringify(player.state) === JSON.stringify(state)) continue;
+      updates.set(player.id, state);
+      if (overflowConfirmed && state.squadId !== null) capacityOverrides[player.id] = state.squadId;
+      else if (state.squadId !== player.state.squadId) delete capacityOverrides[player.id];
+    }
+    if (!updates.size) return;
     await persist(active, {
       ...data,
-      pending: Array.from(new Set([...data.pending, player.id])),
-      participants: data.participants.map(candidate => candidate.id === player.id ? { ...candidate, state } : candidate),
+      capacityOverrides,
+      pending: Array.from(new Set([...data.pending, ...updates.keys()])),
+      participants: data.participants.map(player => {
+        const state = updates.get(player.id);
+        return state ? { ...player, state } : player;
+      }),
     });
-    setNotice(`Fiche de ${player.firstName} ${player.lastName} enregistrée sur cet appareil.`);
+    const player = changes[0].player;
+    setNotice(changes.length === 1
+      ? `Fiche de ${player.firstName} ${player.lastName} enregistrée sur cet appareil.`
+      : `${changes.length} arrivées enregistrées sur cet appareil.`);
+  }
+
+  async function saveGroup(active: UnlockedCopy, arrivals: OfflineArrival[]) {
+    const saved = await run(async () => {
+      const now = new Date().toISOString();
+      const byId = new Map(active.data.participants.map(player => [player.id, player]));
+      const changes = arrivals.map(({ player, details, overflowConfirmed }) => {
+        const local = byId.get(player.id);
+        if (!local || local.returned || local.revision !== player.revision) {
+          throw new Error("Une fiche a changé. Vérifiez la sélection avant de valider le groupe.");
+        }
+        return { player: local, overflowConfirmed, state: {
+          arrived: true,
+          arrivedAt: local.state.arrivedAt ?? now,
+          squadId: details.squadId,
+          checklist: { ...local.state.checklist, ...details.checklist },
+        } };
+      });
+      await saveLocalCheckIns(active, changes);
+    });
+    if (!saved) throw new Error("Impossible d’enregistrer la sélection sur cet appareil. Réessayez.");
   }
 
   async function sync(active: UnlockedCopy) {
     let current = active;
     const pending = new Set(active.data.pending);
-    const updates = active.data.participants.filter(player => pending.has(player.id))
-      .map(({ id, identity, revision, state }) => ({ id, identity, revision, state }));
+    const byId = new Map(active.data.participants.map(player => [player.id, player]));
+    const updates = active.data.pending.flatMap(id => {
+      const player = byId.get(id);
+      if (!player) return [];
+      const { identity, revision, state } = player;
+      const allowOverCapacity = state.squadId !== null && active.data.capacityOverrides?.[id] === state.squadId;
+      return [{ id, identity, revision, state, ...(allowOverCapacity && { allowOverCapacity }) }];
+    });
     let sent = 0;
     for (let start = 0; start < updates.length; start += 50) {
       const batch = updates.slice(start, start + 50);
@@ -153,16 +200,18 @@ export default function OfflineCheckInPage() {
         throw new Error("Réponse du serveur incomplète. Les modifications restent sur cet appareil.");
       }
       const conflicts = { ...current.data.conflicts };
+      const capacityOverrides = { ...current.data.capacityOverrides };
       for (const result of results) {
         if ("error" in result) conflicts[result.id] = result.error;
         else {
           delete conflicts[result.id];
+          delete capacityOverrides[result.id];
           pending.delete(result.id);
           sent++;
         }
       }
       current = await persist(current, {
-        ...current.data, pending: Array.from(pending), conflicts,
+        ...current.data, pending: Array.from(pending), conflicts, capacityOverrides,
         participants: current.data.participants.map(player => {
           const result = resultsById.get(player.id);
           return result && "revision" in result ? { ...player, revision: result.revision } : player;
@@ -182,14 +231,16 @@ export default function OfflineCheckInPage() {
       if (snapshot.ownerId !== active.data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
       const live = snapshot.participants.find(p => p.id === player.id);
       const conflicts = { ...active.data.conflicts };
+      const capacityOverrides = { ...active.data.capacityOverrides };
       delete conflicts[player.id];
+      delete capacityOverrides[player.id];
       await persist(active, {
         ...active.data,
         eventDay: snapshot.eventDay,
         timeSlots: snapshot.timeSlots,
         squads: snapshot.squads,
         pending: active.data.pending.filter(id => id !== player.id),
-        conflicts,
+        conflicts, capacityOverrides,
         participants: active.data.participants.flatMap(p => p.id !== player.id ? [p] : live ? [live] : []),
       });
       setSelectedId(undefined);
@@ -210,9 +261,14 @@ export default function OfflineCheckInPage() {
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
   const pending = new Set(data?.pending);
   const canPrepare = hasAnyRole(checkInRoles);
-  const welcomeTeams = data && (welcomeOpen || selected) ? data.squads.map(team => ({
-    ...team, members: participants.filter(player => player.state.squadId === team.id).length,
-  })) : [];
+  const counts = new Map<number, number>();
+  if (welcomeOpen || selected) {
+    for (const { state } of participants) {
+      if (state.squadId !== null) counts.set(state.squadId, (counts.get(state.squadId) ?? 0) + 1);
+    }
+  }
+  const welcomeTeams = data && (welcomeOpen || selected)
+    ? data.squads.map(team => ({ ...team, members: counts.get(team.id) ?? 0 })) : [];
   const welcomeRoster: CheckInRoster | undefined = welcomeOpen && data ? {
     players: participants.map(player => ({
       id: player.id, firstName: player.firstName, lastName: player.lastName, type: player.type,
@@ -240,6 +296,7 @@ export default function OfflineCheckInPage() {
     setWelcomeOpen(false);
     setSearch("");
     setProfile("all");
+    setView("list");
     setError("");
     setNotice("");
   }
@@ -287,6 +344,7 @@ export default function OfflineCheckInPage() {
           {hasAnyRole(["admin"]) && data.profileTypes.length < 3 && (
             <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">Cette copie contient une partie des listes. Utilisez Menu → Actualiser la liste pour récupérer les autres profils.</p>
           )}
+          {view === "squads" ? <OfflineSquadRoster {...data} /> : <>
           <section id="offline-roster" aria-label="Liste des participants" className="space-y-2">
             {data.profileTypes.length > 1 && <div role="group" aria-label="Filtrer par profil" className="grid grid-flow-col auto-cols-fr gap-1.5">
               <Button type="button" className="px-1 text-xs sm:text-sm" aria-pressed={visibleProfile === "all"} variant={visibleProfile === "all" ? "default" : "outline"}
@@ -312,20 +370,10 @@ export default function OfflineCheckInPage() {
             ))}
           </ul>
           {matches.length === 0 && <p role="status" className="text-sm text-muted-foreground">Aucun participant trouvé.</p>}
+          </>}
           {welcomeOpen && (
-            <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)} onSave={async (player, details) => {
-              const saved = await run(async () => {
-                const local = data.participants.find(candidate => candidate.id === player.id && !candidate.returned);
-                if (!local) throw new Error("Cette fiche n’est plus disponible.");
-                await saveLocalCheckIn(unlocked, local, {
-                  arrived: true,
-                  arrivedAt: local.state.arrivedAt ?? new Date().toISOString(),
-                  squadId: details.squadId,
-                  checklist: { ...local.state.checklist, ...details.checklist },
-                });
-              });
-              if (!saved) throw new Error("Impossible d’enregistrer cette fiche sur cet appareil.");
-            }} />
+            <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)}
+              onSaveOfflineGroup={arrivals => saveGroup(unlocked, arrivals)} />
           )}
           {selected && (
             <CheckInDialog key={selected.id} player={selected}
@@ -334,8 +382,8 @@ export default function OfflineCheckInPage() {
                 (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
               conflict={data.conflicts[selected.id]} busy={busy} error={error}
               onClose={() => setSelectedId(undefined)} onRestore={online ? () => restoreFromServer(unlocked, selected) : undefined}
-              onSave={state => run(async () => {
-                await saveLocalCheckIn(unlocked, selected, state);
+              onSave={(state, overflowConfirmed) => run(async () => {
+                await saveLocalCheckIns(unlocked, [{ player: selected, state, overflowConfirmed }]);
                 setSelectedId(undefined);
               })} />
           )}
@@ -369,8 +417,8 @@ export default function OfflineCheckInPage() {
           ) : <p>Aucune copie locale sur cet appareil. Rétablissez la connexion et préparez la liste avant de passer en mode avion.</p>}
         </div>
       )}
-      <OfflineNavigation ready={Boolean(unlocked)} busy={busy}
-        onList={() => document.getElementById("offline-roster")?.scrollIntoView({ block: "start" })}
+      <OfflineNavigation ready={Boolean(unlocked)} busy={busy} view={view}
+        onList={() => setView("list")} onSquads={() => setView("squads")}
         onWelcome={() => setWelcomeOpen(true)}>
         {unlocked && <>
           <SheetClose asChild><Button type="button" variant="outline" disabled={busy || !online || !user || !pending.size}
@@ -398,7 +446,7 @@ function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, on
   busy: boolean;
   error: string;
   onClose: () => void;
-  onSave: (state: OfflineCheckIn) => void;
+  onSave: (state: OfflineCheckIn, overflowConfirmed: boolean) => void;
   onRestore?: () => void;
 }) {
   const [arrived, setArrived] = useState(true);
@@ -412,14 +460,14 @@ function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, on
           <DialogDescription>Modifications enregistrées sur cet appareil.</DialogDescription>
         </DialogHeader>
         <WelcomeGuide type={player.type} initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
-          slot={slot} teams={teams} review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
+          slot={slot} teams={teams} allowCapacityOverride review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
           saveLabel="Enregistrer sur cet appareil"
-          onSave={details => onSave({
+          onSave={(details, _, overflowConfirmed) => onSave({
             arrived,
             arrivedAt: arrived ? player.state.arrivedAt ?? new Date().toISOString() : null,
             squadId: details.squadId,
             checklist: { ...player.state.checklist, ...details.checklist },
-          })}
+          }, overflowConfirmed)}
           summary={<>
             <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm font-semibold">
               <input type="checkbox" className="size-5 accent-primary" checked={arrived} disabled={busy}

@@ -87,8 +87,8 @@ export class DatabaseStorage implements IStorage {
     return participant;
   }
 
-  async archiveParticipant(id: number): Promise<boolean> {
-    const [archived] = await db.update(participants)
+  async archiveParticipant(id: number, source: Pick<typeof db, "update"> = db): Promise<boolean> {
+    const [archived] = await source.update(participants)
       .set({ deletedAt: new Date(), squadId: null, timeSlotId: null })
       .where(and(eq(participants.id, id), isNull(participants.deletedAt)))
       .returning({ id: participants.id });

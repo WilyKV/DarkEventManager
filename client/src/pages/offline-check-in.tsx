@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, WifiOff } from "lucide-react";
+import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPlus, WifiOff } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,20 +8,22 @@ import { WelcomeDialog } from "@/components/welcome-dialog";
 import { WelcomeGuide } from "@/components/welcome-guide";
 import type { OfflineArrival } from "@/components/offline-group-welcome";
 import { OfflineSquadRoster } from "@/components/offline-squad-roster";
+import { sendOfflineChanges } from "@/db/offline-roster-sync";
+import { OfflineAddPlayer } from "@/components/offline-add-player";
 import { checkInProfileLabels, checkInProfiles, checkInRoles, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { formatEventDay } from "@shared/event-day";
 import { OfflineNavigation } from "@/components/offline-navigation";
 import { SheetClose } from "@/components/ui/sheet";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { useAuth } from "@/lib/auth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import {
   checkOfflineShell, getOfflineCopy, offlineKey, openOfflineCopy, removeOfflineCopy, storeOfflineCopy,
   type LocalOfflineSession,
 } from "@/db/zombie-offline";
 import {
-  normalizePlayerName, offlineCheckInApi,
-  type OfflineParticipant, type OfflineCheckIn, type OfflineSnapshot, type OfflineSyncResult,
+  emptyOfflineChecklist, normalizePlayerName, offlineCheckInApi,
+  type OfflineParticipant, type OfflineCheckIn, type OfflineSnapshot, type OfflineNewPlayer,
 } from "@shared/zombie-offline";
 
 type Copy = NonNullable<Awaited<ReturnType<typeof getOfflineCopy>>>;
@@ -67,6 +69,8 @@ export default function OfflineCheckInPage() {
   const [view, setView] = useState<"list" | "squads">("list");
   const [selectedId, setSelectedId] = useState<number>();
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<number>();
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [error, setError] = useState("");
@@ -108,7 +112,6 @@ export default function OfflineCheckInPage() {
         }
         await checkOfflineShell();
         const data = newLocalSession(await fetchSnapshot());
-        if (!data.participants.length) throw new Error("Importez au moins un participant avant de préparer cet appareil.");
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const key = await offlineKey(passphrase, salt);
         const envelope = await storeOfflineCopy(data, key, salt, undefined);
@@ -146,7 +149,7 @@ export default function OfflineCheckInPage() {
     await persist(active, {
       ...data,
       capacityOverrides,
-      pending: Array.from(new Set([...data.pending, ...updates.keys()])),
+      pending: Array.from(new Set([...data.pending, ...Array.from(updates.keys())])),
       participants: data.participants.map(player => {
         const state = updates.get(player.id);
         return state ? { ...player, state } : player;
@@ -179,49 +182,73 @@ export default function OfflineCheckInPage() {
     if (!saved) throw new Error("Impossible d’enregistrer la sélection sur cet appareil. Réessayez.");
   }
 
+  async function addPlayer(active: UnlockedCopy, player: OfflineNewPlayer) {
+    await run(async () => {
+      const id = active.data.participants.reduce((lowest, candidate) => Math.min(lowest, candidate.id), 0) - 1;
+      const requestId = crypto.randomUUID();
+      const local: OfflineParticipant = {
+        ...player, id, identity: requestId, revision: requestId, returned: false,
+        state: { arrived: false, arrivedAt: null, squadId: null, checklist: emptyOfflineChecklist },
+      };
+      await persist(active, {
+        ...active.data, participants: [...active.data.participants, local], pending: [...active.data.pending, id],
+        additions: { ...active.data.additions, [id]: { requestId } },
+      });
+      setAddOpen(false);
+      setView("list");
+      setProfile(player.type);
+      setSearch("");
+      setSelectedId(id);
+      setNotice("Nouvelle fiche enregistrée sur cet appareil.");
+    });
+  }
+
+  async function archivePlayer(active: UnlockedCopy, player: OfflineParticipant) {
+    await run(async () => {
+      const addition = active.data.additions?.[player.id];
+      if (addition?.started) throw new Error("Terminez l’envoi de cette fiche avant de la retirer.");
+      if (!addition && !canArchive) throw new Error("Cette suppression est réservée à l’administration.");
+      if (addition) {
+        const additions = { ...active.data.additions };
+        const conflicts = { ...active.data.conflicts };
+        const capacityOverrides = { ...active.data.capacityOverrides };
+        delete additions[player.id];
+        delete conflicts[player.id];
+        delete capacityOverrides[player.id];
+        await persist(active, {
+          ...active.data, additions, conflicts, capacityOverrides,
+          pending: active.data.pending.filter(id => id !== player.id),
+          participants: active.data.participants.filter(candidate => candidate.id !== player.id),
+        });
+      } else {
+        await persist(active, { ...active.data, archives: Array.from(new Set([...(active.data.archives ?? []), player.id])) });
+      }
+      setDeleteId(undefined);
+      setNotice(addition ? "Fiche locale supprimée." : "Fiche mise à la corbeille. Vous pouvez annuler avant l’envoi.");
+    });
+  }
+
+  function undoArchive(active: UnlockedCopy, id: number) {
+    void run(async () => {
+      if (active.data.archiveAttempts?.includes(id)) throw new Error("Relancez l’envoi pour vérifier l’état de cette suppression.");
+      await persist(active, { ...active.data, archives: active.data.archives?.filter(playerId => playerId !== id) });
+      setNotice("Fiche remise dans la liste.");
+    });
+  }
+
   async function sync(active: UnlockedCopy) {
     let current = active;
-    const pending = new Set(active.data.pending);
-    const byId = new Map(active.data.participants.map(player => [player.id, player]));
-    const updates = active.data.pending.flatMap(id => {
-      const player = byId.get(id);
-      if (!player) return [];
-      const { identity, revision, state } = player;
-      const allowOverCapacity = state.squadId !== null && active.data.capacityOverrides?.[id] === state.squadId;
-      return [{ id, identity, revision, state, ...(allowOverCapacity && { allowOverCapacity }) }];
-    });
-    let sent = 0;
-    for (let start = 0; start < updates.length; start += 50) {
-      const batch = updates.slice(start, start + 50);
-      const response = await apiRequest("POST", `${apiUrl}/sync`, { ownerId: current.data.ownerId, updates: batch }, AbortSignal.timeout(20_000));
-      const { results } = await response.json() as { results: OfflineSyncResult[] };
-      const resultsById = new Map(results.map(result => [result.id, result]));
-      if (results.length !== batch.length || batch.some(update => !resultsById.has(update.id))) {
-        throw new Error("Réponse du serveur incomplète. Les modifications restent sur cet appareil.");
-      }
-      const conflicts = { ...current.data.conflicts };
-      const capacityOverrides = { ...current.data.capacityOverrides };
-      for (const result of results) {
-        if ("error" in result) conflicts[result.id] = result.error;
-        else {
-          delete conflicts[result.id];
-          delete capacityOverrides[result.id];
-          pending.delete(result.id);
-          sent++;
-        }
-      }
-      current = await persist(current, {
-        ...current.data, pending: Array.from(pending), conflicts, capacityOverrides,
-        participants: current.data.participants.map(player => {
-          const result = resultsById.get(player.id);
-          return result && "revision" in result ? { ...player, revision: result.revision } : player;
-        }),
-      });
+    try {
+      const { sent, remaining } = await sendOfflineChanges(active.data, async data => {
+        current = await persist(current, data);
+        return current.data;
+      }, errorMessage);
+      if (remaining) setError(`${remaining} fiche(s) à revoir. Les modifications sont conservées sur cet appareil.`);
+      if (sent) setNotice(`${sent} fiche(s) confirmée(s) par le serveur.`);
+    } finally {
       void queryClient.invalidateQueries({ queryKey: ["/api/participants"] });
       void queryClient.invalidateQueries({ queryKey: ["/api/squads/with-participants"] });
     }
-    if (pending.size) setError(`${pending.size} fiche(s) à revoir. Les modifications sont conservées sur cet appareil.`);
-    if (sent) setNotice(`${sent} fiche(s) confirmée(s) par le serveur.`);
   }
 
   function restoreFromServer(active: UnlockedCopy, player: OfflineParticipant) {
@@ -249,7 +276,10 @@ export default function OfflineCheckInPage() {
   }
 
   const data = unlocked?.data;
-  const participants = data?.participants ?? [];
+  const archived = new Set(data?.archives);
+  const participants = data?.participants.filter(player => !archived.has(player.id)) ?? [];
+  const toDelete = participants.find(player => player.id === deleteId);
+  const canArchive = data?.canDeleteParticipants ?? (user?.id === data?.ownerId && hasAnyRole(["admin"]));
   const selected = participants.find(player => player.id === selectedId);
   const words = normalizePlayerName(search).trim().split(/\s+/).filter(Boolean);
   const visibleProfile = data?.profileTypes.some(type => type === profile) ? profile : "all";
@@ -259,7 +289,7 @@ export default function OfflineCheckInPage() {
   }).sort((a, b) => a.firstName.localeCompare(b.firstName, "fr") || a.lastName.localeCompare(b.lastName, "fr"));
   const slots = new Map(data?.timeSlots.map(slot => [slot.id, slot.name]));
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
-  const pending = new Set(data?.pending);
+  const pending = new Set([...(data?.pending ?? []), ...Array.from(archived)]);
   const canPrepare = hasAnyRole(checkInRoles);
   const counts = new Map<number, number>();
   if (welcomeOpen || selected) {
@@ -282,7 +312,7 @@ export default function OfflineCheckInPage() {
 
   function refreshList(active: UnlockedCopy) {
     void run(async () => {
-      if (active.data.pending.length) throw new Error("Envoyez les fiches locales avant d’actualiser la liste.");
+      if (active.data.pending.length || active.data.archives?.length) throw new Error("Envoyez les fiches locales avant d’actualiser la liste.");
       const snapshot = await fetchSnapshot();
       if (snapshot.ownerId !== active.data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
       await persist(active, newLocalSession(snapshot));
@@ -294,6 +324,8 @@ export default function OfflineCheckInPage() {
     setUnlocked(undefined);
     setSelectedId(undefined);
     setWelcomeOpen(false);
+    setAddOpen(false);
+    setDeleteId(undefined);
     setSearch("");
     setProfile("all");
     setView("list");
@@ -302,7 +334,7 @@ export default function OfflineCheckInPage() {
   }
 
   function deleteLocalCopy(active: UnlockedCopy) {
-    if (active.data.pending.length || !window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
+    if (active.data.pending.length || active.data.archives?.length || !window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
     void run(async () => {
       await removeOfflineCopy(active.envelope);
       lockList();
@@ -336,6 +368,9 @@ export default function OfflineCheckInPage() {
               {!online && <p className="mt-1 text-sm text-amber-300">Hors connexion · Vous pouvez continuer la saisie.</p>}
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button disabled={busy || !data.profileTypes.length} onClick={() => setAddOpen(true)}>
+                <UserPlus aria-hidden /> Ajouter un joueur
+              </Button>
               {online && pending.size > 0 && (!isLoading && !user
                 ? <Link href="/login" className={buttonVariants({ variant: "outline" })}>Se reconnecter pour envoyer</Link>
                 : <Button variant="outline" disabled={busy || isLoading} onClick={() => run(() => sync(unlocked))}>Envoyer au serveur</Button>)}
@@ -344,7 +379,7 @@ export default function OfflineCheckInPage() {
           {hasAnyRole(["admin"]) && data.profileTypes.length < 3 && (
             <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">Cette copie contient une partie des listes. Utilisez Menu → Actualiser la liste pour récupérer les autres profils.</p>
           )}
-          {view === "squads" ? <OfflineSquadRoster {...data} /> : <>
+          {view === "squads" ? <OfflineSquadRoster {...data} participants={participants} /> : <>
           <section id="offline-roster" aria-label="Liste des participants" className="space-y-2">
             {data.profileTypes.length > 1 && <div role="group" aria-label="Filtrer par profil" className="grid grid-flow-col auto-cols-fr gap-1.5">
               <Button type="button" className="px-1 text-xs sm:text-sm" aria-pressed={visibleProfile === "all"} variant={visibleProfile === "all" ? "default" : "outline"}
@@ -360,17 +395,66 @@ export default function OfflineCheckInPage() {
                 <div className="min-w-0">
                   <p className="break-words font-medium">{player.firstName} {player.lastName}</p>
                   <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · Équipe ${teams.get(player.state.squadId)}` : ""}</p>
+                  {player.id < 0 && <p className="text-xs text-muted-foreground">Créé sur cet appareil</p>}
                   {data.conflicts[player.id] && <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>}
                 </div>
-                <Button variant={player.state.arrived ? "outline" : "default"} disabled={busy || player.returned} onClick={() => setSelectedId(player.id)}
-                  aria-label={`${player.state.arrived ? "Revoir" : "Accueillir"} ${player.firstName} ${player.lastName}`}>
-                  {player.returned ? "Sorti" : player.state.arrived ? "Arrivé" : "Accueillir"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant={player.state.arrived ? "outline" : "default"} disabled={busy || player.returned} onClick={() => setSelectedId(player.id)}
+                    aria-label={`${player.state.arrived ? "Revoir" : "Accueillir"} ${player.firstName} ${player.lastName}`}>
+                    {player.returned ? "Sorti" : player.state.arrived ? "Arrivé" : "Accueillir"}
+                  </Button>
+                  {(player.id < 0 || canArchive) && <Button type="button" variant="ghost" size="icon" className="size-11 text-muted-foreground hover:text-destructive"
+                    disabled={busy} onClick={() => setDeleteId(player.id)}
+                    aria-label={`Supprimer la fiche de ${player.firstName} ${player.lastName}`}>
+                    <Trash2 aria-hidden />
+                  </Button>}
+                </div>
               </li>
             ))}
           </ul>
           {matches.length === 0 && <p role="status" className="text-sm text-muted-foreground">Aucun participant trouvé.</p>}
           </>}
+          {archived.size > 0 && (
+            <details className="rounded-xl border border-border bg-card p-3">
+              <summary className="cursor-pointer font-medium">Corbeille locale ({archived.size})</summary>
+              <ul className="mt-2 divide-y divide-border">
+                {data.participants.filter(player => archived.has(player.id)).map(player => (
+                  <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <div>
+                      <p>{player.firstName} {player.lastName}</p>
+                      {data.conflicts[player.id] && <p className="max-w-md text-amber-400">{data.conflicts[player.id]}</p>}
+                      {data.archiveAttempts?.includes(player.id) && <p className="text-muted-foreground">Relancez l’envoi pour vérifier la suppression.</p>}
+                    </div>
+                    <Button variant="outline" size="sm" disabled={busy || data.archiveAttempts?.includes(player.id)}
+                      onClick={() => undoArchive(unlocked, player.id)}>Remettre dans la liste</Button>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+          {addOpen && <OfflineAddPlayer data={data} busy={busy} error={error} onClose={() => setAddOpen(false)}
+            onSave={player => void addPlayer(unlocked, player)} />}
+          {toDelete && (
+            <Dialog open onOpenChange={open => { if (!open && !busy) setDeleteId(undefined); }}>
+              <DialogContent className="w-[calc(100%-1.25rem)] max-w-md rounded-xl">
+                <DialogHeader className="pr-6 text-left">
+                  <DialogTitle>Supprimer la fiche de {toDelete.firstName} {toDelete.lastName} ?</DialogTitle>
+                  <DialogDescription>
+                    {data.additions?.[toDelete.id]?.started
+                      ? "Terminez son envoi pour vérifier si la fiche existe sur le serveur."
+                      : toDelete.id < 0 ? "Cette fiche sera retirée de cet appareil."
+                        : "Elle sera retirée de la liste. Vous pourrez annuler dans la corbeille avant l’envoi au serveur."}
+                  </DialogDescription>
+                </DialogHeader>
+                {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button type="button" variant="outline" disabled={busy} onClick={() => setDeleteId(undefined)}>Annuler</Button>
+                  <Button type="button" variant="destructive" loading={busy} disabled={data.additions?.[toDelete.id]?.started}
+                    onClick={() => void archivePlayer(unlocked, toDelete)}>Supprimer la fiche</Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
           {welcomeOpen && (
             <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)}
               onSaveOfflineGroup={arrivals => saveGroup(unlocked, arrivals)} />
@@ -381,7 +465,7 @@ export default function OfflineCheckInPage() {
               teams={welcomeTeams.filter(team => team.id === selected.state.squadId ||
                 (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
               conflict={data.conflicts[selected.id]} busy={busy} error={error}
-              onClose={() => setSelectedId(undefined)} onRestore={online ? () => restoreFromServer(unlocked, selected) : undefined}
+              onClose={() => setSelectedId(undefined)} onRestore={online && selected.id > 0 ? () => restoreFromServer(unlocked, selected) : undefined}
               onSave={(state, overflowConfirmed) => run(async () => {
                 await saveLocalCheckIns(unlocked, [{ player: selected, state, overflowConfirmed }]);
                 setSelectedId(undefined);

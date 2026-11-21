@@ -41,6 +41,21 @@ export const offlineUpdateSchema = z.object({
   allowOverCapacity: z.boolean().optional(),
 }).strict();
 
+export const offlineNewPlayerSchema = z.object({
+  firstName: z.string().trim().min(1, "Saisissez le prénom.").max(100),
+  lastName: z.string().trim().min(1, "Saisissez le nom.").max(100),
+  type: z.enum(["zombie", "survivant", "staff"]),
+  timeSlotId: z.number().int().positive().nullable(),
+}).strict();
+
+export type OfflineNewPlayer = z.infer<typeof offlineNewPlayerSchema>;
+export type OfflinePlayerReceipt = Pick<OfflineParticipant, "id" | "identity" | "revision">;
+
+export const emptyOfflineChecklist: OfflineCheckIn["checklist"] = {
+  squadExplained: false, briefingExplained: false, mealTicketGiven: false,
+  waterBottleGiven: false, makeupWaitExplained: false, mapGiven: false,
+};
+
 export type OfflineCheckIn = z.infer<typeof checkInStateSchema>;
 type OfflineUpdate = z.infer<typeof offlineUpdateSchema>;
 export type OfflineParticipant = OfflineUpdate & {
@@ -52,10 +67,11 @@ export type OfflineParticipant = OfflineUpdate & {
 };
 export type OfflineSnapshot = {
   ownerId: number;
+  canDeleteParticipants?: boolean;
   profileTypes: CheckInType[];
   eventDay: string | null;
   participants: OfflineParticipant[];
-  timeSlots: WelcomeTimeSlot[];
+  timeSlots: (WelcomeTimeSlot & { type?: CheckInType })[];
   squads: { id: number; number: number; timeSlotId: number; type: CheckInType; maxMembers: number | null; briefing?: string | null }[];
 };
 

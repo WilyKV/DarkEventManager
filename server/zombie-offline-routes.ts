@@ -2,17 +2,18 @@ import { createHash } from "node:crypto";
 import type { Express } from "express";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { appConfig, participants, squads, timeSlots, squadAuditLog, type Participant } from "@shared/schema";
+import { appConfig, auditLogs, participants, squads, timeSlots, squadAuditLog, type Participant } from "@shared/schema";
 import {
-  offlineCheckInApi, offlineUpdateSchema, type OfflineParticipant, type OfflineCheckIn,
-  type OfflineSnapshot, type OfflineSyncResult,
+  offlineCheckInApi, offlineNewPlayerSchema, offlineUpdateSchema, type OfflineParticipant, type OfflineCheckIn,
+  type OfflineSnapshot, type OfflineSyncResult, type OfflinePlayerReceipt,
 } from "@shared/zombie-offline";
 import { checkInChecklistComplete, checkInProfiles, checkInRoles, isCheckInType, type ChecklistItem, type CheckInType } from "@shared/check-in";
 import { db } from "./db";
 import { allowedCheckInTypes } from "./check-in-routes";
-import { requireRole } from "./auth-middleware";
+import { hasSessionRole, requireRole } from "./auth-middleware";
 import { checkSyncPermissions } from "./sync-middleware";
 import { childLogger } from "./logger";
+import { storage } from "./storage";
 
 const logger = childLogger("offline-check-in");
 const syncSchema = z.object({
@@ -53,6 +54,7 @@ function offlineParticipant(p: Participant, type: CheckInType): OfflineParticipa
 export function registerOfflineCheckInRoutes(app: Express): void {
   registerOfflineProfileRoutes(app, offlineCheckInApi);
   registerOfflineProfileRoutes(app, "/api/zombie-offline", ["zombie"]);
+  registerOfflineRosterWrites(app);
 }
 
 function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: CheckInType[]) {
@@ -69,13 +71,15 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
           .from(squads).where(inArray(squads.type, profileTypes));
         return {
           ownerId: req.session.user!.id,
+          canDeleteParticipants: !legacyTypes && hasSessionRole(req.session.user!.roles, ["admin"]),
           profileTypes,
           eventDay: config?.day ?? null,
           participants: rows.flatMap(row => isCheckInType(row.type) ? [offlineParticipant(row, row.type)] : []),
-          timeSlots: await tx.select({ id: timeSlots.id, name: timeSlots.name,
+          timeSlots: (await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
             briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime,
             exitTime: timeSlots.exitTime, welcomeNotes: timeSlots.welcomeNotes })
-            .from(timeSlots).where(inArray(timeSlots.type, profileTypes)),
+            .from(timeSlots).where(inArray(timeSlots.type, profileTypes)))
+            .filter((slot): slot is typeof slot & { type: CheckInType } => isCheckInType(slot.type)),
           squads: teams.filter((team): team is typeof team & { type: CheckInType } => isCheckInType(team.type)),
         };
       }, { isolationLevel: "repeatable read", accessMode: "read only" });
@@ -170,6 +174,98 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
     } catch (error) {
       logger.error({ err: error }, "Impossible de synchroniser l’accueil hors ligne");
       res.status(500).json({ message: "Synchronisation interrompue. Vos modifications restent sur l’appareil." });
+    }
+  });
+}
+
+const rosterWritePath = `${offlineCheckInApi}/participants`;
+const ownerIdSchema = z.number().int().positive();
+const offlineCreateSchema = z.object({
+  ownerId: ownerIdSchema,
+  requestId: z.uuid(),
+  player: offlineNewPlayerSchema,
+}).strict();
+const offlineArchiveSchema = z.object({
+  ownerId: ownerIdSchema,
+  identity: z.string().length(64),
+  revision: z.string().length(64),
+}).strict();
+
+function registerOfflineRosterWrites(app: Express) {
+  app.post(rosterWritePath, requireRole(...checkInRoles), checkSyncPermissions, async (req, res) => {
+    const parsed = offlineCreateSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "La fiche à créer est invalide." });
+    const operator = req.session.user!;
+    const { ownerId, requestId, player } = parsed.data;
+    if (ownerId !== operator.id || !allowedCheckInTypes(operator.roles).includes(player.type)) {
+      return res.status(403).json({ message: "Ce compte ne peut pas créer cette fiche d’accueil." });
+    }
+
+    const marker = JSON.stringify({ offlineCheckIn: requestId });
+    const fingerprint = hash([player.firstName, player.lastName, player.type, player.timeSlotId]);
+    try {
+      const receipt = await db.transaction(async tx => {
+        // The creation and its receipt commit together. A retry receives the original revision.
+        await tx.execute(sql`LOCK TABLE participants IN SHARE ROW EXCLUSIVE MODE`);
+        const [prior] = await tx.select({ recordData: auditLogs.recordData }).from(auditLogs)
+          .where(and(eq(auditLogs.userId, ownerId), eq(auditLogs.tableName, "participants"),
+            eq(auditLogs.action, "CREATE"), eq(auditLogs.changes, marker))).limit(1);
+        if (prior?.recordData) {
+          const saved = JSON.parse(prior.recordData) as { fingerprint: string; receipt: OfflinePlayerReceipt };
+          return saved.fingerprint === fingerprint ? saved.receipt : null;
+        }
+        if (player.timeSlotId !== null) {
+          const [slot] = await tx.select({ id: timeSlots.id }).from(timeSlots)
+            .where(and(eq(timeSlots.id, player.timeSlotId), eq(timeSlots.type, player.type))).for("share");
+          if (!slot) return null;
+        }
+        const [saved] = await tx.insert(participants).values({
+          ...player, hasFreemeal: player.type === "zombie", secretCode: await storage.generateSecretCode(tx),
+        }).returning();
+        const { id, identity, revision } = offlineParticipant(saved, player.type);
+        const result = { id, identity, revision };
+        await tx.insert(auditLogs).values({
+          userId: ownerId, username: operator.username, action: "CREATE", tableName: "participants",
+          recordId: id, changes: marker, recordData: JSON.stringify({ fingerprint, receipt: result }),
+        });
+        return result;
+      });
+      if (!receipt) return res.status(409).json({ message: "Le créneau n’est plus disponible pour ce profil ou la fiche locale a changé après son premier envoi." });
+      res.status(201).json(receipt);
+    } catch (error) {
+      logger.error({ err: error }, "Impossible de créer la fiche hors ligne");
+      res.status(500).json({ message: "Création interrompue. La fiche reste sur cet appareil." });
+    }
+  });
+
+  app.delete(`${rosterWritePath}/:id`, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const id = z.coerce.number().int().positive().safeParse(req.params.id);
+    const parsed = offlineArchiveSchema.safeParse(req.body);
+    if (!id.success || !parsed.success) return res.status(400).json({ message: "La fiche à supprimer est invalide." });
+    const operator = req.session.user!;
+    if (parsed.data.ownerId !== operator.id) {
+      return res.status(403).json({ message: "Reconnectez-vous avec le compte qui a préparé la liste." });
+    }
+    try {
+      const archived = await db.transaction(async tx => {
+        await tx.execute(sql`LOCK TABLE participants IN SHARE ROW EXCLUSIVE MODE`);
+        const [row] = await tx.select().from(participants).where(eq(participants.id, id.data));
+        if (!row || !isCheckInType(row.type)) return false;
+        const current = offlineParticipant(row, row.type);
+        if (current.identity !== parsed.data.identity) return false;
+        if (row.deletedAt) return true;
+        if (current.revision !== parsed.data.revision) return false;
+        if (!await storage.archiveParticipant(row.id, tx)) return false;
+        await tx.insert(auditLogs).values({
+          userId: operator.id, username: operator.username, action: "DELETE", tableName: "participants", recordId: row.id,
+        });
+        return true;
+      });
+      if (!archived) return res.status(409).json({ message: "La fiche a changé depuis la préparation. Annulez la suppression locale et reprenez la fiche du serveur." });
+      res.sendStatus(204);
+    } catch (error) {
+      logger.error({ err: error }, "Impossible de supprimer la fiche hors ligne");
+      res.status(500).json({ message: "Suppression interrompue. Elle reste en attente sur cet appareil." });
     }
   });
 }

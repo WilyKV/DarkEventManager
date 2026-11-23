@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, participantCards, participants, squads, timeSlots } from "@shared/schema";
-import { cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
+import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
 import { checkInRoles } from "@shared/check-in";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -19,6 +19,7 @@ const codeCharacters = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const issueSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(500),
   pdf: z.enum(printModes).optional(),
+  layout: z.enum(cardPrintLayouts).optional(),
   origin: z.url().max(240).refine(url => {
     const parsed = new URL(url);
     return parsed.origin === url && ["https:", "http:"].includes(parsed.protocol);
@@ -133,9 +134,11 @@ export function registerParticipantCardRoutes(app: Express) {
     next();
   });
 
-  app.get(`${cardsPath}/template`, staff, async (_req, res) => {
-    const pdf = await renderParticipantCards([], "https://example.invalid", "complete");
-    res.attachment("modele-carte-85x55.pdf").type("application/pdf").send(pdf);
+  app.get(`${cardsPath}/template`, staff, async (req, res) => {
+    const layout = z.enum(cardPrintLayouts).safeParse(req.query.layout ?? "card");
+    if (!layout.success) return res.status(400).json({ message: "Format de carte invalide." });
+    const pdf = await renderParticipantCards([], "https://example.invalid", "complete", layout.data);
+    res.attachment(layout.data === "a4" ? "modele-cartes-a4.pdf" : "modele-carte-85x55.pdf").type("application/pdf").send(pdf);
   });
 
   app.post(`${cardsPath}/print`, staff, async (req, res) => {
@@ -161,8 +164,8 @@ export function registerParticipantCardRoutes(app: Express) {
     });
     if (!cards) return res.status(404).json({ message: "Une fiche est introuvable dans vos listes." });
     if (form.data.pdf && form.data.origin) {
-      const pdf = await renderParticipantCards(cards, form.data.origin, form.data.pdf);
-      return res.attachment(`cartes-${form.data.pdf}-85x55.pdf`).type("application/pdf").send(pdf);
+      const pdf = await renderParticipantCards(cards, form.data.origin, form.data.pdf, form.data.layout);
+      return res.attachment(`cartes-${form.data.pdf}-${form.data.layout === "a4" ? "a4" : "85x55"}.pdf`).type("application/pdf").send(pdf);
     }
     res.json(cards);
   });

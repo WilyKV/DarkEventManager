@@ -82,3 +82,18 @@ export function cardTheme(type: string) {
   if (type === "survivant") return { label: "SURVIVANT", accent: "#2563aa", dark: "#101e35", light: "#c5e0ff", zombie: false };
   return { label: "ZOMBIE", accent: "#dc273e", dark: "#360a14", light: "#ffc3cb", zombie: true };
 }
+
+
+export const cardPrintLayouts = ["a4", "card"] as const;
+export type CardPrintLayout = typeof cardPrintLayouts[number];
+
+const a4Columns = 2;
+export const cardSheet = { width: 210, height: 297, capacity: a4Columns * 5 } as const;
+
+export function cardSheetPosition(index: number, side: "front" | "back") {
+  const column = index % a4Columns;
+  const row = Math.floor(index / a4Columns);
+  const frontX = (cardSheet.width - 2 * cardLayout.width - 4) / 2 + column * (cardLayout.width + 4);
+  const y = (cardSheet.height - 5 * cardLayout.height - 8) / 2 + row * (cardLayout.height + 2);
+  return { x: side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width, y };
+}

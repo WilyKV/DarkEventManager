@@ -17,6 +17,6 @@ it("ouvre l’onglet Cartes avec le lien de téléchargement du modèle", () => 
   render(<QueryClientProvider client={client}><BadgesPage /></QueryClientProvider>);
 
   expect(screen.getByRole("heading", { name: "Cartes participants" })).toBeVisible();
-  expect(screen.getByRole("link", { name: /Modèle vierge/ })).toHaveAttribute("href", "/api/participant-cards/template");
+  expect(screen.getByRole("link", { name: /Modèle vierge/ })).toHaveAttribute("href", "/api/participant-cards/template?layout=a4");
   expect(screen.getByRole("button", { name: "Clara Martin" })).toBeVisible();
 });

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
-import { cardsPath } from "@shared/participant-card";
+import { cardsPath, type CardPrintLayout } from "@shared/participant-card";
 import { checkInTypes } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
@@ -21,6 +21,7 @@ export default function BadgesPage() {
   const [focused, setFocused] = useState<number>();
   const [checked, setChecked] = useState<number[]>([]);
   const [search, setSearch] = useState("");
+  const [layout, setLayout] = useState<CardPrintLayout>("a4");
   const [mode, setMode] = useState<PrintMode>("complete");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -45,12 +46,12 @@ export default function BadgesPage() {
     setError("");
     try {
       const response = await apiRequest("POST", `${cardsPath}/print`, {
-        ids: idsToPrint, pdf: mode, origin: window.location.origin,
+        ids: idsToPrint, pdf: mode, layout, origin: window.location.origin,
       });
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = `cartes-${mode}-85x55.pdf`;
+      link.download = `cartes-${mode}-${layout === "a4" ? "a4" : "85x55"}.pdf`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
@@ -64,11 +65,17 @@ export default function BadgesPage() {
       <TabsContent value="cards" className="space-y-4">
         <section aria-label="Impression des cartes" className="space-y-3 rounded-2xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-end gap-3">
-            <Button asChild variant="outline"><a href={`${cardsPath}/template`} download><Download /> Modèle vierge · 85 × 55 mm</a></Button>
+            <label className="grid gap-1 text-sm font-medium">Format du papier
+              <select value={layout} onChange={event => setLayout(event.target.value as CardPrintLayout)} className="min-h-9 rounded-md border border-input bg-background px-2">
+                <option value="a4">A4 · 10 cartes par feuille</option>
+                <option value="card">85 × 55 mm · carte individuelle</option>
+              </select>
+            </label>
+            <Button asChild variant="outline"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
             <label className="grid gap-1 text-sm font-medium">Faces à imprimer
               <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-9 rounded-md border border-input bg-background px-2">
                 <option value="complete">Carte complète recto verso</option>
-                <option value="front">Surimpression recto · noms et QR</option>
+                <option value="front">Surimpression recto · prénoms, initiales et QR</option>
                 <option value="back">Surimpression verso · code</option>
               </select>
             </label>
@@ -76,7 +83,9 @@ export default function BadgesPage() {
               <Printer /> Exporter la sélection ({ids.length})
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">PDF à taille réelle. Pour des cartes préimprimées, exportez le recto puis le verso avec la même sélection. Les deux fichiers conservent le même ordre. Faites un essai à 100 % avec une carte avant le tirage.</p>
+          <p className="text-sm text-muted-foreground">{layout === "a4"
+            ? "Pour les cartes complètes et le modèle vierge, imprimez en A4 portrait à 100 %, en recto verso avec retournement sur le bord long. Découpez en suivant les repères."
+            : "Imprimez à taille réelle. Utilisez la même sélection pour exporter les deux faces et faites un essai avant le tirage."}</p>
           {ids.length > 500 && <p role="status" className="text-sm">Sélectionnez jusqu’à 500 cartes par PDF.</p>}
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </section>

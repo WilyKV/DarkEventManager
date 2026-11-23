@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { cardArtwork, cardAssets, cardLayout, cardTheme, printedCardName, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -75,8 +75,23 @@ function printName(doc: PDFKit.PDFDocument, name: string) {
   });
 }
 
-export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode) {
-  const doc = new PDFDocument({ size: [pt(width), pt(height)], margin: 0, autoFirstPage: false });
+function trimMarks(doc: PDFKit.PDFDocument) {
+  doc.lineWidth(0.35).strokeColor("#222222");
+  for (const x of [0, width]) {
+    for (const y of [0, height]) {
+      const dx = x === 0 ? -1 : 1;
+      const dy = y === 0 ? -1 : 1;
+      doc.moveTo(pt(x + dx * 0.2), pt(y)).lineTo(pt(x + dx * 0.9), pt(y));
+      doc.moveTo(pt(x), pt(y + dy * 0.2)).lineTo(pt(x), pt(y + dy * 0.9));
+    }
+  }
+  doc.stroke();
+}
+
+export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode, layout: CardPrintLayout = "card") {
+  const a4 = layout === "a4";
+  const page = a4 ? cardSheet : cardLayout;
+  const doc = new PDFDocument({ size: [pt(page.width), pt(page.height)], margin: 0, autoFirstPage: false });
   const parts: Buffer[] = [];
   const output = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", chunk => parts.push(chunk));
@@ -84,7 +99,8 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
     doc.once("end", () => resolve(Buffer.concat(parts)));
   });
   const sides = mode === "complete" ? ["front", "back"] as const : [mode];
-  const entries = cards.length ? cards : [undefined];
+  const capacity = a4 ? cardSheet.capacity : 1;
+  const entries = cards.length ? cards : Array.from({ length: capacity }, () => undefined);
   try {
     const [regular, bold, artwork] = await Promise.all([
       findCardAsset("OpenSans-Regular.ttf"),
@@ -94,21 +110,32 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
     ]);
     doc.registerFont("CardRegular", regular);
     doc.registerFont("CardBold", bold);
-    for (const card of entries) {
-      const theme = cardTheme(card?.type ?? "zombie");
+    for (let start = 0; start < entries.length; start += capacity) {
+      const sheet = entries.slice(start, start + capacity);
       for (const side of sides) {
         doc.addPage();
-        if (mode === "complete" || !card) template(doc, side, theme, artwork);
-        if (!card) continue;
-        if (side === "front") {
-          printName(doc, printedCardName(card));
-          const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
-          const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
-          doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });
-        } else {
-          const code = `${card.code.slice(0, 5)} ${card.code.slice(5)}`;
-          doc.fillColor("#101828").font("CardBold").fontSize(16);
-          doc.text(code, (pt(width) - doc.widthOfString(code)) / 2, pt(codeY), { lineBreak: false });
+        for (let index = 0; index < sheet.length; index++) {
+          const card = sheet[index];
+          doc.save();
+          if (a4) {
+            const { x, y } = cardSheetPosition(index, side);
+            doc.translate(pt(x), pt(y));
+          }
+          if (mode === "complete" || !card) {
+            template(doc, side, cardTheme(card?.type ?? "zombie"), artwork);
+            if (a4) trimMarks(doc);
+          }
+          if (card && side === "front") {
+            printName(doc, printedCardName(card));
+            const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
+            const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
+            doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });
+          } else if (card) {
+            const code = `${card.code.slice(0, 5)} ${card.code.slice(5)}`;
+            doc.fillColor("#101828").font("CardBold").fontSize(16);
+            doc.text(code, (pt(width) - doc.widthOfString(code)) / 2, pt(codeY), { lineBreak: false });
+          }
+          doc.restore();
         }
       }
     }

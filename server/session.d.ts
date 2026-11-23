@@ -4,6 +4,7 @@ declare module 'express-session' {
   interface SessionData {
     staffRevision?: string;
     souvenirToken?: string;
+    souvenirRemembered?: boolean;
     user?: {
       id: number;
       username: string;

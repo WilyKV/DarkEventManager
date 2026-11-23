@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
 import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
 import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
@@ -55,17 +55,40 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
   const [visitorSummary, setSummary] = useState<ParticipantSouvenir>();
   const summary = adminId ? adminPreview.data : visitorSummary;
   const [code, setCode] = useState("");
+  const [remember, setRemember] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(!adminId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [erased, setErased] = useState(false);
 
+  useEffect(() => {
+    if (adminId) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`${view}?resume=1`, { cache: "no-store", signal: controller.signal });
+        if (response.ok) {
+          const data = await response.json() as ParticipantSouvenir;
+          if (!controller.signal.aborted) setSummary(data);
+        } else if (response.status === 410 && !controller.signal.aborted) {
+          setError("Cet espace souvenir a expiré.");
+        }
+      } catch {
+        // If the saved session cannot be reached, the code form remains available.
+      } finally {
+        if (!controller.signal.aborted) setCheckingSession(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [adminId, view]);
+
   async function unlock(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || checkingSession) return;
     setBusy(true);
     setError("");
     try {
-      const auth = await fetch(open, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code }) });
+      const auth = await fetch(open, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, remember }) });
       if (!auth.ok) throw new Error((await auth.json().catch(() => null))?.message ?? "Impossible d’ouvrir l’espace.");
       const response = await fetch(view, { cache: "no-store" });
       if (!response.ok) throw new Error("L’espace souvenir est indisponible.");
@@ -85,6 +108,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
     try {
       const response = await fetch(open, { method: "DELETE" });
       if (!response.ok) throw new Error();
+      setRemember(false);
     } catch {
       setError("Impossible de fermer la session sur le serveur. Réessayez.");
       setSummary(summary);
@@ -209,10 +233,15 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
           <span className="souvenir-form-icon" aria-hidden><LockKeyhole /></span>
           <label htmlFor="souvenir-code">Code au verso de la carte</label>
           <Input id="souvenir-code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="souvenir-code-hint"
-            value={code} onChange={event => setCode(event.target.value)} placeholder="10 caractères" required />
+            value={code} onChange={event => setCode(event.target.value)} placeholder="10 caractères" required disabled={checkingSession} />
           <p id="souvenir-code-hint" className="text-sm text-[#e1cdd5]">{souvenirCodeHint}.</p>
           {error && <p role="alert" className="souvenir-error">{error}</p>}
-          <Button type="submit" loading={busy}>Ouvrir mon espace <ArrowRight /></Button>
+          <label className="flex min-h-10 items-center gap-2 text-sm">
+            <input type="checkbox" className="size-4 shrink-0 accent-primary" checked={remember} disabled={checkingSession || busy}
+              onChange={event => setRemember(event.target.checked)} />
+            Retenir le code sur cet appareil
+          </label>
+          <Button type="submit" loading={busy || checkingSession}>{checkingSession ? "Vérification…" : "Ouvrir mon espace"} <ArrowRight /></Button>
         </form>
       </section>}
     </div>

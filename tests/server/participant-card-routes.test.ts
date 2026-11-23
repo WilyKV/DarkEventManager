@@ -98,6 +98,17 @@ describe("Espace souvenir", () => {
     expect(savePhotoWithdrawal).toHaveBeenCalledWith({ photo: null, photoRemovedAt: expect.any(Date) });
   });
 
+  it("reprend la session sur cet appareil uniquement avec l’accord du participant", async () => {
+    const agent = request.agent(makeApp());
+    expect((await agent.post(open).send({ code })).status).toBe(204);
+    expect((await agent.get(view)).status).toBe(200);
+    expect((await agent.get(`${view}?resume=1`)).status).toBe(401);
+    expect((await agent.post(open).send({ code, remember: true })).status).toBe(204);
+    expect((await agent.get(`${view}?resume=1`)).status).toBe(200);
+    expect((await agent.delete(open)).status).toBe(204);
+    expect((await agent.get(`${view}?resume=1`)).status).toBe(401);
+  });
+
   it("refuse une carte expirée même après ouverture de la session", async () => {
     const agent = request.agent(makeApp());
     expect((await agent.post(open).send({ code })).status).toBe(204);

@@ -338,6 +338,11 @@ export function registerParticipantCardRoutes(app: Express) {
     if (!req.session.user) await new Promise<void>((resolve, reject) =>
       req.session.regenerate(err => err ? reject(err) : resolve()));
     req.session.souvenirToken = card.token;
+    req.session.souvenirRemembered = req.body?.remember === true;
+    if (req.session.souvenirRemembered && !req.session.user) {
+      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+      req.session.cookie.maxAge = card.expiresAt ? Math.min(thirtyDays, card.expiresAt.getTime() - Date.now()) : thirtyDays;
+    }
     await new Promise<void>((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
     res.sendStatus(204);
   });
@@ -361,7 +366,8 @@ export function registerParticipantCardRoutes(app: Express) {
   });
 
   app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`], async (req, res) => {
-    if (!req.session.souvenirToken || req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    if (!req.session.souvenirToken || req.session.souvenirToken !== req.params.token ||
+        (req.query.resume === "1" && !req.session.souvenirRemembered)) return res.sendStatus(401);
     const card = await getCard(req.params.token);
     if (!card || (card.expiresAt && card.expiresAt <= new Date())) {
       return res.status(410).json({ message: "Cet espace souvenir a expiré." });
@@ -407,13 +413,17 @@ export function registerParticipantCardRoutes(app: Express) {
     if (status === 409) return res.status(409).json({ message: "La suppression complète est disponible après la clôture de l’événement." });
     if (status === 204) {
       delete req.session.souvenirToken;
+      delete req.session.souvenirRemembered;
       delete req.session.visitor;
     }
     return res.sendStatus(status);
   });
 
   app.delete(`${cardsPath}/open/:token`, (req, res) => {
-    if (req.session.souvenirToken === req.params.token) delete req.session.souvenirToken;
+    if (req.session.souvenirToken === req.params.token) {
+      delete req.session.souvenirToken;
+      delete req.session.souvenirRemembered;
+    }
     res.sendStatus(204);
   });
 }

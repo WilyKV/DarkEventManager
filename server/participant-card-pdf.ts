@@ -38,7 +38,7 @@ function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   doc.rect(pt(-bleed), pt(54), pt(width + 2 * bleed), pt(height - 54 + bleed)).fill(theme.accent);
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, hasQr: boolean, artwork?: string) {
   backdrop(doc, side, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
@@ -48,9 +48,11 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   if (side === "front") {
     doc.roundedRect(pt(4.5), pt(namePanelY), pt(48.5), pt(namePanelHeight), pt(2)).fill("#ffffff");
     doc.rect(pt(4.5), pt(namePanelY + 2), pt(0.6), pt(namePanelHeight - 4)).fill(theme.accent);
-    doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
-    doc.fillColor("#ffffff").font("CardBold").fontSize(7)
-      .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
+    if (hasQr) {
+      doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
+      doc.fillColor("#ffffff").font("CardBold").fontSize(7)
+        .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
+    }
     doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
     doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
     doc.fillColor("#ffffff").font("CardRegular").text("N° de passage", pt(28), pt(45.5), { lineBreak: false });
@@ -63,9 +65,11 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   doc.roundedRect(pt(13), pt(24), pt(59), pt(11), pt(2)).fill("#ffffff");
   doc.fillColor("#334155").font("CardRegular").fontSize(6.25)
     .text(souvenirCodeHint, pt(13), pt(24.45), { width: pt(59), align: "center" });
-  doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
-    "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
-    pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
+  if (hasQr) {
+    doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
+      "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
+      pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
+  }
 }
 
 function printName(doc: PDFKit.PDFDocument, name: string) {
@@ -128,7 +132,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {
-            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, artwork);
+            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, Boolean(card), artwork);
             if (a4) trimMarks(doc, index < a4CardColumns, index + a4CardColumns >= sheet.length);
           }
           if (card && side === "front") {

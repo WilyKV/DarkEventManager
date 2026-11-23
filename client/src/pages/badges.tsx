@@ -71,7 +71,7 @@ export default function BadgesPage() {
                 <option value="card">85 × 55 mm · carte individuelle</option>
               </select>
             </label>
-            <Button asChild variant="outline"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
+            <Button asChild variant="outline"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
             <label className="grid gap-1 text-sm font-medium">Faces à imprimer
               <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-9 rounded-md border border-input bg-background px-2">
                 <option value="complete">Carte complète recto verso</option>

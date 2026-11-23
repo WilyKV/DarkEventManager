@@ -1,3 +1,5 @@
+import { AdminSouvenirLink } from "./admin-souvenir-link";
+import { useAuth } from "@/lib/auth";
 import { ArrivalTime, ArrivalTimeOption } from "./arrival-time";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -20,6 +22,8 @@ interface ParticipantListProps {
 }
 
 export function ParticipantList({ participants, timeSlots, squads, type, onUpdate }: ParticipantListProps) {
+  const { hasAnyRole } = useAuth();
+  const canPreviewSouvenir = hasAnyRole(["admin"]);
   const [showArrivalTimes, setShowArrivalTimes] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<string>("all");
@@ -224,6 +228,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                   </div>
 
                   <div className="flex gap-2">
+                    {canPreviewSouvenir && <AdminSouvenirLink id={participant.id} name={`${participant.firstName} ${participant.lastName}`} />}
                     <Link href={`/badges?participantId=${participant.id}`}>
                       <Button
                         variant="outline"

@@ -220,6 +220,23 @@ export function registerParticipantCardRoutes(app: Express) {
     res.sendStatus(204);
   });
 
+  app.get([`${cardsPath}/admin/:id`, `${cardsPath}/admin/:id/photo`], requireRole("admin"), async (req, res) => {
+    const id = z.coerce.number().int().positive().safeParse(req.params.id);
+    if (!id.success) return res.sendStatus(404);
+    const [player] = await db.transaction(tx => cardPlayers(tx, [id.data]));
+    if (!player) return res.sendStatus(404);
+    const [card] = await db.select().from(participantCards).where(eq(participantCards.identity, identityOf(player)));
+    const config = await storage.getSyncConfig();
+    const expiresAt = card?.expiresAt ?? (config.eventClosedAt ? souvenirExpiry(config.eventClosedAt) : null);
+    if (expiresAt && expiresAt <= new Date()) return res.status(410).json({ message: "Cet espace souvenir a expiré." });
+    if (req.path.endsWith("/photo")) {
+      if (!card?.photo) return res.sendStatus(404);
+      return res.type("image/jpeg").send(Buffer.from(card.photo, "base64"));
+    }
+    const summary = card?.expiresAt ? card.summary : recap(player, config.eventDay);
+    return res.json({ ...summary, expiresAt: expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card?.photo) });
+  });
+
   app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`], async (req, res) => {
     if (!req.session.souvenirToken || req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
     const card = await getCard(req.params.token);

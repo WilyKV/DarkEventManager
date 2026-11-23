@@ -16,10 +16,14 @@ const code = "ABCD234567";
 const view = `${cardsPath}/view/${token}`;
 const open = `${cardsPath}/open/${token}`;
 
-function makeApp() {
+function makeApp(role?: string) {
   const app = express();
   app.use(express.json());
   app.use(session({ secret: "local-test-session-only", resave: false, saveUninitialized: false }));
+  if (role) app.use((req, _res, next) => {
+    req.session.user = { id: 1, username: "test", roles: [role] };
+    next();
+  });
   registerParticipantCardRoutes(app);
   return app;
 }
@@ -58,6 +62,17 @@ describe("Espace souvenir", () => {
       expect((await request(makeApp()).post(open).send({ code: input })).status).toBe(204);
     },
   );
+
+  it("réserve l’aperçu et sa photo aux administrateurs", async () => {
+    for (const path of [`${cardsPath}/admin/12`, `${cardsPath}/admin/12/photo`]) {
+      expect((await request(makeApp()).get(path)).status).toBe(401);
+      expect((await request(makeApp("staff_zombie")).get(path)).status).toBe(403);
+    }
+    const agent = request.agent(makeApp());
+    expect((await agent.post(open).send({ code })).status).toBe(204);
+    expect((await agent.get(`${cardsPath}/admin/12`)).status).toBe(401);
+    expect((await request(makeApp("admin")).get(`${cardsPath}/admin/invalide`)).status).toBe(404);
+  });
 
   it("refuse une carte expirée même après ouverture de la session", async () => {
     const agent = request.agent(makeApp());

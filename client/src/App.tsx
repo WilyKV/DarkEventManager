@@ -83,6 +83,9 @@ function Router() {
     <Switch>
       <Route path="/setup" component={SetupPage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/souvenir/admin/:id">
+        {params => <RequireAuth roles={["admin"]}><SouvenirPage params={params} /></RequireAuth>}
+      </Route>
       <Route path="/souvenir/:token" component={SouvenirPage} />
       <Route path="/visitor">
         <VisitorPage />

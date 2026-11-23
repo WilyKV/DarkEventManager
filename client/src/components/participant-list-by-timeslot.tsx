@@ -1,3 +1,5 @@
+import { AdminSouvenirLink } from "./admin-souvenir-link";
+import { useAuth } from "@/lib/auth";
 import { ArrivalTime, ArrivalTimeOption } from "./arrival-time";
 import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
@@ -32,6 +34,8 @@ export function ParticipantListByTimeslot({
   timeSlotLabel = "Créneau", // Default value
   allowEdit = true // Default: allow edit
 }: ParticipantListByTimeslotProps) {
+  const { hasAnyRole } = useAuth();
+  const canPreviewSouvenir = hasAnyRole(["admin"]);
   const { toast } = useToast();
   const [openTimeslots, setOpenTimeslots] = useState<Set<number>>(new Set());
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
@@ -260,6 +264,7 @@ export function ParticipantListByTimeslot({
                             onClick={() => (participant.returned ? undoExitMutation : exitMutation).mutate(participant.id)}>
                             <LogOut aria-hidden="true" />
                           </Button>
+                          {canPreviewSouvenir && <AdminSouvenirLink id={participant.id} name={fullName} />}
                           {allowEdit && (
                             <Button size="icon" variant="ghost" title="Modifier" aria-label={`Modifier — ${fullName}`}
                               onClick={() => setEditParticipant(participant)}>

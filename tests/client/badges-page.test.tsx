@@ -19,4 +19,5 @@ it("ouvre l’onglet Cartes avec le lien de téléchargement du modèle", () => 
   expect(screen.getByRole("heading", { name: "Cartes participants" })).toBeVisible();
   expect(screen.getByRole("link", { name: /Modèle vierge/ })).toHaveAttribute("href", "/api/participant-cards/template?layout=a4");
   expect(screen.getByRole("button", { name: "Clara Martin" })).toBeVisible();
+  expect(screen.getByRole("link", { name: /Voir l’espace souvenir.*Clara Martin/ })).toHaveAttribute("href", "/souvenir/admin/1");
 });

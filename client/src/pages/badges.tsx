@@ -1,3 +1,4 @@
+import { AdminSouvenirLink } from "@/components/admin-souvenir-link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
@@ -110,6 +111,7 @@ export default function BadgesPage() {
                     onChange={event => setChecked(event.target.checked ? [...checked, person.id] : checked.filter(id => id !== person.id))} />
                   <button type="button" aria-pressed={focused === person.id} className="min-h-12 flex-1 break-words px-2 text-left font-medium aria-pressed:text-primary"
                     onClick={() => setFocused(person.id)}>{person.firstName} {person.lastName}</button>
+                  {hasAnyRole(["admin"]) && <AdminSouvenirLink id={person.id} name={`${person.firstName} ${person.lastName}`} />}
                 </li>
               ))}
             </ul>

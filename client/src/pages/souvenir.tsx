@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
 import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
@@ -29,14 +30,25 @@ function SouvenirPortrait({ summary, src }: { summary: ParticipantSouvenir; src:
   </figure>;
 }
 
-export default function SouvenirPage({ params }: { params: { token: string } }) {
-  return <SouvenirSession key={params.token} token={params.token} />;
+export default function SouvenirPage({ params }: { params: { token?: string; id?: string } }) {
+  return <SouvenirSession key={params.id ? `admin:${params.id}` : params.token} token={params.token} adminId={params.id} />;
 }
 
-function SouvenirSession({ token }: { token: string }) {
-  const open = `${cardsPath}/open/${encodeURIComponent(token)}`;
-  const view = `${cardsPath}/view/${encodeURIComponent(token)}`;
-  const [summary, setSummary] = useState<ParticipantSouvenir>();
+function SouvenirSession({ token, adminId }: { token?: string; adminId?: string }) {
+  const open = `${cardsPath}/open/${encodeURIComponent(token ?? "")}`;
+  const view = adminId ? `${cardsPath}/admin/${encodeURIComponent(adminId)}` : `${cardsPath}/view/${encodeURIComponent(token ?? "")}`;
+  const adminPreview = useQuery<ParticipantSouvenir>({
+    enabled: Boolean(adminId),
+    queryKey: [view],
+    gcTime: 0,
+    queryFn: async ({ signal }) => {
+      const response = await fetch(view, { cache: "no-store", signal });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? "Impossible d’afficher cet espace souvenir.");
+      return response.json();
+    },
+  });
+  const [visitorSummary, setSummary] = useState<ParticipantSouvenir>();
+  const summary = adminId ? adminPreview.data : visitorSummary;
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -83,7 +95,8 @@ function SouvenirSession({ token }: { token: string }) {
     <div className="souvenir-wrap">
       <header className="souvenir-masthead">
         <span className="souvenir-brand">ZOMB’IN<span> THE DARK</span></span>
-        {summary && <Button type="button" variant="ghost" onClick={() => void close()} className="souvenir-close">
+        {adminId && <span className="text-sm">Aperçu administrateur</span>}
+        {summary && !adminId && <Button type="button" variant="ghost" onClick={() => void close()} className="souvenir-close">
           <LogOut /> Fermer mon espace
         </Button>}
       </header>
@@ -122,7 +135,15 @@ function SouvenirSession({ token }: { token: string }) {
           {summary.expiresAt ? <p>Espace disponible jusqu’au <time dateTime={summary.expiresAt}>{parisDate.format(new Date(summary.expiresAt))}</time>, soit trois mois après la clôture de l’événement.</p>
             : <p>Cet espace restera accessible jusqu’à trois mois après la clôture de l’événement.</p>}
         </footer>
-      </> : <section className="souvenir-unlock souvenir-enter">
+      </> : adminId ? (
+        <section className="souvenir-unlock">
+          <div>
+            <h1>Espace souvenir</h1>
+            {adminPreview.isPending && <p role="status">Chargement…</p>}
+            {adminPreview.isError && <p role="alert" className="souvenir-error">{adminPreview.error.message}</p>}
+          </div>
+        </section>
+      ) : <section className="souvenir-unlock souvenir-enter">
         <div>
           <h1>Votre espace<br /><span>souvenir.</span></h1>
           <p>Retrouvez votre photo et le récapitulatif de votre participation.</p>

@@ -1,44 +1,79 @@
+import { access } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardTheme, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const accents: Record<string, string> = { zombie: "#941c32", survivant: "#17558d", staff: "#176246" };
+const { width, height, nameX, nameWidth, firstNameY, lastNameY, qrX, qrY, qrSize, codeY } = cardLayout;
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", accent: string) {
-  doc.rect(0, 0, pt(85), pt(55)).fill("#ffffff");
-  doc.rect(pt(3), pt(3), pt(79), pt(2)).fill(accent);
-  doc.fillColor("#172033").font("Helvetica-Bold").fontSize(9)
-    .text("ZOMB’IN THE DARK", pt(6), pt(8), { lineBreak: false });
-  if (side === "front") {
-    doc.roundedRect(pt(55), pt(13), pt(24), pt(24), pt(2)).lineWidth(0.6).stroke("#d2d7e1");
-    doc.fillColor("#384458").font("Helvetica").fontSize(7)
-      .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
-    doc.rect(pt(6), pt(44), pt(4), pt(4)).stroke("#172033");
-    doc.font("Helvetica-Bold").fontSize(8).text("Repas", pt(12), pt(45), { lineBreak: false });
-    doc.font("Helvetica").text("N° de passage", pt(28), pt(45), { lineBreak: false });
-    doc.moveTo(pt(48), pt(48)).lineTo(pt(62), pt(48)).stroke("#8793a7");
-  } else {
-    doc.fillColor("#172033").font("Helvetica-Bold").fontSize(12)
-      .text("CODE D’ACCÈS", pt(6), pt(17), { width: pt(73), align: "center" });
-    doc.roundedRect(pt(13), pt(24), pt(59), pt(11), pt(2)).stroke("#8793a7");
-    doc.fillColor("#384458").font("Helvetica").fontSize(8).text(
-      "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
-      pt(5), pt(40), { width: pt(75), align: "center", lineGap: 2 });
+async function findCardAsset(file: string) {
+  // esbuild emits the production server beside Vite’s public directory.
+  for (const path of [`./public/${cardAssets}/${file}`, `../client/public/${cardAssets}/${file}`]) {
+    try {
+      const url = new URL(path, import.meta.url);
+      await access(url);
+      return fileURLToPath(url);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
+  throw new Error(`Ressource de carte introuvable : ${file}`);
+}
+
+function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, artwork?: string) {
+  const gradient = doc.linearGradient(0, 0, pt(width), pt(height))
+    .stop(0, "#0d0b11").stop(0.58, theme.dark).stop(1, "#100b12");
+  doc.rect(0, 0, pt(width), pt(height)).fill(gradient);
+  if (theme.zombie && artwork) {
+    doc.save();
+    doc.rect(0, 0, pt(width), pt(height)).clip();
+    doc.image(artwork, 0, pt(side === "front" ? -9 : 0), { width: pt(width) });
+    doc.restore();
+  }
+  doc.polygon([0, pt(43)], [pt(width), pt(42)], [pt(width), pt(height)], [0, pt(height)]).fill("#100b12");
+  doc.rect(0, pt(54), pt(width), pt(1)).fill(theme.accent);
+}
+
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, artwork?: string) {
+  backdrop(doc, side, theme, artwork);
+  doc.fillColor("#ffffff").font("CardBold").fontSize(12)
+    .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
+  doc.fillColor(theme.light).fontSize(7)
+    .text(theme.label, pt(6), pt(11), { lineBreak: false, characterSpacing: 1.1 });
+
+  if (side === "front") {
+    doc.roundedRect(pt(4.5), pt(16.5), pt(48.5), pt(23.5), pt(2)).fill("#ffffff");
+    doc.rect(pt(4.5), pt(19), pt(0.6), pt(18.5)).fill(theme.accent);
+    doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
+    doc.fillColor("#ffffff").font("CardBold").fontSize(7)
+      .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
+    doc.roundedRect(pt(6), pt(45), pt(4), pt(4), pt(0.45)).fill("#ffffff");
+    doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(12), pt(45.5), { lineBreak: false });
+    doc.fillColor("#ffffff").font("CardRegular").text("N° de passage", pt(28), pt(45.5), { lineBreak: false });
+    doc.roundedRect(pt(49), pt(45), pt(14), pt(4), pt(0.45)).fill("#ffffff");
+    return;
+  }
+
+  doc.fillColor("#ffffff").font("CardBold").fontSize(10)
+    .text("CODE D’ACCÈS", pt(13), pt(19), { width: pt(59), align: "center" });
+  doc.roundedRect(pt(13), pt(24), pt(59), pt(11), pt(2)).fill("#ffffff");
+  doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
+    "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
+    pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
 }
 
 function printName(doc: PDFKit.PDFDocument, name: string, y: number) {
   let size = 15;
-  doc.font("Helvetica-Bold").fontSize(size);
-  while (size > 8 && doc.widthOfString(name) > pt(46)) doc.fontSize(--size);
-  doc.fillColor("#101828").text(name, pt(6), pt(y), { width: pt(46), height: pt(12), ellipsis: true });
+  doc.font("CardBold").fontSize(size);
+  while (size > 8 && doc.widthOfString(name) > pt(nameWidth)) doc.fontSize(--size);
+  doc.fillColor("#101828").text(name, pt(nameX), pt(y), { width: pt(nameWidth), height: pt(10.5), ellipsis: true });
 }
 
 export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode) {
-  const doc = new PDFDocument({ size: [pt(85), pt(55)], margin: 0, autoFirstPage: false });
+  const doc = new PDFDocument({ size: [pt(width), pt(height)], margin: 0, autoFirstPage: false });
   const parts: Buffer[] = [];
   const output = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", chunk => parts.push(chunk));
@@ -48,22 +83,30 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
   const sides = mode === "complete" ? ["front", "back"] as const : [mode];
   const entries = cards.length ? cards : [undefined];
   try {
+    const [regular, bold, artwork] = await Promise.all([
+      findCardAsset("OpenSans-Regular.ttf"),
+      findCardAsset("OpenSans-Bold.ttf"),
+      (mode === "complete" || !cards.length) && (!cards.length || cards.some(card => cardTheme(card.type).zombie))
+        ? findCardAsset(cardArtwork) : undefined,
+    ]);
+    doc.registerFont("CardRegular", regular);
+    doc.registerFont("CardBold", bold);
     for (const card of entries) {
-      const accent = accents[card?.type ?? "zombie"] ?? accents.zombie;
+      const theme = cardTheme(card?.type ?? "zombie");
       for (const side of sides) {
         doc.addPage();
-        if (mode === "complete" || !card) template(doc, side, accent);
+        if (mode === "complete" || !card) template(doc, side, theme, artwork);
         if (!card) continue;
         if (side === "front") {
-          printName(doc, card.firstName, 18);
-          printName(doc, card.lastName, 29);
+          printName(doc, card.firstName, firstNameY);
+          printName(doc, card.lastName, lastNameY);
           const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
           const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
-          doc.image(qr, pt(55.5), pt(13.5), { width: pt(23), height: pt(23) });
+          doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });
         } else {
           const code = `${card.code.slice(0, 5)} ${card.code.slice(5)}`;
-          doc.fillColor("#101828").font("Courier-Bold").fontSize(16);
-          doc.text(code, (pt(85) - doc.widthOfString(code)) / 2, pt(27), { lineBreak: false });
+          doc.fillColor("#101828").font("CardBold").fontSize(16);
+          doc.text(code, (pt(width) - doc.widthOfString(code)) / 2, pt(codeY), { lineBreak: false });
         }
       }
     }

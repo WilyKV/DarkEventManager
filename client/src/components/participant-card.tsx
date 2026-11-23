@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Camera, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardsPath, photoMaxBytes, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -17,36 +17,62 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
+const { width, height, nameX, nameWidth, firstNameY, lastNameY, qrX, qrY, qrSize, codeY } = cardLayout;
+
+function at(x: number, y: number, w?: number, h?: number): CSSProperties {
+  return {
+    left: `${x / width * 100}%`,
+    top: `${y / height * 100}%`,
+    width: w === undefined ? undefined : `${w / width * 100}%`,
+    height: h === undefined ? undefined : `${h / height * 100}%`,
+  };
+}
+
 export function ParticipantCard({ card }: { card: PrintableCard }) {
-  const accent = card.type === "zombie" ? "#941c32" : card.type === "staff" ? "#176246" : "#17558d";
+  const theme = cardTheme(card.type);
   const url = new URL(`${souvenirPath}/${card.token}`, window.location.origin).href;
-  const face = "relative w-full max-w-[425px] overflow-hidden rounded-xl border border-slate-200 bg-white p-[5.5%] text-slate-900 shadow-sm";
+  const face = "participant-card-face isolate relative aspect-[85/55] w-full max-w-[425px] overflow-hidden rounded-xl bg-[#100b12] text-white shadow-lg [container-type:inline-size]";
+  const cream = "absolute rounded-[2.35cqw] bg-white text-[#101828]";
+  const nameStyle = "absolute overflow-hidden break-words font-extrabold leading-[1.08]";
+  const background = (side: "front" | "back") => <>
+    <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(120deg,#0d0b11,${theme.dark} 58%,#100b12)` }} />
+    {theme.zombie && <img alt="" src={`/${cardAssets}/${cardArtwork}`} className="pointer-events-none absolute left-0 w-full max-w-none"
+      style={{ top: side === "front" ? `${-9 / height * 100}%` : 0 }} />}
+    <div aria-hidden className="absolute inset-x-0 bottom-0 top-[76%] bg-[#100b12] [clip-path:polygon(0_8%,100%_0,100%_100%,0_100%)]" />
+    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[1.82%]" style={{ background: theme.accent }} />
+    <p className="absolute whitespace-nowrap text-[5cqw] font-black leading-none" style={at(6, 5)}>ZOMB’IN THE DARK</p>
+    <p className="absolute text-[2.9cqw] font-bold leading-none tracking-[0.19em]" style={{ ...at(6, 11), color: theme.light }}>{theme.label}</p>
+  </>;
   return <div className="grid w-full gap-3">
     <section aria-label="Recto" className={face}>
-      <div className="mb-3 h-1.5 rounded-full" style={{ background: accent }} />
-      <p className="text-xs font-bold tracking-wide">ZOMB’IN THE DARK</p>
-      <div className="mt-3 grid grid-cols-[minmax(0,1fr)_minmax(86px,34%)] items-center gap-2">
-        <p className="break-words text-xl font-black leading-tight sm:text-2xl">{card.firstName}<br />{card.lastName}</p>
-        <div className="text-center">
-          <QRCodeSVG value={url} level="M" marginSize={4} className="h-auto w-full rounded border" />
-          <p className="mt-1 text-xs text-slate-600">Mon espace souvenir</p>
-        </div>
+      {background("front")}
+      <div aria-hidden className={cream} style={at(4.5, 16.5, 48.5, 23.5)} />
+      <span aria-hidden className="absolute rounded-full" style={{ ...at(4.5, 19, 0.6, 18.5), background: theme.accent }} />
+      <div className="text-[#101828]">
+        {[card.firstName, card.lastName].map((name, index) =>
+          <p key={index} className={nameStyle}
+            style={{ ...at(nameX, index === 0 ? firstNameY : lastNameY, nameWidth, 10.5), fontSize: `${Math.min(6.2, 115 / Math.max(1, name.length))}cqw` }}>{name}</p>
+        )}
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span className="inline-flex items-center gap-1.5 font-bold"><span aria-hidden className="size-4 rounded-sm border border-slate-800" /> Repas</span>
-        <span>N° de passage <span aria-hidden className="inline-block w-10 border-b border-slate-500" /></span>
-      </div>
+      <div aria-hidden className={cream} style={at(54.5, 12.5, 25, 25)} />
+      <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
+        style={at(qrX, qrY, qrSize, qrSize)} />
+      <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
+      <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 45, 4, 4)} />
+      <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(12, 45.5)}>Repas</span>
+      <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>N° de passage</span>
+      <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, 45, 14, 4)} />
     </section>
     <section aria-label="Verso" className={face}>
-      <div className="mb-3 h-1.5 rounded-full" style={{ background: accent }} />
-      <p className="text-xs font-bold tracking-wide">ZOMB’IN THE DARK</p>
-      <div className="my-4 text-center">
-        <p className="text-sm font-bold">Code d’accès</p>
-        <p className="mx-auto mt-2 max-w-64 rounded-lg border border-slate-300 px-2 py-2 font-mono text-xl font-bold">
-          {card.code.slice(0, 5)} {card.code.slice(5)}
-        </p>
-      </div>
-      <p className="text-center text-xs text-slate-600">Scannez le QR au recto, puis saisissez ce code. Espace disponible jusqu’à 3 mois après la clôture.</p>
+      {background("back")}
+      <p className="absolute text-center text-[4.15cqw] font-bold leading-none" style={at(13, 19, 59)}>CODE D’ACCÈS</p>
+      <div className={cream} style={at(13, 24, 59, 11)} />
+      <p className="absolute text-center text-[6.65cqw] font-bold leading-none text-[#101828]" style={at(13, codeY, 59)}>
+        {card.code.slice(0, 5)} {card.code.slice(5)}
+      </p>
+      <p className="absolute text-center text-[3.3cqw] leading-tight" style={at(5, 44, 75)}>
+        Scannez le QR au recto, puis saisissez ce code.<br />Espace disponible jusqu’à 3 mois après la clôture.
+      </p>
     </section>
   </div>;
 }

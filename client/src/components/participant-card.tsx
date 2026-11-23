@@ -4,7 +4,7 @@ import { Camera, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -65,6 +65,9 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       {background("back")}
       <p className="absolute text-center text-[4.15cqw] font-bold leading-none" style={at(13, 19, 59)}>CODE D’ACCÈS</p>
       <div className={cream} style={at(13, 24, 59, 11)} />
+      <p className="absolute text-center text-[2.6cqw] leading-none text-[#334155]" style={at(13, 24.75, 59)}>
+        {souvenirCodeHint}
+      </p>
       <p className="absolute text-center text-[6.65cqw] font-bold leading-none text-[#101828]" style={at(13, codeY, 59)}>
         {card.code.slice(0, 5)} {card.code.slice(5)}
       </p>

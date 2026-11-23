@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
-import { cardAssets, cardsPath, type ParticipantSouvenir } from "@shared/participant-card";
+import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import "./souvenir.css";
@@ -130,8 +130,9 @@ function SouvenirSession({ token }: { token: string }) {
         <form onSubmit={unlock}>
           <span className="souvenir-form-icon" aria-hidden><LockKeyhole /></span>
           <label htmlFor="souvenir-code">Code au verso de la carte</label>
-          <Input id="souvenir-code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={16}
+          <Input id="souvenir-code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="souvenir-code-hint"
             value={code} onChange={event => setCode(event.target.value)} placeholder="10 caractères" required />
+          <p id="souvenir-code-hint" className="text-sm text-[#e1cdd5]">{souvenirCodeHint}.</p>
           {error && <p role="alert" className="souvenir-error">{error}</p>}
           <Button type="submit" loading={busy}>Ouvrir mon espace <ArrowRight /></Button>
         </form>

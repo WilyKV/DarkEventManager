@@ -1,5 +1,6 @@
 export const cardsPath = "/api/participant-cards";
 export const souvenirPath = "/souvenir";
+export const souvenirCodeHint = "Majuscules, minuscules et espaces acceptés";
 export const photoMaxBytes = 64_000;
 
 export type PrintableCard = {

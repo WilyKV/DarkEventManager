@@ -206,7 +206,7 @@ export function registerParticipantCardRoutes(app: Express) {
   });
 
   app.post(`${cardsPath}/open/:token`, unlockLimit, async (req, res) => {
-    const code = typeof req.body?.code === "string" ? req.body.code.replace(/[ -]/g, "").toUpperCase() : "";
+    const code = typeof req.body?.code === "string" ? req.body.code.replace(/[\s-]/g, "").toUpperCase() : "";
     const card = await getCard(req.params.token);
     if (!card || !/^[A-Z2-9]{10}$/.test(code) || !timingSafeEqual(Buffer.from(code), Buffer.from(card.code))) {
       return res.status(401).json({ message: "Code d’accès ou carte incorrect." });

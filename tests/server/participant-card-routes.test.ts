@@ -52,6 +52,13 @@ describe("Espace souvenir", () => {
     expect((await agent.get(view)).status).toBe(401);
   });
 
+  it.each(["abcd234567", "ABCD2 34567", " a B c D 2\u00a034567 ", "AbCd2-34567"])(
+    "accepte la saisie du code avec les variantes de casse et d’espacement (%s)",
+    async input => {
+      expect((await request(makeApp()).post(open).send({ code: input })).status).toBe(204);
+    },
+  );
+
   it("refuse une carte expirée même après ouverture de la session", async () => {
     const agent = request.agent(makeApp());
     expect((await agent.post(open).send({ code })).status).toBe(204);

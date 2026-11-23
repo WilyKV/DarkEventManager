@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -61,6 +61,8 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   doc.fillColor("#ffffff").font("CardBold").fontSize(10)
     .text("CODE D’ACCÈS", pt(13), pt(19), { width: pt(59), align: "center" });
   doc.roundedRect(pt(13), pt(24), pt(59), pt(11), pt(2)).fill("#ffffff");
+  doc.fillColor("#334155").font("CardRegular").fontSize(6.25)
+    .text(souvenirCodeHint, pt(13), pt(24.45), { width: pt(59), align: "center" });
   doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
     "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
     pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });

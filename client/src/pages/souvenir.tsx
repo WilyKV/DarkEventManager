@@ -1,11 +1,39 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { LockKeyhole, Users, CalendarDays } from "lucide-react";
-import { cardsPath, type ParticipantSouvenir } from "@shared/participant-card";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { ArrowRight, CalendarDays, Clock3, Download, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
+import { cardAssets, cardsPath, type ParticipantSouvenir } from "@shared/participant-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import "./souvenir.css";
+
+const eventDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" });
+const parisDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" });
+
+function Detail({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
+  return <div className="souvenir-detail">
+    <dt>{icon}{label}</dt>
+    <dd>{children}</dd>
+  </div>;
+}
+
+function SouvenirPortrait({ summary, src }: { summary: ParticipantSouvenir; src: string }) {
+  const [failed, setFailed] = useState(false);
+  const hasPhoto = summary.photoAvailable && !failed;
+  return <figure className={`souvenir-portrait ${hasPhoto ? "souvenir-portrait--photo" : ""}`}>
+    <div className="souvenir-portrait-image">
+      {hasPhoto ? <img src={src} alt={`Photo souvenir de ${summary.firstName}`} onError={() => setFailed(true)} />
+        : <><img src={`/${cardAssets}/souvenir-unknown.jpg`} alt="" /><span className="souvenir-question" aria-hidden>?</span></>}
+    </div>
+    <figcaption>
+      {hasPhoto ? <a href={src} download="photo-souvenir.jpg"><Download /> Télécharger ma photo</a> : "Aucune photo disponible"}
+    </figcaption>
+  </figure>;
+}
 
 export default function SouvenirPage({ params }: { params: { token: string } }) {
-  const { token } = params;
+  return <SouvenirSession key={params.token} token={params.token} />;
+}
+
+function SouvenirSession({ token }: { token: string }) {
   const open = `${cardsPath}/open/${encodeURIComponent(token)}`;
   const view = `${cardsPath}/view/${encodeURIComponent(token)}`;
   const [summary, setSummary] = useState<ParticipantSouvenir>();
@@ -13,14 +41,9 @@ export default function SouvenirPage({ params }: { params: { token: string } }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    setSummary(undefined);
-    setCode("");
-    setError("");
-  }, [token]);
-
   async function unlock(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError("");
     try {
@@ -37,45 +60,82 @@ export default function SouvenirPage({ params }: { params: { token: string } }) 
     }
   }
 
-  return <main className="mx-auto grid min-h-dvh w-full max-w-2xl content-center gap-5 px-4 py-8 sm:px-8">
-    <header className="space-y-2">
-      <p className="text-sm font-bold tracking-widest text-primary">ZOMB’IN THE DARK</p>
-      <h1 className="text-3xl font-black sm:text-5xl">{summary ? `Merci, ${summary.firstName} !` : "Votre espace souvenir"}</h1>
-    </header>
-    {summary ? <>
-      <p>Merci d’avoir participé à Zomb’in The Dark.</p>
-      <dl className="grid gap-3 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
-        <div><dt className="text-sm text-muted-foreground">Participant</dt><dd className="font-semibold">{summary.firstName} {summary.lastName}</dd></div>
-        <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="size-4" /> Vague</dt><dd className="font-semibold">{summary.wave ?? "Sans vague attribuée"}</dd></div>
-        {summary.type !== "staff" && <div><dt className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="size-4" /> {summary.type === "zombie" ? "Squad" : "Équipe"}
-        </dt><dd className="font-semibold">{summary.squad ?? "Sans affectation"}</dd></div>}
-        {summary.eventDay && <div><dt className="text-sm text-muted-foreground">Date de l’événement</dt>
-          <dd className="font-semibold">{new Intl.DateTimeFormat("fr", { dateStyle: "long", timeZone: "UTC" }).format(new Date(summary.eventDay))}</dd></div>}
-        {summary.squadBriefing && <div className="sm:col-span-2"><dt className="text-sm text-muted-foreground">Consignes de votre {summary.type === "zombie" ? "squad" : "équipe"}</dt>
-          <dd className="whitespace-pre-wrap break-words">{summary.squadBriefing}</dd></div>}
-      </dl>
-      {summary.photoAvailable && <figure className="space-y-2">
-        <img src={`${view}/photo`} alt={`Photo souvenir de ${summary.firstName}`} className="mx-auto max-h-[65dvh] rounded-2xl object-contain" />
-        <figcaption className="text-center"><a className="text-sm underline" href={`${view}/photo`} download="photo-souvenir.jpg">Télécharger ma photo</a></figcaption>
-      </figure>}
-      <p className="rounded-xl border border-border bg-muted/50 p-3 text-sm">
-        {summary.expiresAt
-          ? `Espace disponible jusqu’au ${new Intl.DateTimeFormat("fr", { dateStyle: "long", timeStyle: "short" }).format(new Date(summary.expiresAt))}, soit trois mois après la clôture de l’événement.`
-          : "Cet espace restera accessible jusqu’à trois mois après la clôture de l’événement."}
-      </p>
-      <Button type="button" variant="outline" className="justify-self-start" onClick={() => {
-        setSummary(undefined);
-        void fetch(open, { method: "DELETE" }).catch(() => undefined);
-      }}>Fermer mon espace</Button>
-    </> : (
-      <form className="space-y-4 rounded-2xl border border-border bg-card p-5" onSubmit={unlock}>
-        <label htmlFor="souvenir-code" className="block font-semibold">Code au verso de la carte</label>
-        <Input id="souvenir-code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={16}
-          value={code} onChange={event => setCode(event.target.value)} placeholder="10 caractères" required />
-        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" loading={busy}><LockKeyhole className="size-4" /> Ouvrir mon espace</Button>
-      </form>
-    )}
+  async function close() {
+    setSummary(undefined);
+    setError("");
+    setBusy(true);
+    try {
+      const response = await fetch(open, { method: "DELETE" });
+      if (!response.ok) throw new Error();
+    } catch {
+      setError("Impossible de fermer la session sur le serveur. Réessayez.");
+      setSummary(summary);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const squadLabel = summary?.type === "zombie" ? "Squad" : "Équipe";
+  const role = summary?.type === "survivant" ? "Survivant" : summary?.type === "staff" ? "Staff" : "Zombie";
+
+  return <main className="souvenir" data-profile={summary?.type}>
+    <div className="souvenir-backdrop" aria-hidden />
+    <div className="souvenir-wrap">
+      <header className="souvenir-masthead">
+        <span className="souvenir-brand">ZOMB’IN<span> THE DARK</span></span>
+        {summary && <Button type="button" variant="ghost" onClick={() => void close()} className="souvenir-close">
+          <LogOut /> Fermer mon espace
+        </Button>}
+      </header>
+      {summary ? <>
+        {error && <p role="alert" className="souvenir-error">{error}</p>}
+        <section className="souvenir-hero souvenir-enter" aria-labelledby="souvenir-title">
+          <div className="souvenir-intro">
+            <p className="souvenir-kicker">Espace souvenir <span aria-hidden>·</span> {role}</p>
+            <h1 id="souvenir-title">Merci,<br /><span>{summary.firstName} !</span></h1>
+            <p className="souvenir-participant">{summary.firstName} {summary.lastName}</p>
+            <p className="souvenir-thanks">Merci d’avoir participé à Zomb’in The Dark.</p>
+            {summary.eventDay && <time className="souvenir-event-date" dateTime={summary.eventDay}>
+              <CalendarDays /> {eventDate.format(new Date(summary.eventDay))}
+            </time>}
+          </div>
+          <SouvenirPortrait summary={summary} src={`${view}/photo`} />
+        </section>
+        <section className="souvenir-recap souvenir-enter" aria-label="Récapitulatif de la participation">
+          {summary.type !== "staff" && <div className="souvenir-squad">
+            <div className="souvenir-squad-label"><Users /> {squadLabel}</div>
+            {summary.squad !== null ? <>
+              <p className="souvenir-number"><span>N°</span> {summary.squad}</p>
+              {summary.squadSize != null && <p className="souvenir-squad-size">{summary.squadSize} {summary.squadSize === 1 ? "membre" : "membres"}</p>}
+            </> : <p className="souvenir-squad-size">Sans affectation</p>}
+          </div>}
+          <dl className="souvenir-details">
+            <Detail icon={<Radio />} label="Vague">{summary.wave ?? "Sans vague attribuée"}</Detail>
+            {summary.arrivedAt && <Detail icon={<Clock3 />} label="Arrivée">
+              <time dateTime={summary.arrivedAt}>{parisDate.format(new Date(summary.arrivedAt))}</time>
+            </Detail>}
+            {summary.squadBriefing && <Detail icon={<Users />} label={`Consignes · ${squadLabel}`}>{summary.squadBriefing}</Detail>}
+          </dl>
+        </section>
+        <footer className="souvenir-footer">
+          <LockKeyhole aria-hidden />
+          {summary.expiresAt ? <p>Espace disponible jusqu’au <time dateTime={summary.expiresAt}>{parisDate.format(new Date(summary.expiresAt))}</time>, soit trois mois après la clôture de l’événement.</p>
+            : <p>Cet espace restera accessible jusqu’à trois mois après la clôture de l’événement.</p>}
+        </footer>
+      </> : <section className="souvenir-unlock souvenir-enter">
+        <div>
+          <h1>Votre espace<br /><span>souvenir.</span></h1>
+          <p>Retrouvez votre photo et le récapitulatif de votre participation.</p>
+        </div>
+        <form onSubmit={unlock}>
+          <span className="souvenir-form-icon" aria-hidden><LockKeyhole /></span>
+          <label htmlFor="souvenir-code">Code au verso de la carte</label>
+          <Input id="souvenir-code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={16}
+            value={code} onChange={event => setCode(event.target.value)} placeholder="10 caractères" required />
+          {error && <p role="alert" className="souvenir-error">{error}</p>}
+          <Button type="submit" loading={busy}>Ouvrir mon espace <ArrowRight /></Button>
+        </form>
+      </section>}
+    </div>
   </main>;
 }

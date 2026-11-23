@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { Express } from "express";
 import rateLimit from "express-rate-limit";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, participantCards, participants, squads, timeSlots } from "@shared/schema";
 import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
@@ -34,11 +34,15 @@ const photoSchema = z.object({
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 async function cardPlayers(tx: Transaction, ids?: number[]) {
+  const squadCounts = tx.select({ squadId: participants.squadId, total: count().as("total") })
+    .from(participants).where(isNull(participants.deletedAt)).groupBy(participants.squadId).as("souvenir_squad_counts");
   return tx.select({
     id: participants.id, createdAt: participants.createdAt, firstName: participants.firstName,
     lastName: participants.lastName, type: participants.type, wave: timeSlots.name, squad: squads.number, squadBriefing: squads.briefing,
+    arrivedAt: participants.arrivedAt, squadSize: squadCounts.total,
   }).from(participants).leftJoin(timeSlots, eq(timeSlots.id, participants.timeSlotId))
     .leftJoin(squads, eq(squads.id, participants.squadId))
+    .leftJoin(squadCounts, eq(squadCounts.squadId, squads.id))
     .where(and(isNull(participants.deletedAt), ids && inArray(participants.id, ids)));
 }
 
@@ -49,8 +53,8 @@ function identityOf(player: Pick<CardPlayer, "id" | "createdAt">) {
 }
 
 function recap(player: CardPlayer, eventDay: string | null): SouvenirSummary {
-  const { firstName, lastName, type, wave, squad, squadBriefing } = player;
-  return { firstName, lastName, type, wave, squad, squadBriefing, eventDay };
+  const { firstName, lastName, type, wave, squad, squadBriefing, squadSize, arrivedAt } = player;
+  return { firstName, lastName, type, wave, squad, squadBriefing, squadSize, arrivedAt: arrivedAt?.toISOString() ?? null, eventDay };
 }
 
 async function lockedConfig(tx: Transaction, id: number) {

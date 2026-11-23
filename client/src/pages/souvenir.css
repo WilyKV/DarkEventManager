@@ -1,0 +1,163 @@
+.souvenir {
+  --souvenir-accent: #ff526a;
+  --souvenir-glow: #a5153b;
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #0d0a10;
+  color: #fff6f6;
+  font-family: "Participant Card", system-ui, sans-serif;
+}
+.souvenir[data-profile="survivant"] { --souvenir-accent: #89c0ff; --souvenir-glow: #255a9a; }
+.souvenir[data-profile="staff"] { --souvenir-accent: #95e8cd; --souvenir-glow: #17674f; }
+.souvenir-backdrop {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: -1;
+  height: min(54rem, 100%);
+  background: linear-gradient(90deg, #0d0a10 7%, #0d0a10a8 63%, #0d0a1040),
+    linear-gradient(0deg, #0d0a10 4%, #0d0a1000 85%),
+    url("/card-assets/zombie-card-art.png") center 38% / cover;
+  opacity: .64;
+}
+.souvenir-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .5;
+  background: radial-gradient(ellipse at 60% 36%, var(--souvenir-glow), transparent 62%);
+  animation: souvenir-glow 7s ease-in-out infinite alternate;
+}
+.souvenir-wrap { width: min(100% - 2rem, 68rem); margin-inline: auto; padding-bottom: 2rem; }
+.souvenir-masthead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  min-height: 4.65rem;
+  border-bottom: 1px solid #ffffff24;
+}
+.souvenir-brand { font-weight: 900; font-size: clamp(.8rem, 2vw, 1rem); letter-spacing: .12em; }
+.souvenir-brand span, .souvenir-kicker, .souvenir-squad-label { color: var(--souvenir-accent); }
+.souvenir-close { color: #f5e5e9; }
+.souvenir-close svg, .souvenir-event-date svg, .souvenir-detail svg, .souvenir-portrait a svg, .souvenir-footer svg {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+.souvenir-hero, .souvenir-unlock {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, .8fr);
+  gap: clamp(1.5rem, 6vw, 5rem);
+  padding-block: clamp(2.25rem, 7vw, 5.6rem);
+}
+.souvenir-unlock { min-height: min(37rem, calc(100dvh - 8rem)); }
+.souvenir-intro, .souvenir-unlock > div { min-width: 0; }
+.souvenir-kicker { font-size: .75rem; text-transform: uppercase; letter-spacing: .18em; font-weight: 700; margin-bottom: 1rem; }
+.souvenir h1 {
+  color: #fffafa;
+  font-size: clamp(3rem, 8.2vw, 7rem);
+  line-height: .97;
+  letter-spacing: -.08em;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+.souvenir h1 span { color: var(--souvenir-accent); }
+.souvenir-participant { margin-top: 1.3rem; font-weight: 700; font-size: clamp(1rem, 2.5vw, 1.35rem); overflow-wrap: anywhere; }
+.souvenir-thanks, .souvenir-unlock > div p { color: #e1cdd5; margin-top: .5rem; max-width: 30rem; }
+.souvenir-unlock > div p { margin-top: 1.25rem; }
+.souvenir-event-date { display: inline-flex; align-items: center; gap: .5rem; color: #eadce2; margin-top: 1.35rem; font-size: .9rem; }
+.souvenir-event-date svg, .souvenir-detail svg { color: var(--souvenir-accent); }
+.souvenir-portrait {
+  min-width: 0;
+  width: min(100%, 26rem);
+  justify-self: end;
+  padding: .5rem;
+  border: 1px solid #ff9cac55;
+  border-radius: 1.4rem;
+  background: #25121cf5;
+  box-shadow: 0 1.4rem 5rem #0009;
+}
+.souvenir-portrait-image {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  aspect-ratio: 4 / 4.4;
+  border-radius: .95rem;
+  background: #120b13;
+}
+.souvenir-portrait-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.souvenir-portrait--photo img { object-fit: contain; }
+.souvenir-question {
+  position: relative;
+  color: #fff4f4;
+  font-size: clamp(5rem, 15vw, 9rem);
+  line-height: 1;
+  font-weight: 900;
+  text-shadow: 0 0 1.75rem #f72556b3, 0 .25rem 1rem #000;
+  animation: souvenir-glow 4.5s ease-in-out infinite alternate;
+}
+.souvenir-portrait figcaption { text-align: center; color: #dfc7d1; font-size: .8rem; min-height: 2.75rem; display: grid; place-items: center; }
+.souvenir-portrait a { display: inline-flex; min-height: 2.75rem; align-items: center; gap: .5rem; color: #fff4f6; text-decoration: underline; text-underline-offset: .2rem; }
+.souvenir-recap { display: flex; flex-wrap: wrap; gap: .9rem; animation-delay: 100ms; }
+.souvenir-squad {
+  flex: 0 1 17rem;
+  min-height: 12rem;
+  padding: 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--souvenir-accent) 40%, transparent);
+  border-radius: 1.15rem;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--souvenir-glow) 45%, #160e18), #160e18 88%);
+}
+.souvenir-squad-label { display: flex; align-items: center; gap: .55rem; font-weight: 800; text-transform: uppercase; letter-spacing: .13em; font-size: .8rem; }
+.souvenir-squad-label svg { width: 1.2rem; height: 1.2rem; }
+.souvenir-number { font-size: clamp(3rem, 8vw, 5rem); letter-spacing: -.07em; line-height: 1.18; font-weight: 900; }
+.souvenir-number span { font-size: 1.4rem; color: var(--souvenir-accent); letter-spacing: 0; }
+.souvenir-squad-size { color: #ead9e1; margin-top: .25rem; }
+.souvenir-details {
+  flex: 1 1 25rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: .85rem;
+}
+.souvenir-detail {
+  min-width: 0;
+  background: #19121c;
+  border: 1px solid #ffffff20;
+  border-radius: 1.15rem;
+  padding: 1.25rem;
+}
+.souvenir-detail dt { display: flex; align-items: center; gap: .55rem; color: #dcc9d2; font-size: .85rem; }
+.souvenir-detail dd { margin-top: .55rem; color: #fff8fa; font-size: 1.08rem; font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
+.souvenir-footer { display: flex; gap: .6rem; align-items: baseline; color: #d3bec9; font-size: .8rem; margin-top: 1.5rem; }
+.souvenir-unlock form {
+  display: grid;
+  gap: .8rem;
+  background: #1c121eee;
+  border: 1px solid #ff9cac55;
+  border-radius: 1.4rem;
+  padding: clamp(1.15rem, 3vw, 2rem);
+  box-shadow: 0 1.4rem 5rem #0007;
+}
+.souvenir-unlock label { font-weight: 700; }
+.souvenir-unlock input { background: #0d0a10; color: #fff; }
+.souvenir-unlock button { background: var(--souvenir-accent); border-color: transparent; color: #190b11; font-weight: 800; }
+.souvenir-form-icon { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; border-radius: .75rem; color: var(--souvenir-accent); background: #ff526a15; }
+.souvenir-error { color: #ffc1ca; font-size: .9rem; margin-top: .35rem; }
+.souvenir-enter { animation: souvenir-enter 500ms ease-out both; }
+
+@keyframes souvenir-enter { from { opacity: 0; transform: translateY(.75rem); } to { opacity: 1; transform: translateY(0); } }
+@keyframes souvenir-glow { from { opacity: .68; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .souvenir-hero, .souvenir-unlock { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .souvenir-portrait { justify-self: start; width: min(100%, 22rem); }
+  .souvenir-squad { flex-basis: 100%; min-height: auto; }
+  .souvenir-backdrop { background-position: center, center, 63% 20%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .souvenir-enter, .souvenir-backdrop::after, .souvenir-question { animation: none; }
+}

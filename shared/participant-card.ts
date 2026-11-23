@@ -18,6 +18,8 @@ export type SouvenirSummary = {
   wave: string | null;
   squad: number | null;
   squadBriefing?: string | null;
+  squadSize?: number | null;
+  arrivedAt?: string | null;
   eventDay: string | null;
 };
 

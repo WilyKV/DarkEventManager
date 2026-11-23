@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -23,22 +23,23 @@ async function findCardAsset(file: string) {
   throw new Error(`Ressource de carte introuvable : ${file}`);
 }
 
-function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, artwork?: string) {
+function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
   const gradient = doc.linearGradient(0, 0, pt(width), pt(height))
     .stop(0, "#0d0b11").stop(0.58, theme.dark).stop(1, "#100b12");
-  doc.rect(0, 0, pt(width), pt(height)).fill(gradient);
+  const background = () => doc.rect(pt(-bleed), pt(-bleed), pt(width + 2 * bleed), pt(height + 2 * bleed));
+  background().fill(gradient);
   if (theme.zombie && artwork) {
     doc.save();
-    doc.rect(0, 0, pt(width), pt(height)).clip();
-    doc.image(artwork, 0, pt(side === "front" ? -9 : 0), { width: pt(width) });
+    background().clip();
+    doc.image(artwork, pt(-bleed), pt((side === "front" ? -9 : 0) - bleed), { width: pt(width + 2 * bleed) });
     doc.restore();
   }
-  doc.polygon([0, pt(43)], [pt(width), pt(42)], [pt(width), pt(height)], [0, pt(height)]).fill("#100b12");
-  doc.rect(0, pt(54), pt(width), pt(1)).fill(theme.accent);
+  doc.polygon([pt(-bleed), pt(43)], [pt(width + bleed), pt(42)], [pt(width + bleed), pt(height + bleed)], [pt(-bleed), pt(height + bleed)]).fill("#100b12");
+  doc.rect(pt(-bleed), pt(54), pt(width + 2 * bleed), pt(height - 54 + bleed)).fill(theme.accent);
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, artwork?: string) {
-  backdrop(doc, side, theme, artwork);
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
+  backdrop(doc, side, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
   doc.fillColor(theme.light).fontSize(7)
@@ -75,15 +76,18 @@ function printName(doc: PDFKit.PDFDocument, name: string) {
   });
 }
 
-function trimMarks(doc: PDFKit.PDFDocument) {
+function trimMarks(doc: PDFKit.PDFDocument, firstRow: boolean, lastRowInColumn: boolean) {
+  const start = a4CardBleed + 0.15;
+  const end = a4CardBleed + 0.9;
   doc.lineWidth(0.35).strokeColor("#222222");
   for (const x of [0, width]) {
+    const dx = x === 0 ? -1 : 1;
     for (const y of [0, height]) {
-      const dx = x === 0 ? -1 : 1;
-      const dy = y === 0 ? -1 : 1;
-      doc.moveTo(pt(x + dx * 0.2), pt(y)).lineTo(pt(x + dx * 0.9), pt(y));
-      doc.moveTo(pt(x), pt(y + dy * 0.2)).lineTo(pt(x), pt(y + dy * 0.9));
+      doc.moveTo(pt(x + dx * start), pt(y)).lineTo(pt(x + dx * end), pt(y));
     }
+    // The vertical gutters are filled by the neighboring cards' bleed.
+    if (firstRow) doc.moveTo(pt(x), pt(-start)).lineTo(pt(x), pt(-end));
+    if (lastRowInColumn) doc.moveTo(pt(x), pt(height + start)).lineTo(pt(x), pt(height + end));
   }
   doc.stroke();
 }
@@ -122,8 +126,8 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {
-            template(doc, side, cardTheme(card?.type ?? "zombie"), artwork);
-            if (a4) trimMarks(doc);
+            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, artwork);
+            if (a4) trimMarks(doc, index < a4CardColumns, index + a4CardColumns >= sheet.length);
           }
           if (card && side === "front") {
             printName(doc, printedCardName(card));

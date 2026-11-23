@@ -89,12 +89,13 @@ export function cardTheme(type: string) {
 export const cardPrintLayouts = ["a4", "card"] as const;
 export type CardPrintLayout = typeof cardPrintLayouts[number];
 
-const a4Columns = 2;
-export const cardSheet = { width: 210, height: 297, capacity: a4Columns * 5 } as const;
+export const a4CardBleed = 1;
+export const a4CardColumns = 2;
+export const cardSheet = { width: 210, height: 297, capacity: a4CardColumns * 5 } as const;
 
 export function cardSheetPosition(index: number, side: "front" | "back") {
-  const column = index % a4Columns;
-  const row = Math.floor(index / a4Columns);
+  const column = index % a4CardColumns;
+  const row = Math.floor(index / a4CardColumns);
   const frontX = (cardSheet.width - 2 * cardLayout.width - 4) / 2 + column * (cardLayout.width + 4);
   const y = (cardSheet.height - 5 * cardLayout.height - 8) / 2 + row * (cardLayout.height + 2);
   return { x: side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width, y };

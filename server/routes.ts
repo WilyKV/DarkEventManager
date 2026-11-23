@@ -1211,8 +1211,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { qrData } = req.body;
 
-      if (!qrData) {
+      if (typeof qrData !== "string" || !qrData || qrData.length > 2000) {
         return res.status(400).json({ message: "QR data is required" });
+      }
+
+      if (/^https?:/i.test(qrData)) {
+        const { participantFromCardQR } = await import("./participant-card-routes");
+        const participant = await participantFromCardQR(qrData);
+        return participant ? res.json({ participant }) : res.status(404).json({ message: "Carte introuvable." });
       }
 
       const decryptedData = decryptQRData(qrData);

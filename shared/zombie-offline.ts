@@ -9,7 +9,7 @@ export const offlineCheckInApi = "/api/check-in/offline";
 export const zombieChecklist = {
   squadExplained: "Équipe présentée",
   briefingExplained: "Briefing expliqué",
-  mealTicketGiven: "Ticket repas remis",
+  mealTicketGiven: "Carte participant remise",
   waterBottleGiven: "Bouteille d’eau remise",
   makeupWaitExplained: "Ordre de passage au maquillage expliqué",
   mapGiven: "Carte remise (facultatif)",

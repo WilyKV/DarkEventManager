@@ -3,6 +3,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+import type { SouvenirSummary } from "./participant-card";
 import { timeSlotNotesSchema, type TimeSlotNotes } from "./time-slot-notes";
 
 // Time Slots Table
@@ -52,6 +53,18 @@ export const participants = pgTable("participants", {
   freeMealClaimed: boolean("free_meal_claimed").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
+});
+
+// Issued cards retain their closed recap when the operational roster is reset.
+export const participantCards = pgTable("participant_cards", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  identity: text("identity").notNull().unique(),
+  participantId: integer("participant_id").notNull(),
+  token: text("token").notNull().unique(),
+  code: text("code").notNull(),
+  summary: jsonb("summary").$type<SouvenirSummary>().notNull(),
+  photo: text("photo"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
 });
 
 // Shop Items Table (Products)
@@ -161,6 +174,7 @@ export const appConfig = pgTable("app_config", {
   masterDeviceName: text("master_device_name"), // Friendly name of the master device
   lastSyncAt: timestamp("last_sync_at"),
   eventDay: date("event_day", { mode: "string" }),
+  eventClosedAt: timestamp("event_closed_at", { withTimezone: true }),
   analyticsStartedAt: timestamp("analytics_started_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at").defaultNow(),
   serverLamportTs: integer("server_lamport_ts").notNull().default(0),

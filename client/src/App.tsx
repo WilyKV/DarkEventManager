@@ -12,6 +12,7 @@ import { getOfflineCopy } from "@/db/zombie-offline";
 import { legacyOfflineCheckInPage, offlineCheckInPage } from "@shared/zombie-offline";
 
 const LoginPage = React.lazy(() => import("@/pages/login"));
+const SouvenirPage = React.lazy(() => import("@/pages/souvenir"));
 const VisitorPage = React.lazy(() => import("@/pages/visitor"));
 const OverviewPage = React.lazy(() => import("@/pages/overview"));
 const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
@@ -75,13 +76,14 @@ function AppHome() {
 function Router() {
   const [location] = useLocation();
   const online = useOnlineStatus();
-  if (!online && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
+  if (!online && !location.startsWith("/souvenir/") && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
     return <Redirect to={offlineCheckInPage} />;
   }
   return (
     <Switch>
       <Route path="/setup" component={SetupPage} />
       <Route path="/login" component={LoginPage} />
+      <Route path="/souvenir/:token" component={SouvenirPage} />
       <Route path="/visitor">
         <VisitorPage />
       </Route>

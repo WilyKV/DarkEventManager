@@ -213,7 +213,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                   data-testid="checkbox-meal-ticket"
                 />
                 <Label htmlFor="check-meal" className="cursor-pointer leading-relaxed">
-                  <strong>Ticket repas:</strong> Donner un ticket repas numéroté à utiliser à la buvette (ouvre à 18h - allez-y dès que possible)
+                  <strong>Carte participant:</strong> Remettre la carte avec le numéro de passage. La présenter à la buvette (ouvre à 18h - allez-y dès que possible)
                 </Label>
               </div>
 
@@ -225,7 +225,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                   data-testid="checkbox-makeup-explained"
                 />
                 <Label htmlFor="check-makeup" className="cursor-pointer leading-relaxed">
-                  <strong>Maquillage:</strong> Expliquer que le numéro inscrit sur le ticket repas indique l'ordre de passage au maquillage.
+                  <strong>Maquillage:</strong> Expliquer que le numéro de passage inscrit sur la carte indique l'ordre de passage au maquillage.
                 </Label>
               </div>
 

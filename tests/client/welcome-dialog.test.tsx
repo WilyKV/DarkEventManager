@@ -213,9 +213,9 @@ describe("Accueil tactile", () => {
     await click(user, "Commencer l’accueil");
     await click(user, "Confirmer la squad");
     await click(user, "Passer la présentation");
-    await click(user, /Remettre le ticket repas Confirmé/);
+    await click(user, /Remettre la carte participant Confirmé/);
     await click(user, "Marquer à faire");
-    expect(button(/Remettre le ticket repas À faire/)).toBeVisible();
+    expect(button(/Remettre la carte participant À faire/)).toBeVisible();
     await click(user, "Vérifier les arrivées");
     await click(user, "Valider l’arrivée");
     expect(onSave).toHaveBeenCalledWith(previous, {

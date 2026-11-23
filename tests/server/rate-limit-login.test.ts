@@ -27,6 +27,7 @@ vi.mock("../../server/db", () => ({
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     limit: vi.fn().mockResolvedValue([]), // par défaut : aucun utilisateur/participant trouvé
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnThis(),

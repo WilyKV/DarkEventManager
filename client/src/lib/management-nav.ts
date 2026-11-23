@@ -13,7 +13,7 @@ const modules = [
   { label: "Scanner un badge", icon: QrCode, path: "/scan", roles: ["admin", "staff_zombie", "staff_survivant", "staff_boutique", "staff_repas"] },
   { label: "Hors ligne", icon: WifiOff, path: offlineCheckInPage, roles: checkInRoles },
   { label: "Staff", icon: UserCog, path: "/staff", roles: ["admin"] },
-  { label: "Badges", icon: IdCard, path: "/badges", roles: ["admin"] },
+  { label: "Cartes", icon: IdCard, path: "/badges", roles: ["admin"] },
   { label: "Statistiques", icon: LayoutDashboard, path: "/dashboard", roles: ["admin"] },
   { label: "Administration", icon: Settings, path: "/admin", roles: ["admin"] },
 ];

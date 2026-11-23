@@ -1,3 +1,4 @@
+import { cardsPath } from "@shared/participant-card";
 import { apiRequest } from "@/lib/queryClient";
 import { offlineCheckInApi, type OfflinePlayerReceipt, type OfflineSyncResult } from "@shared/zombie-offline";
 import type { LocalOfflineSession } from "./zombie-offline";
@@ -32,8 +33,10 @@ export async function sendOfflineChanges(
     const capacityOverrides = { ...current.capacityOverrides };
     delete conflicts[id];
     delete capacityOverrides[id];
+    const pendingPhotos = { ...current.pendingPhotos };
+    delete pendingPhotos[id];
     current = await persist({
-      ...current, archiveAttempts, conflicts, capacityOverrides,
+      ...current, archiveAttempts, conflicts, capacityOverrides, pendingPhotos,
       archives: current.archives?.filter(playerId => playerId !== id),
       pending: current.pending.filter(playerId => playerId !== id),
       participants: current.participants.filter(candidate => candidate.id !== id),
@@ -72,8 +75,11 @@ export async function sendOfflineChanges(
     delete additions[id];
     delete conflicts[id];
     delete capacityOverrides[id];
+    const pendingPhotos = { ...current.pendingPhotos };
+    if (Object.hasOwn(pendingPhotos, id)) pendingPhotos[receipt.id] = pendingPhotos[id];
+    delete pendingPhotos[id];
     current = await persist({
-      ...current, additions, conflicts, capacityOverrides,
+      ...current, additions, conflicts, capacityOverrides, pendingPhotos,
       pending: current.pending.map(playerId => playerId === id ? receipt.id : playerId),
       participants: current.participants.map(candidate => candidate.id === id ? { ...candidate, ...receipt } : candidate),
     });
@@ -115,5 +121,18 @@ export async function sendOfflineChanges(
       }),
     });
   }
-  return { sent, remaining: new Set([...(current.archives ?? []), ...current.pending]).size };
+  for (const [key, photo] of Object.entries(current.pendingPhotos ?? {})) {
+    const id = Number(key);
+    const player = byId.get(id);
+    if (!player || id <= 0 || archives.has(id)) continue;
+    await apiRequest("PATCH", `${cardsPath}/${id}/photo`, {
+      ownerId: current.ownerId, identity: player.identity, photo,
+    }, AbortSignal.timeout(20_000));
+    const pendingPhotos = { ...current.pendingPhotos };
+    delete pendingPhotos[id];
+    current = await persist({ ...current, pendingPhotos });
+    if (!updates.some(update => update.id === id)) sent++;
+  }
+  return { sent, remaining: new Set([...(current.archives ?? []), ...current.pending,
+    ...Object.keys(current.pendingPhotos ?? {}).map(Number)]).size };
 }

@@ -224,7 +224,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
               <div className="p-6 rounded-lg bg-chart-5/10 border-2 border-chart-5/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit + Bouteille d'eau</h4>
                 <p className="text-sm text-muted-foreground">
-                  Remettre un ticket repas numéroté à chaque participant. Badge requis à la buvette. Donner une bouteille d'eau à remplir aux jerricanes.
+                  Remettre une carte participant avec le numéro de passage. Présenter la carte à la buvette. Donner une bouteille d'eau à remplir aux jerricanes.
                 </p>
               </div>
             </div>
@@ -239,7 +239,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
               <div className="p-6 rounded-lg bg-chart-4/10 border-2 border-chart-4/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Badge requis</h4>
                 <p className="text-sm text-muted-foreground">
-                  Le numéro inscrit sur le ticket repas indique l'ordre de passage. Se présenter au stand de maquillage avec son badge à son tour.
+                  Le numéro de passage inscrit sur la carte indique l'ordre de passage. Se présenter au stand de maquillage avec sa carte à son tour.
                 </p>
               </div>
             </div>

@@ -10,6 +10,7 @@ export type LocalOfflineSession = OfflineSnapshot & {
   additions?: Record<number, { requestId: string; started?: boolean }>;
   archives?: number[];
   archiveAttempts?: number[];
+  pendingPhotos?: Record<number, string | null>;
 };
 
 type LegacySession = Omit<LocalOfflineSession, "profileTypes" | "eventDay" | "participants" | "squads"> & {

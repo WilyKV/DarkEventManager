@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPl
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SouvenirPhoto } from "@/components/participant-card";
 import { WelcomeDialog } from "@/components/welcome-dialog";
 import { placementLabels, placementMembers, type PlacementMember } from "@/components/squad-placement";
 import { WelcomeGuide } from "@/components/welcome-guide";
@@ -216,8 +217,10 @@ export default function OfflineCheckInPage() {
         delete additions[player.id];
         delete conflicts[player.id];
         delete capacityOverrides[player.id];
+        const pendingPhotos = { ...active.data.pendingPhotos };
+        delete pendingPhotos[player.id];
         await persist(active, {
-          ...active.data, additions, conflicts, capacityOverrides,
+          ...active.data, additions, conflicts, capacityOverrides, pendingPhotos,
           pending: active.data.pending.filter(id => id !== player.id),
           participants: active.data.participants.filter(candidate => candidate.id !== player.id),
         });
@@ -290,7 +293,7 @@ export default function OfflineCheckInPage() {
   }).sort((a, b) => a.firstName.localeCompare(b.firstName, "fr") || a.lastName.localeCompare(b.lastName, "fr"));
   const slots = new Map(data?.timeSlots.map(slot => [slot.id, slot.name]));
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
-  const pending = new Set([...(data?.pending ?? []), ...Array.from(archived)]);
+  const pending = new Set([...(data?.pending ?? []), ...Array.from(archived), ...Object.keys(data?.pendingPhotos ?? {}).map(Number)]);
   const canPrepare = hasAnyRole(checkInRoles);
   const membersByTeam = placementMembers(welcomeOpen || selected
     ? participants.map(player => ({ ...player, squadId: player.state.squadId })) : []);
@@ -309,7 +312,7 @@ export default function OfflineCheckInPage() {
 
   function refreshList(active: UnlockedCopy) {
     void run(async () => {
-      if (active.data.pending.length || active.data.archives?.length) throw new Error("Envoyez les fiches locales avant d’actualiser la liste.");
+      if (active.data.pending.length || active.data.archives?.length || Object.keys(active.data.pendingPhotos ?? {}).length) throw new Error("Envoyez les fiches locales avant d’actualiser la liste.");
       const snapshot = await fetchSnapshot();
       if (snapshot.ownerId !== active.data.ownerId) throw new Error("Reconnectez-vous avec le compte qui a préparé la liste.");
       await persist(active, newLocalSession(snapshot));
@@ -331,7 +334,7 @@ export default function OfflineCheckInPage() {
   }
 
   function deleteLocalCopy(active: UnlockedCopy) {
-    if (active.data.pending.length || active.data.archives?.length || !window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
+    if (active.data.pending.length || active.data.archives?.length || Object.keys(active.data.pendingPhotos ?? {}).length || !window.confirm("Supprimer la copie de la liste sur cet appareil ?")) return;
     void run(async () => {
       await removeOfflineCopy(active.envelope);
       lockList();
@@ -458,6 +461,20 @@ export default function OfflineCheckInPage() {
           )}
           {selected && (
             <CheckInDialog key={selected.id} player={selected} membersByTeam={membersByTeam}
+              pendingPhoto={data.pendingPhotos?.[selected.id]}
+              onCancelPendingPhoto={async () => {
+                if (!await run(async () => {
+                  const pendingPhotos = { ...data.pendingPhotos };
+                  delete pendingPhotos[selected.id];
+                  await persist(unlocked, { ...data, pendingPhotos });
+                })) throw new Error("Impossible d’annuler l’envoi.");
+              }}
+              onSavePhoto={async photo => {
+                const saved = await run(async () => {
+                  await persist(unlocked, { ...data, pendingPhotos: { ...data.pendingPhotos, [selected.id]: photo } });
+                });
+                if (!saved) throw new Error("Impossible d’enregistrer la photo sur cet appareil.");
+              }}
               slot={data.timeSlots.find(slot => slot.id === selected.timeSlotId)}
               teams={welcomeTeams.filter(team => team.id === selected.state.squadId ||
                 (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
@@ -519,12 +536,15 @@ export default function OfflineCheckInPage() {
   );
 }
 
-function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, error, onClose, onSave, onRestore }: {
+function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, error, pendingPhoto, onSavePhoto, onCancelPendingPhoto, onClose, onSave, onRestore }: {
   player: OfflineParticipant;
   slot?: CheckInRoster["slots"][number];
   teams: CheckInRoster["teams"];
   membersByTeam: ReadonlyMap<number, readonly PlacementMember[]>;
   conflict?: string;
+  pendingPhoto?: string | null;
+  onSavePhoto: (photo: string | null) => Promise<void>;
+  onCancelPendingPhoto: () => Promise<void>;
   busy: boolean;
   error: string;
   onClose: () => void;
@@ -551,6 +571,7 @@ function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, err
             checklist: { ...player.state.checklist, ...details.checklist },
           }, overflowConfirmed)}
           summary={<>
+            <SouvenirPhoto pendingPhoto={pendingPhoto} onCancelPendingPhoto={onCancelPendingPhoto} onSave={onSavePhoto} disabled={busy} />
             <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border px-3 text-sm font-semibold">
               <input type="checkbox" className="size-5 accent-primary" checked={arrived} disabled={busy}
                 onChange={event => setArrived(event.target.checked)} /> Arrivé

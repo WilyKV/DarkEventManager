@@ -31,8 +31,12 @@ function stateHash(state: OfflineCheckIn): string {
     checklist.mealTicketGiven, checklist.waterBottleGiven, checklist.makeupWaitExplained, checklist.mapGiven]);
 }
 
+export function offlinePlayerIdentity(p: Pick<Participant, "id" | "createdAt" | "firstName" | "lastName" | "type">) {
+  return hash([p.id, p.createdAt, p.firstName, p.lastName, p.type]);
+}
+
 function offlineParticipant(p: Participant, type: CheckInType): OfflineParticipant {
-  const identity = hash([p.id, p.createdAt, p.firstName, p.lastName, p.type]);
+  const identity = offlinePlayerIdentity(p);
   const state: OfflineCheckIn = {
     arrived: Boolean(p.arrived),
     arrivedAt: p.arrived ? (p.arrivedAt ?? p.createdAt ?? new Date(0)).toISOString() : null,

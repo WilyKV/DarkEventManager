@@ -57,7 +57,7 @@ export function WelcomeBriefing({ type, slot, arrivals, teams, onBack, onContinu
     ...type === "zombie" ? [
       { title: "Repas et maquillage", Icon: Paintbrush,
         text: [
-          "Votre ticket repas est à utiliser à la buvette. Son numéro indique votre ordre de passage au maquillage. Présentez votre badge au stand à votre tour.",
+          "Présentez votre carte à la buvette pour le repas. Le numéro de passage inscrit sur la carte indique votre ordre de passage au maquillage. Présentez votre carte au stand à votre tour.",
           slot?.mealTime ? `Le repas est prévu à ${spokenTime(slot.mealTime)}.` : "",
           slot?.welcomeNotes?.meal,
         ].filter(Boolean).join(" "),

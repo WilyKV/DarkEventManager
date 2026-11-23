@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { requireRole } from "./auth-middleware";
+import { closeParticipantCards } from "./participant-card-routes";
 import { storage } from "./storage";
 import { generateParticipantPDF, encryptPDFFilename } from "./pdf-service";
 import { sendEmail, createEndEventEmailTemplate, isEmailEnabled } from "./email-service";
@@ -11,6 +12,8 @@ export function setupEndEventRoute(app: Express) {
   // End event endpoint - Send summary PDFs to all participants
   app.post("/api/admin/end-event", requireRole('admin'), async (req, res) => {
     try {
+      await closeParticipantCards();
+
       // Set headers for Server-Sent Events (SSE)
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
@@ -132,6 +135,8 @@ export function setupEndEventRoute(app: Express) {
     } catch (error) {
       endEventLogger.error({ err: error }, 'Erreur fin événement');
       
+      if (!res.headersSent) return res.status(500).json({ message: "Impossible de clôturer l’événement." });
+
       // Send error status
       res.write(`data: ${JSON.stringify({
         total: 0,

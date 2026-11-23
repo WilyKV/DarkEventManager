@@ -293,7 +293,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-semibold text-foreground mb-2">Informations repas</h3>
-                <p className="text-muted-foreground">Ticket repas et bouteille d'eau</p>
+                <p className="text-muted-foreground">Carte participant et bouteille d'eau</p>
               </div>
 
               <div className="space-y-4">
@@ -303,7 +303,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                     <div className="flex-1">
                       <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Les participants doivent présenter leur <strong>badge numérique ou imprimé</strong> pour bénéficier de leur repas gratuit à la buvette. Remettez un <strong>ticket repas numéroté</strong> à chaque participant.
+                        Les participants doivent présenter leur <strong>carte participant</strong> pour bénéficier de leur repas gratuit à la buvette. Inscrivez le numéro de passage sur chaque carte.
                       </p>
                       {slot?.mealTime || slot?.welcomeNotes?.meal ? <WelcomeSchedule slot={slot} phases={["meal"]} /> : (
                         <div className="bg-background/80 p-3 rounded-md">
@@ -350,7 +350,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                     <div>
                       <h4 className="text-lg font-semibold text-foreground mb-3">Ordre de passage</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le <strong>numéro inscrit sur le ticket repas</strong> indique l'ordre de passage au maquillage.
+                        Le <strong>numéro de passage inscrit sur la carte</strong> indique l'ordre de passage au maquillage.
                       </p>
                     </div>
 
@@ -359,7 +359,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                         <strong>Instructions :</strong>
                       </p>
                       <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
-                        <li>À leur tour, les participants présentent leur badge numérique ou imprimé au stand de maquillage</li>
+                        <li>À leur tour, les participants présentent leur carte au stand de maquillage</li>
                         <li>Ils doivent être prêts pour le briefing à l'heure prévue</li>
                         <li>Une fois maquillés, ils peuvent rejoindre leur {placement.noun}</li>
                       </ul>

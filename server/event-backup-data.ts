@@ -2,7 +2,7 @@ import { getTableColumns, getTableName, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   appConfig, auditLogs, demoRecords, discounts, mealDiscounts, mealItems, mealPurchases,
-  participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots, users,
+  participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots, users,
 } from "@shared/schema";
 import type { EventBackupSummary } from "@shared/event-backup";
 import { db } from "./db";
@@ -12,7 +12,7 @@ import { isBcryptHash, isLegacyHash } from "./password-hashing";
 // Order the tables so referenced rows are restored before their dependents.
 const identityTables = [
   users, appConfig, timeSlots, squads, participants, shopItems, mealItems,
-  discounts, mealDiscounts, purchases, mealPurchases, squadAuditLog, auditLogs, demoRecords,
+  discounts, mealDiscounts, purchases, mealPurchases, squadAuditLog, auditLogs, demoRecords, participantCards,
 ];
 const backupTables = [...identityTables, serverEvents];
 const eventTables = [
@@ -69,10 +69,11 @@ export async function readEventBackup(): Promise<EventBackup> {
 
 export function inspectEventBackup(payload: unknown): { backup: EventBackup; summary: EventBackupSummary } {
   const parsed = backupSchema.safeParse(payload);
-  if (!parsed.success || Object.keys(parsed.data.tables).length !== backupTables.length) {
+  if (!parsed.success || Object.keys(parsed.data.tables).some(name => !backupTables.some(table => getTableName(table) === name))) {
     throw new InvalidEventBackup("Ce fichier ne correspond pas à une sauvegarde complète compatible.");
   }
   const backup = parsed.data;
+  backup.tables[getTableName(participantCards)] ??= { rows: "[]", count: 0, nextId: 1 };
   const records = new Map<string, Record<string, unknown>[]>();
   for (const table of backupTables) {
     const name = getTableName(table);
@@ -82,6 +83,12 @@ export function inspectEventBackup(payload: unknown): { backup: EventBackup; sum
     }
     const columns = Object.values(getTableColumns(table)).map(column => column.name);
     const rows: unknown = JSON.parse(data.rows);
+    if (table === appConfig && Array.isArray(rows)) {
+      for (const row of rows) {
+        if (row && typeof row === "object" && !Object.hasOwn(row, "event_closed_at")) row.event_closed_at = null;
+      }
+      data.rows = JSON.stringify(rows);
+    }
     if (!Array.isArray(rows) || rows.length !== data.count || rows.some(row =>
       !row || typeof row !== "object" || Object.keys(row).length !== columns.length ||
       columns.some(column => !Object.hasOwn(row, column))
@@ -139,7 +146,7 @@ export async function resetEventData(): Promise<void> {
     await tx.execute(sql`LOCK TABLE ${sql.join([...eventTables, appConfig], sql`, `)} IN EXCLUSIVE MODE`);
     for (const table of eventTables) await tx.delete(table);
     await tx.update(appConfig).set({
-      eventDay: null, analyticsStartedAt: null, serverLamportTs: 0, lastSyncAt: null, updatedAt: new Date(),
+      eventDay: null, eventClosedAt: null, analyticsStartedAt: null, serverLamportTs: 0, lastSyncAt: null, updatedAt: new Date(),
     });
   });
 }

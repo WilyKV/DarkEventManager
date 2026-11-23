@@ -41,6 +41,7 @@ vi.mock("../../server/db", () => ({
     select: vi.fn().mockReturnThis(),
     from: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
     limit: mockDbSelectLimit,
     update: vi.fn().mockReturnThis(),
     set: vi.fn().mockReturnValue({

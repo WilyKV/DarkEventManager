@@ -132,7 +132,7 @@ export function EndEventButton() {
             Fin d'événement
           </CardTitle>
           <CardDescription>
-            Envoyer un récapitulatif PDF chiffré à tous les participants par email
+            Clôturer l’événement et lancer l’envoi des récapitulatifs
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -140,7 +140,7 @@ export function EndEventButton() {
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
               <div className="space-y-1">
-                <p className="text-sm font-medium text-yellow-500">Action importante</p>
+                <p className="text-sm font-medium text-yellow-500">Les espaces souvenir expireront trois mois après la clôture.</p>
                 <p className="text-xs text-muted-foreground">
                   Cette action enverra un email à chaque participant contenant un PDF chiffré
                   avec son badge, ses informations et l'historique de ses achats/repas.

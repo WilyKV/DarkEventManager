@@ -9,7 +9,7 @@ import { participants } from "@shared/schema";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import { z } from "zod";
 import { storage } from "./storage";
-import { accountRevision } from "./session-account";
+import { accountRevision, legacyVisitorExpired } from "./session-account";
 import { hashPassword, verifyPassword, isLegacyHash } from "./password-hashing";
 import { requireAuth, requireRole } from "./auth-middleware";
 import { RATE_LIMIT_WINDOW_MS, RATE_LIMIT_VISITOR_MAX, RATE_LIMIT_STAFF_MAX } from "./config/limits";
@@ -184,6 +184,8 @@ export function registerAuthRoutes(app: Express) {
         }).catch(() => {});
         return res.status(401).json({ message: "Code ou informations incorrects" });
       }
+
+      if (await legacyVisitorExpired()) return res.status(410).json({ message: "Cet espace participant a expiré." });
 
       // Regenerate session
       await new Promise<void>((resolve, reject) => {

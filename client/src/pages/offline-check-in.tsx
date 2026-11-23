@@ -315,10 +315,11 @@ export default function OfflineCheckInPage() {
   const welcomeRoster: CheckInRoster | undefined = welcomeOpen && data ? {
     players: participants.map(player => ({
       id: player.id, firstName: player.firstName, lastName: player.lastName, type: player.type,
-      timeSlotId: player.timeSlotId, arrived: player.state.arrived, returned: player.returned,
+      timeSlotId: player.timeSlotId, arrived: player.state.arrived, arrivedAt: player.state.arrivedAt, returned: player.returned,
       details: { squadId: player.state.squadId, checklist: player.state.checklist }, revision: player.revision,
     })),
     eventDay: data.eventDay,
+    makeupArtists: data.makeupArtists,
     slots: data.timeSlots,
     teams: welcomeTeams,
   } : undefined;

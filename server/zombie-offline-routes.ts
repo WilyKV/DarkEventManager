@@ -1,3 +1,4 @@
+import { defaultMakeupArtists } from "@shared/makeup";
 import { createHash } from "node:crypto";
 import type { Express } from "express";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -71,7 +72,7 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
     const profileTypes = legacyTypes ?? allowedCheckInTypes(req.session.user!.roles);
     try {
       const snapshot: OfflineSnapshot = await db.transaction(async tx => {
-        const [config] = await tx.select({ day: appConfig.eventDay }).from(appConfig).orderBy(appConfig.id).limit(1);
+        const [config] = await tx.select({ day: appConfig.eventDay, makeupArtists: appConfig.makeupArtists }).from(appConfig).orderBy(appConfig.id).limit(1);
         const rows = await tx.select().from(participants)
           .where(and(inArray(participants.type, profileTypes), isNull(participants.deletedAt)));
         const teams = await tx.select({ id: squads.id, number: squads.number, timeSlotId: squads.timeSlotId,
@@ -82,6 +83,7 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
           canDeleteParticipants: !legacyTypes && hasSessionRole(req.session.user!.roles, ["admin"]),
           profileTypes,
           eventDay: config?.day ?? null,
+          makeupArtists: config?.makeupArtists ?? defaultMakeupArtists,
           participants: rows.flatMap(row => isCheckInType(row.type) ? [offlineParticipant(row, row.type)] : []),
           timeSlots: (await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
             briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime,

@@ -70,6 +70,7 @@ export type OfflineSnapshot = {
   canDeleteParticipants?: boolean;
   profileTypes: CheckInType[];
   eventDay: string | null;
+  makeupArtists?: number;
   participants: OfflineParticipant[];
   timeSlots: (WelcomeTimeSlot & { type?: CheckInType })[];
   squads: { id: number; number: number; timeSlotId: number; type: CheckInType; maxMembers: number | null; briefing?: string | null }[];

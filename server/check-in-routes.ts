@@ -1,3 +1,5 @@
+import { defaultMakeupArtists, makeupSettingsPath } from "@shared/makeup";
+import { storage } from "./storage";
 import { createHash } from "node:crypto";
 import type { Express } from "express";
 import { and, count, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -27,17 +29,29 @@ function asCheckInPlayer(row: Participant, type: CheckInType): CheckInPlayer {
   ])).digest("hex");
   return {
     id: row.id, type, timeSlotId: row.timeSlotId, firstName: row.firstName, lastName: row.lastName,
-    arrived: Boolean(row.arrived), returned: Boolean(row.returned), details, revision,
+    arrived: Boolean(row.arrived), arrivedAt: row.arrivedAt?.toISOString() ?? null, returned: Boolean(row.returned), details, revision,
   };
 }
 
 export function registerCheckInRoutes(app: Express) {
   const allowCheckIn = requireRole(...checkInRoles);
 
+  app.get(makeupSettingsPath, requireRole("admin"), async (_req, res) => {
+    const config = await storage.getSyncConfig();
+    res.json({ artists: config.makeupArtists ?? defaultMakeupArtists });
+  });
+
+  app.patch(makeupSettingsPath, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const form = z.object({ artists: z.number().int().min(1).max(50) }).strict().safeParse(req.body);
+    if (!form.success) return res.status(400).json({ message: "Saisissez un effectif entre 1 et 50." });
+    const config = await storage.updateSyncConfig({ makeupArtists: form.data.artists });
+    return res.json({ artists: config.makeupArtists });
+  });
+
   app.get(checkInRosterPath, allowCheckIn, async (req, res) => {
     const types = allowedCheckInTypes(req.session?.user?.roles);
     const roster = await db.transaction(async tx => {
-      const [config] = await tx.select({ eventDay: appConfig.eventDay }).from(appConfig).orderBy(appConfig.id).limit(1);
+      const [config] = await tx.select({ eventDay: appConfig.eventDay, makeupArtists: appConfig.makeupArtists }).from(appConfig).orderBy(appConfig.id).limit(1);
       const players = (await tx.select().from(participants).where(and(inArray(participants.type, types), isNull(participants.deletedAt))))
         .flatMap(row => isCheckInType(row.type) ? [asCheckInPlayer(row, row.type)] : []);
       const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
@@ -48,7 +62,7 @@ export function registerCheckInRoutes(app: Express) {
         timeSlotId: squads.timeSlotId, maxMembers: squads.maxMembers, briefing: squads.briefing, members: count(participants.id) })
         .from(squads).leftJoin(participants, eq(participants.squadId, squads.id))
         .where(inArray(squads.type, types)).groupBy(squads.id);
-      return { eventDay: config?.eventDay ?? null, players, slots, teams };
+      return { eventDay: config?.eventDay ?? null, makeupArtists: config?.makeupArtists ?? defaultMakeupArtists, players, slots, teams };
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
     res.json(roster);
   });

@@ -284,7 +284,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                     <div className="flex-1">
                       <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le participant doit présenter sa <strong>carte participant</strong> pour bénéficier de son repas gratuit à la buvette. Inscrivez le numéro de passage sur sa carte.
+                        Le participant doit présenter sa <strong>carte participant</strong> pour bénéficier de son repas gratuit à la buvette. Inscrivez l’heure estimée du maquillage sur sa carte.
                       </p>
                       <div className="bg-background/80 p-3 rounded-md">
                         <p className="text-sm">
@@ -329,7 +329,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
                     <div>
                       <h4 className="text-lg font-semibold text-foreground mb-3">Ordre de passage</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le <strong>numéro de passage inscrit sur la carte</strong> indique l'ordre de passage au maquillage.
+                        L’<strong>heure estimée inscrite sur la carte</strong> indique quand se présenter au stand de maquillage.
                       </p>
                     </div>
 

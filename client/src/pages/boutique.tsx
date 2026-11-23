@@ -1,3 +1,7 @@
+import { useSearch } from "wouter";
+import { staffCardPath, tokenFromCardQr, type StaffCardScan, type ScannedCardProfile } from "@shared/card-scan";
+import { souvenirPath } from "@shared/participant-card";
+import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +14,7 @@ import {
   Beer, Coffee, Sandwich, Shirt, Backpack, Gift,
   Package, Utensils, ShoppingBag
 } from "lucide-react";
-import type { ShopItem, Participant } from "@shared/schema";
+import type { ShopItem } from "@shared/schema";
 import { QrScanner } from "@/components/qr-scanner";
 import {
   Dialog,
@@ -42,7 +46,10 @@ export default function BoutiquePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannedParticipant, setScannedParticipant] = useState<Participant | null>(null);
+  const [scannedParticipant, setScannedParticipant] = useState<ScannedCardProfile | null>(null);
+  const search = useSearch();
+  const cardToken = new URLSearchParams(search).get("carte");
+  const [souvenirToken, setSouvenirToken] = useState<string>();
   const [discount, setDiscount] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -73,6 +80,9 @@ export default function BoutiquePage() {
 
       const { participant } = await scanRes.json();
       setScannedParticipant(participant);
+      setSouvenirToken(tokenFromCardQr(qrData));
+      setDiscount(0);
+      setCart([]);
 
       // Get discount for participant
       const discountRes = await fetch(`/api/discounts/calculate/${participant.id}`);
@@ -95,6 +105,32 @@ export default function BoutiquePage() {
       });
     }
   };
+
+  useEffect(() => {
+    if (!cardToken || !/^[A-Za-z0-9_-]{27}$/.test(cardToken)) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`${staffCardPath}/${cardToken}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Carte indisponible.");
+        const scan = await response.json() as StaffCardScan;
+        if (!scan.canSell) throw new Error("Cette action n’est pas autorisée pour ce compte.");
+        if (controller.signal.aborted) return;
+        setScannedParticipant(scan.participant);
+        setSouvenirToken(cardToken);
+        setCart([]);
+        setDiscount(0);
+        const discountResponse = await fetch(`/api/discounts/calculate/${scan.participant.id}`, { signal: controller.signal });
+        if (discountResponse.ok) {
+          const { discount } = await discountResponse.json();
+          if (!controller.signal.aborted) setDiscount(discount);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) toast({ title: "Carte indisponible", description: error instanceof Error ? error.message : undefined, variant: "destructive" });
+      }
+    })();
+    return () => controller.abort();
+  }, [cardToken, toast]);
 
   // Add to cart
   const addToCart = (item: ShopItem) => {
@@ -257,6 +293,8 @@ export default function BoutiquePage() {
       subtitle="Point de vente"
       showHomeButton
     >
+      {scannedParticipant && souvenirToken && <a className="mb-3 inline-flex text-sm font-medium underline underline-offset-4" href={`${souvenirPath}/${souvenirToken}`}>Accéder à l’espace souvenir avec le code</a>}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Products */}
         <div className="lg:col-span-2 space-y-6">

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { checkSyncPermissions } from "./sync-middleware";
 import { registerEventIngestRoutes } from "./event-ingest-routes";
-import { requireAuth, requireRole } from "./auth-middleware";
+import { hasSessionRole, requireAuth, requireRole } from "./auth-middleware";
 import multer from "multer";
 import { z } from "zod";
 import ExcelJS from "exceljs";
@@ -34,6 +34,14 @@ const participantPatchSchema = insertParticipantSchema.omit({ secretCode: true }
   arrivedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
   returnedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
 }).strict();
+function canPatchParticipantOperations(roles: unknown, profile: string, changes: z.infer<typeof participantPatchSchema>) {
+  if (hasSessionRole(roles, ["admin"])) return true;
+  const presence = ["arrived", "arrivedAt", "returned", "returnedAt"].some(key => Object.hasOwn(changes, key));
+  const meal = ["hasFreemeal", "freeMealClaimed"].some(key => Object.hasOwn(changes, key));
+  const canManage = (profile === "zombie" || profile === "survivant") && hasSessionRole(roles, [`staff_${profile}`]);
+  return (!presence || canManage) && (!meal || hasSessionRole(roles, ["staff_repas"]));
+}
+
 const batchParticipantPatchSchema = z.object({
   updates: z.array(z.object({ id: z.number().int().positive(), data: participantPatchSchema })).min(1).max(500),
 });
@@ -242,6 +250,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const patch = participantPatchSchema.safeParse(req.body);
       if (!patch.success) return res.status(400).json({ message: "Modification de participant invalide" });
+      if (!canPatchParticipantOperations(req.session.user?.roles, currentParticipant.type, patch.data)) {
+        return res.status(403).json({ message: "Ce compte ne peut pas enregistrer cette action pour ce participant." });
+      }
       const { squadId: newSquadId } = patch.data;
       const previousSquadId = currentParticipant.squadId;
       const squadChanging = newSquadId !== undefined && newSquadId !== previousSquadId;
@@ -315,8 +326,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { updates } = parsed.data;
 
       for (const update of updates) {
-        if (!await storage.getParticipant(update.id)) {
-          return res.status(404).json({ message: `Participant ${update.id} introuvable` });
+        const participant = await storage.getParticipant(update.id);
+        if (!participant) return res.status(404).json({ message: `Participant ${update.id} introuvable` });
+        if (!canPatchParticipantOperations(req.session.user?.roles, participant.type, update.data)) {
+          return res.status(403).json({ message: "Ce compte ne peut pas enregistrer cette action pour ce participant." });
         }
       }
 
@@ -1217,7 +1230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (/^https?:/i.test(qrData)) {
         const { participantFromCardQR } = await import("./participant-card-routes");
-        const participant = await participantFromCardQR(qrData);
+        const participant = await participantFromCardQR(qrData, req.session.user?.roles);
         return participant ? res.json({ participant }) : res.status(404).json({ message: "Carte introuvable." });
       }
 

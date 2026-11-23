@@ -59,8 +59,10 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
       <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 44.25, mealBoxSize, mealBoxSize)} />
       <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, 45.5)}>Repas</span>
-      <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>N° de passage</span>
-      <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, 45, 14, 4)} />
+      {theme.zombie && <>
+        <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>Maquillage</span>
+        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, 45, 14, 4)} />
+      </>}
     </section>
     <section aria-label="Verso" className={face}>
       {background("back")}

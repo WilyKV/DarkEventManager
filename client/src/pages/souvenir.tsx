@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
 import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
+import { StaffCardActions } from "@/components/staff-card-actions";
+import { useAuth } from "@/lib/auth";
 import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +42,7 @@ export default function SouvenirPage({ params }: { params: { token?: string; id?
 }
 
 function SouvenirSession({ token, adminId }: { token?: string; adminId?: string }) {
+  const { user, isLoading: checkingAccount } = useAuth();
   const open = `${cardsPath}/open/${encodeURIComponent(token ?? "")}`;
   const view = adminId ? `${cardsPath}/admin/${encodeURIComponent(adminId)}` : `${cardsPath}/view/${encodeURIComponent(token ?? "")}`;
   const adminPreview = useQuery<ParticipantSouvenir>({
@@ -62,7 +65,8 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
   const [erased, setErased] = useState(false);
 
   useEffect(() => {
-    if (adminId) return;
+    if (adminId || checkingAccount) return;
+    if (user) { setCheckingSession(false); return; }
     const controller = new AbortController();
     void (async () => {
       try {
@@ -80,7 +84,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
       }
     })();
     return () => controller.abort();
-  }, [adminId, view]);
+  }, [adminId, checkingAccount, user, view]);
 
   async function unlock(event: FormEvent) {
     event.preventDefault();
@@ -150,6 +154,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
           <LogOut /> Fermer mon espace
         </Button>}
       </header>
+      {user && token && !adminId && !summary && <StaffCardActions token={token} accountId={user.id} />}
       {summary ? <>
         {error && <p role="alert" className="souvenir-error">{error}</p>}
         <section className="souvenir-hero souvenir-enter" aria-labelledby="souvenir-title">

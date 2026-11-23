@@ -1,3 +1,7 @@
+import { useSearch } from "wouter";
+import { staffCardPath, freeMealPath, tokenFromCardQr, type StaffCardScan, type ScannedCardProfile } from "@shared/card-scan";
+import { souvenirPath } from "@shared/participant-card";
+import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +14,7 @@ import {
   Beer, Coffee, Sandwich, Shirt, Backpack, Gift,
   Package, Utensils, ShoppingBag
 } from "lucide-react";
-import type { MealItem, Participant } from "@shared/schema";
+import type { MealItem } from "@shared/schema";
 import { QrScanner } from "@/components/qr-scanner";
 import {
   Select,
@@ -49,10 +53,14 @@ export default function RepasPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [scannedParticipant, setScannedParticipant] = useState<Participant | null>(null);
+  const [scannedParticipant, setScannedParticipant] = useState<ScannedCardProfile | null>(null);
+  const search = useSearch();
+  const cardToken = new URLSearchParams(search).get("carte");
+  const [souvenirToken, setSouvenirToken] = useState<string>();
   const [discount, setDiscount] = useState(0);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [cardChecked, setCardChecked] = useState(false);
   const [freeMealDishId, setFreeMealDishId] = useState<string>("");
   const [freeMealDrinkId, setFreeMealDrinkId] = useState<string>("");
 
@@ -96,6 +104,10 @@ export default function RepasPage() {
 
       const { participant } = await scanRes.json();
       setScannedParticipant(participant);
+      setSouvenirToken(tokenFromCardQr(qrData));
+      setDiscount(0);
+      setCart([]);
+      setCardChecked(false);
 
       // Get meal discount for participant
       const discountRes = await fetch(`/api/meal-discounts/calculate/${participant.id}`);
@@ -118,6 +130,33 @@ export default function RepasPage() {
       });
     }
   };
+
+  useEffect(() => {
+    if (!cardToken || !/^[A-Za-z0-9_-]{27}$/.test(cardToken)) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch(`${staffCardPath}/${cardToken}`, { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Carte indisponible.");
+        const scan = await response.json() as StaffCardScan;
+        if (!scan.canServeMeals) throw new Error("Cette action n’est pas autorisée pour ce compte.");
+        if (controller.signal.aborted) return;
+        setScannedParticipant(scan.participant);
+        setSouvenirToken(cardToken);
+        setCart([]);
+        setDiscount(0);
+        setCardChecked(false);
+        const discountResponse = await fetch(`/api/meal-discounts/calculate/${scan.participant.id}`, { signal: controller.signal });
+        if (discountResponse.ok) {
+          const { discount } = await discountResponse.json();
+          if (!controller.signal.aborted) setDiscount(discount);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) toast({ title: "Carte indisponible", description: error instanceof Error ? error.message : undefined, variant: "destructive" });
+      }
+    })();
+    return () => controller.abort();
+  }, [cardToken, toast]);
 
   // Add to cart
   const addToCart = (item: MealItem) => {
@@ -197,45 +236,16 @@ export default function RepasPage() {
 
       if (purchases.length === 0) throw new Error("Aucun article sélectionné");
 
-      await Promise.all(
-        purchases.map(async (item) => {
-          const purchaseRes = await fetch("/api/meal-purchases", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              participantId: scannedParticipant.id,
-              mealItemId: item.id,
-              quantity: 1,
-              unitPrice: "0",
-              originalPrice: item.price,
-              discountApplied: 0,
-              totalPrice: "0",
-              isPaid: true,
-            }),
-          });
-          if (!purchaseRes.ok) throw new Error("Impossible de créer l'achat offert");
-
-          const stockRes = await fetch(`/api/meal-items/${item.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ stock: item.stock - 1 }),
-          });
-          if (!stockRes.ok) throw new Error("Impossible de mettre à jour le stock");
-        }),
-      );
-
-      const participantRes = await fetch(`/api/participants/${scannedParticipant.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ freeMealClaimed: true, hasFreemeal: true }),
+      await apiRequest("POST", `${freeMealPath}/${scannedParticipant.id}`, {
+        itemIds: purchases.map(item => item.id),
+        cardChecked,
       });
-      if (!participantRes.ok) throw new Error("Impossible de mettre à jour le participant");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/participants"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meal-purchases"] });
       queryClient.invalidateQueries({ queryKey: ["/api/meal-items"] });
-      toast({ title: "Repas offert servi" });
+      toast({ title: "Repas offert servi", description: "Cochez la case repas sur la carte physique." });
       // Refresh scanned participant data
       if (scannedParticipant) {
         setScannedParticipant((prev) => prev ? { ...prev, freeMealClaimed: true } : prev);
@@ -345,6 +355,8 @@ export default function RepasPage() {
       subtitle="Point de vente repas"
       showHomeButton
     >
+      {scannedParticipant && souvenirToken && <a className="mb-3 inline-flex text-sm font-medium underline underline-offset-4" href={`${souvenirPath}/${souvenirToken}`}>Accéder à l’espace souvenir avec le code</a>}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Products */}
         <div className="lg:col-span-2 space-y-6">
@@ -456,6 +468,11 @@ export default function RepasPage() {
                       )}
                     </div>
                   </div>
+                  <label className="flex min-h-11 items-center gap-2 text-sm">
+                    <input className="size-5 accent-primary" type="checkbox" checked={cardChecked}
+                      onChange={event => setCardChecked(event.target.checked)} />
+                    J’ai vérifié que la case repas de la carte physique est libre.
+                  </label>
                   <Button
                     className="w-full"
                     onClick={() => {
@@ -471,7 +488,7 @@ export default function RepasPage() {
                       }
                       claimFreeMealMutation.mutate();
                     }}
-                    disabled={claimFreeMealMutation.isPending}
+                    disabled={!cardChecked || claimFreeMealMutation.isPending}
                   >
                     <Check className="w-4 h-4 mr-2" />
                     {claimFreeMealMutation.isPending ? "Enregistrement..." : "Valider le repas offert"}

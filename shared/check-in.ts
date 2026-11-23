@@ -41,6 +41,7 @@ export type CheckInPlayer = {
   type: CheckInType;
   timeSlotId: number | null;
   arrived: boolean;
+  arrivedAt?: string | null;
   returned: boolean;
   details: CheckInDetails;
   revision: string;
@@ -48,6 +49,7 @@ export type CheckInPlayer = {
 
 export type CheckInRoster = {
   eventDay?: string | null;
+  makeupArtists?: number;
   players: CheckInPlayer[];
   slots: (WelcomeTimeSlot & { type?: CheckInType })[];
   teams: { id: number; number: number; timeSlotId: number; type?: string; maxMembers: number | null; members: number; briefing?: string | null }[];

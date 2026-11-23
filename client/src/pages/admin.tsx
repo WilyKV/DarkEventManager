@@ -11,6 +11,7 @@ import { MealDiscountManagement } from "@/components/meal-discount-management";
 import { ProductManagement } from "@/components/product-management";
 import { MealProductManagement } from "@/components/meal-product-management";
 import { DemoDataManager } from "@/components/demo-data-manager";
+import { MakeupSettings } from "@/components/makeup-settings";
 import { SouvenirSettings } from "@/components/souvenir-settings";
 import { EventDaySettings } from "@/components/event-day-settings";
 import { EventBackupManager } from "@/components/event-backup-manager";
@@ -192,6 +193,7 @@ export default function AdminPage() {
         <TabsContent value="config" className="space-y-4">
           <EventDaySettings />
           <SouvenirSettings />
+          <MakeupSettings />
           <EventBackupManager />
           <AnalyticsSettings />
           <DemoDataManager />

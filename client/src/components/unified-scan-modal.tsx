@@ -1,3 +1,6 @@
+import { useLocation } from "wouter";
+import { tokenFromCardQr } from "@shared/card-scan";
+import { souvenirPath } from "@shared/participant-card";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -33,6 +36,7 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
   const [processedParticipants, setProcessedParticipants] = useState<Participant[]>([]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
 
   const checkInMutation = useMutation({
     mutationFn: async (participantId: number): Promise<Participant> => {
@@ -75,6 +79,12 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
   });
 
   const handleScanSuccess = async (encryptedData: string) => {
+    const token = tokenFromCardQr(encryptedData);
+    if (token) {
+      onOpenChange(false);
+      navigate(`${souvenirPath}/${token}`);
+      return;
+    }
     try {
       // Use existing QR scan endpoint
       const response = await fetch("/api/qr/scan", {

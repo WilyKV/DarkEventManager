@@ -55,8 +55,10 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     }
     doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
     doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
-    doc.fillColor("#ffffff").font("CardRegular").text("N° de passage", pt(28), pt(45.5), { lineBreak: false });
-    doc.roundedRect(pt(49), pt(45), pt(14), pt(4), pt(0.45)).fill("#ffffff");
+    if (theme.zombie) {
+      doc.fillColor("#ffffff").font("CardRegular").text("Maquillage", pt(28), pt(45.5), { lineBreak: false });
+      doc.roundedRect(pt(49), pt(45), pt(14), pt(4), pt(0.45)).fill("#ffffff");
+    }
     return;
   }
 

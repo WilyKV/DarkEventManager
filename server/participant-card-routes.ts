@@ -3,12 +3,13 @@ import type { Express } from "express";
 import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { appConfig, auditLogs, discounts, mealDiscounts, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
+import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
 import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
+import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
 import { checkInRoles } from "@shared/check-in";
 import { db } from "./db";
 import { storage } from "./storage";
-import { requireRole } from "./auth-middleware";
+import { hasSessionRole, requireRole } from "./auth-middleware";
 import { allowedCheckInTypes } from "./check-in-routes";
 import { checkSyncPermissions } from "./sync-middleware";
 import { printModes, renderParticipantCards } from "./participant-card-pdf";
@@ -164,15 +165,33 @@ async function getCard(token: string) {
   return card;
 }
 
-export async function participantFromCardQR(payload: string) {
-  let path: string;
-  try { path = new URL(payload).pathname; } catch { return undefined; }
-  const match = /^\/souvenir\/([A-Za-z0-9_-]{27})\/?$/.exec(path);
-  if (!match) return undefined;
-  const card = await getCard(match[1]);
+function staffCardDetails(player: Pick<typeof participants.$inferSelect,
+  "id" | "type" | "firstName" | "lastName" | "freeMealClaimed" | "arrived" | "arrivedAt" | "returned" | "returnedAt">,
+  roles: unknown): StaffCardScan {
+  const { id, type, firstName, lastName, freeMealClaimed } = player;
+  return {
+    participant: { id, type, firstName, lastName, freeMealClaimed },
+    presence: player.returned || player.returnedAt ? "departed" : player.arrived || player.arrivedAt ? "present" : "expected",
+    canManagePresence: hasSessionRole(roles, ["admin"]) ||
+      ((type === "zombie" || type === "survivant") && hasSessionRole(roles, [`staff_${type}`])),
+    canServeMeals: hasSessionRole(roles, ["admin", "staff_repas"]),
+    canSell: hasSessionRole(roles, ["admin", "staff_boutique"]),
+  };
+}
+
+async function activeCardParticipant(token: string) {
+  const card = await getCard(token);
   if (!card || (card.expiresAt && card.expiresAt <= new Date())) return undefined;
   const participant = await storage.getParticipant(card.participantId);
   return participant && identityOf(participant) === card.identity ? participant : undefined;
+}
+
+export async function participantFromCardQR(payload: string, roles: unknown) {
+  const token = tokenFromCardQr(payload);
+  const participant = token && await activeCardParticipant(token);
+  if (!participant) return undefined;
+  const scan = staffCardDetails(participant, roles);
+  return scan.canManagePresence || scan.canServeMeals || scan.canSell ? scan.participant : undefined;
 }
 
 async function eraseParticipantCard(tx: Transaction, card: Pick<typeof participantCards.$inferSelect, "id" | "token" | "identity" | "participantId">) {
@@ -227,6 +246,69 @@ export function registerParticipantCardRoutes(app: Express) {
   app.use(cardsPath, (_req, res, next) => {
     res.setHeader("Cache-Control", "private, no-store");
     next();
+  });
+
+  const scanStaff = requireRole(...checkInRoles, "staff_repas", "staff_boutique");
+
+  app.get(`${staffCardPath}/:token`, scanStaff, async (req, res) => {
+    const player = await activeCardParticipant(req.params.token);
+    if (!player) return res.sendStatus(404);
+    const scan = staffCardDetails(player, req.session.user!.roles);
+    if (!scan.canManagePresence && !scan.canServeMeals && !scan.canSell) return res.sendStatus(403);
+    return res.json(scan);
+  });
+
+  app.post(`${staffCardPath}/:token/presence`, requireRole(...checkInRoles), checkSyncPermissions, async (req, res) => {
+    const action = z.enum(["arrive", "depart"]).safeParse(req.body?.action);
+    if (!action.success) return res.status(400).json({ message: "Action d’accueil invalide." });
+    const card = await getCard(req.params.token);
+    if (!card || (card.expiresAt && card.expiresAt <= new Date())) return res.sendStatus(404);
+    const roles = req.session.user!.roles;
+    const result = await db.transaction(async tx => {
+      const [player] = await tx.select().from(participants)
+        .where(and(eq(participants.id, card.participantId), isNull(participants.deletedAt))).for("update");
+      if (!player || identityOf(player) !== card.identity) return { status: 404 };
+      const scan = staffCardDetails(player, roles);
+      if (!scan.canManagePresence) return { status: 403 };
+      const arrival = action.data === "arrive";
+      if (scan.presence !== (arrival ? "expected" : "present")) {
+        return { status: 409, body: { message: "La présence a déjà changé. Vérifiez le nouvel état." } };
+      }
+      const now = new Date();
+      const [saved] = await tx.update(participants)
+        .set(arrival ? { arrived: true, arrivedAt: now } : { returned: true, returnedAt: now })
+        .where(eq(participants.id, player.id)).returning();
+      return { status: 200, body: staffCardDetails(saved, roles) };
+    });
+    return result.body ? res.status(result.status).json(result.body) : res.sendStatus(result.status);
+  });
+
+  app.post(`${freeMealPath}/:id`, requireRole("admin", "staff_repas"), checkSyncPermissions, async (req, res) => {
+    const id = z.coerce.number().int().positive().safeParse(req.params.id);
+    const meal = z.object({ itemIds: z.array(z.number().int().positive()).min(1).max(2), cardChecked: z.literal(true) }).strict().safeParse(req.body);
+    if (!id.success || !meal.success) return res.status(400).json({ message: "Vérifiez la carte physique et la sélection du repas." });
+    const result = await db.transaction(async tx => {
+      const [player] = await tx.select().from(participants)
+        .where(and(eq(participants.id, id.data), isNull(participants.deletedAt))).for("update");
+      if (!player || player.type !== "zombie") return { status: 404, message: "Participant introuvable ou sans repas offert." };
+      if (player.freeMealClaimed) return { status: 409, message: "Le repas offert a déjà été servi." };
+      const items = await tx.select().from(mealItems).where(inArray(mealItems.id, meal.data.itemIds))
+        .orderBy(mealItems.id).for("update");
+      if (items.length !== meal.data.itemIds.length || new Set(items.map(item => item.category)).size !== items.length ||
+          items.some(item => item.stock < 1 || (item.category !== "Plats" && item.category !== "Boissons"))) {
+        return { status: 409, message: "Vérifiez les articles et le stock du repas." };
+      }
+      for (const item of items) {
+        await tx.update(mealItems).set({ stock: item.stock - 1 }).where(eq(mealItems.id, item.id));
+      }
+      await tx.insert(mealPurchases).values(items.map(item => ({
+        participantId: player.id, mealItemId: item.id, quantity: 1, unitPrice: "0",
+        originalPrice: item.price, discountApplied: 0, totalPrice: "0", isPaid: true,
+      })));
+      await tx.update(participants).set({ freeMealClaimed: true, hasFreemeal: true }).where(eq(participants.id, player.id));
+      return { status: 204 };
+    });
+    return result.message ? res.status(result.status).json({ message: result.message }) : res.sendStatus(result.status);
   });
 
   app.get(souvenirSettingsPath, requireRole("admin"), async (_req, res) => {

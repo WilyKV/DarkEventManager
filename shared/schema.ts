@@ -176,6 +176,7 @@ export const appConfig = pgTable("app_config", {
   lastSyncAt: timestamp("last_sync_at"),
   eventDay: date("event_day", { mode: "string" }),
   eventClosedAt: timestamp("event_closed_at", { withTimezone: true }),
+  makeupArtists: integer("makeup_artists"),
   souvenirSettings: jsonb("souvenir_settings").$type<SouvenirSettings & { closedCounts?: SouvenirAttendance }>(),
   analyticsStartedAt: timestamp("analytics_started_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at").defaultNow(),

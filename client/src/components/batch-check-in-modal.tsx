@@ -285,7 +285,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
               <div className="p-6 rounded-lg bg-chart-5/10 border-2 border-chart-5/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit + Bouteille d'eau</h4>
                 <p className="text-sm text-muted-foreground">
-                  Remettre une carte participant avec le numéro de passage. Présenter la carte à la buvette. Donner une bouteille d'eau à remplir aux jerricanes.
+                  Remettre une carte participant avec l’heure estimée du maquillage. Présenter la carte à la buvette. Donner une bouteille d'eau à remplir aux jerricanes.
                 </p>
               </div>
             </div>
@@ -300,7 +300,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
               <div className="p-6 rounded-lg bg-chart-4/10 border-2 border-chart-4/30">
                 <h4 className="text-lg font-semibold text-foreground mb-3">Badge requis</h4>
                 <p className="text-sm text-muted-foreground">
-                  Le numéro de passage inscrit sur la carte indique l'ordre de passage. Se présenter au stand de maquillage avec sa carte à son tour.
+                  L’heure estimée du maquillage inscrite sur la carte indique quand se présenter au stand de maquillage avec sa carte.
                 </p>
               </div>
             </div>

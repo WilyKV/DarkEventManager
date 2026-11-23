@@ -303,7 +303,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                     <div className="flex-1">
                       <h4 className="text-lg font-semibold text-foreground mb-3">Repas gratuit</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Les participants doivent présenter leur <strong>carte participant</strong> pour bénéficier de leur repas gratuit à la buvette. Inscrivez le numéro de passage sur chaque carte.
+                        Les participants doivent présenter leur <strong>carte participant</strong> pour bénéficier de leur repas gratuit à la buvette. Inscrivez l’heure estimée du maquillage sur chaque carte.
                       </p>
                       {slot?.mealTime || slot?.welcomeNotes?.meal ? <WelcomeSchedule slot={slot} phases={["meal"]} /> : (
                         <div className="bg-background/80 p-3 rounded-md">
@@ -350,7 +350,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                     <div>
                       <h4 className="text-lg font-semibold text-foreground mb-3">Ordre de passage</h4>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Le <strong>numéro de passage inscrit sur la carte</strong> indique l'ordre de passage au maquillage.
+                        L’<strong>heure estimée inscrite sur la carte</strong> indique quand se présenter au stand de maquillage.
                       </p>
                     </div>
 

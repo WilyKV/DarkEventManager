@@ -1,3 +1,4 @@
+import { makeupEstimates } from "@shared/makeup";
 import { useId, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Footprints, Plus, Search, ShieldCheck, Skull, UserCheck } from "lucide-react";
 import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
@@ -30,6 +31,7 @@ const profileCards = {
   survivant: { Icon: Footprints, colors: "border-blue-500/40 bg-blue-950 text-blue-50 hover:bg-blue-900" },
   staff: { Icon: ShieldCheck, colors: "border-emerald-500/40 bg-emerald-950 text-emerald-50 hover:bg-emerald-900" },
 };
+const makeupClock = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" });
 const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
 const initial = (name: string) => {
   const letter = normalizePlayerName(name).trim().charAt(0).toUpperCase();
@@ -144,6 +146,9 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
     }
   }
 
+  const makeup = step === "done" && type === "zombie" && currentWave && roster
+    ? makeupEstimates(wavePlayers, roster.slots.find(slot => String(slot.id) === currentWave.value)?.briefingTime, roster.makeupArtists)
+    : undefined;
   const title = {
     profile: "Qui accueillez-vous ?",
     count: "Combien de personnes ?",
@@ -307,11 +312,23 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
         )}
 
         {step === "done" && (
-          <div className="space-y-4">
+          <div className="min-h-0 space-y-4 overflow-y-auto">
             <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 font-medium">
               <UserCheck className="size-6" aria-hidden />
               {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
             </p>
+            {makeup && <section className="rounded-xl border border-border bg-card p-4" aria-label="Heures estimées de maquillage">
+              <h3 className="font-semibold">Maquillage · horaires estimés</h3>
+              {savedIds.some(id => makeup.has(id)) ? <>
+                <p className="mt-1 text-sm text-muted-foreground">Notez l’heure sur la carte de chaque participant.</p>
+                <ul className="mt-2 divide-y divide-border">
+                  {wavePlayers.filter(player => savedIds.includes(player.id)).map(player => <li key={player.id} className="flex justify-between gap-2 py-2 text-sm">
+                    <span>{player.firstName} {player.lastName}</span>
+                    <strong>{makeup.has(player.id) ? makeupClock.format(makeup.get(player.id)!) : "Horaire indisponible"}</strong>
+                  </li>)}
+                </ul>
+              </> : <p className="mt-1 text-sm text-muted-foreground">Vérifiez l’heure du briefing et les arrivées de la vague.</p>}
+            </section>}
             <div className="flex flex-wrap gap-2">
               <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>
               {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"

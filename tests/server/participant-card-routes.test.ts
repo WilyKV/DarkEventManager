@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { staffCardPath } from "@shared/card-scan";
+import { storage } from "../../server/storage";
 import express from "express";
 import session from "express-session";
 import request from "supertest";
@@ -107,6 +110,29 @@ describe("Espace souvenir", () => {
     expect((await agent.get(`${view}?resume=1`)).status).toBe(200);
     expect((await agent.delete(open)).status).toBe(204);
     expect((await agent.get(`${view}?resume=1`)).status).toBe(401);
+  });
+
+  it("affiche uniquement les actions liées au rôle et au profil scanné", async () => {
+    const createdAt = new Date("2026-11-21T10:00:00Z");
+    const identity = createHash("sha256").update(JSON.stringify([12, createdAt])).digest("hex");
+    readCard.mockResolvedValue([{ participantId: 12, token, identity, expiresAt: null }]);
+    const participant = vi.spyOn(storage, "getParticipant").mockResolvedValue({
+      id: 12, type: "zombie", firstName: "Clara", lastName: "Martin", createdAt,
+      arrived: true, returned: false, secretCode: "SECRET", freeMealClaimed: false,
+    } as Awaited<ReturnType<typeof storage.getParticipant>>);
+    try {
+      const url = `${staffCardPath}/${token}`;
+      expect((await request(makeApp()).get(url)).status).toBe(401);
+      expect((await request(makeApp("staff_survivant")).get(url)).status).toBe(403);
+      const zombie = await request(makeApp("staff_zombie")).get(url);
+      expect(zombie.body).toMatchObject({ presence: "present", canManagePresence: true, canServeMeals: false, canSell: false });
+      expect(zombie.body.participant).not.toHaveProperty("secretCode");
+      expect((await request(makeApp("staff_repas")).get(url)).body).toMatchObject({ canManagePresence: false, canServeMeals: true, canSell: false });
+      expect((await request(makeApp("staff_boutique")).get(url)).body).toMatchObject({ canManagePresence: false, canServeMeals: false, canSell: true });
+      expect((await request(makeApp("staff_repas")).post(`${url}/presence`).send({ action: "depart" })).status).toBe(403);
+    } finally {
+      participant.mockRestore();
+    }
   });
 
   it("refuse une carte expirée même après ouverture de la session", async () => {

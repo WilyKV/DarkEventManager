@@ -11,14 +11,14 @@ function player(id: number, firstName: string, lastName: string, overrides: Part
 }
 
 const clara = player(1, "Clara", "Martin");
-const lucie = player(2, "Lucie", "Évrard");
+const lucie = player(2, "Lucie", "Évrard", { details: { squadId: 2, checklist: {} } });
 const paul = player(3, "Paul", "Martin");
 const roster: CheckInRoster = {
   players: [paul, clara, lucie,
     player(4, "Gaël", "Durand", { timeSlotId: 2 }),
     player(5, "Mia", "Martin", { type: "survivant", timeSlotId: 3 }),
     player(6, "Aline", "Borel", { type: "staff", timeSlotId: null }),
-    player(7, "Sam", "Sorti", { returned: true }),
+    player(7, "Sam", "Sorti", { returned: true, details: { squadId: 1, checklist: {} } }),
   ],
   slots: [
     { id: 2, type: "zombie", name: "Vague 20 h", briefingTime: "20:00", gameTime: "21:00" },
@@ -89,10 +89,17 @@ describe("Accueil tactile", () => {
     expect(button(/Martin Clara/)).toBeVisible();
     await click(user, "Commencer l’accueil");
 
-    const recommended = button(/Équipe 2.*Recommandée/);
+    const recommended = button(/Squad 2.*Recommandée/);
     expect(recommended).toHaveTextContent("7 places libres");
+    expect(button("Confirmer la squad")).toBeDisabled();
+    const members = button("Membres · Squad 2 · 1");
+    expect(members).toHaveTextContent("1 / 8");
+    await user.click(members);
+    expect(members).toHaveAttribute("aria-expanded", "true");
+    expect(within(screen.getByRole("list", { name: "Membres · Squad 2" })).getByText("Sam Sorti")).toBeVisible();
+    expect(recommended).toHaveAttribute("aria-pressed", "false");
     await user.click(recommended);
-    await click(user, "Confirmer l’équipe");
+    await click(user, "Confirmer la squad");
     expect(screen.getByText("Bonjour Clara ! Bonjour Lucie !")).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     await reviewArrival(user);
@@ -163,10 +170,10 @@ describe("Accueil tactile", () => {
     await click(user, /Martin Clara/);
     await click(user, /Martin Paul/);
     await click(user, "Commencer l’accueil");
-    await click(user, /Équipe 3.*Complète/);
-    expect(button("Confirmer l’équipe")).toBeDisabled();
+    await click(user, /Squad 3.*Complète/);
+    expect(button("Confirmer la squad")).toBeDisabled();
     await user.click(screen.getByRole("checkbox", { name: /Confirmer le dépassement/ }));
-    await click(user, "Confirmer l’équipe");
+    await click(user, "Confirmer la squad");
     await reviewArrival(user);
     await click(user, "Valider les 2 arrivées");
     expect(onSaveOfflineGroup).toHaveBeenCalledTimes(1);
@@ -184,7 +191,8 @@ describe("Accueil tactile", () => {
     await click(user, /Martin Clara/);
     await click(user, /Martin Paul/);
     await click(user, "Commencer l’accueil");
-    await click(user, "Continuer sans équipe");
+    await click(user, /Squad 2.*Recommandée/);
+    await click(user, "Confirmer la squad");
     await reviewArrival(user);
     await click(user, "Valider les 2 arrivées");
     expect(await screen.findByRole("alert")).toHaveTextContent("Serveur indisponible");
@@ -203,7 +211,7 @@ describe("Accueil tactile", () => {
     await click(user, "M");
     await click(user, /Martin Clara/);
     await click(user, "Commencer l’accueil");
-    await click(user, "Confirmer l’équipe");
+    await click(user, "Confirmer la squad");
     await click(user, "Passer la présentation");
     await click(user, /Remettre le ticket repas Confirmé/);
     await click(user, "Marquer à faire");

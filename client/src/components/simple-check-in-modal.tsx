@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronLeft, CheckCircle, Users, Utensils, Paintbrush, MapPin, Loader2 } from "lucide-react";
+import { placementLabels } from "./squad-placement";
 import { SquadSelector } from "./squad-selector";
 import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 
@@ -19,6 +20,7 @@ interface SimpleCheckInModalProps {
 type Step = 1 | 2 | 3 | 4 | 5;
 
 export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCheckInModalProps) {
+  const placement = placementLabels(participant.type);
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedSquad, setSelectedSquad] = useState(participant.squadId?.toString() || "");
@@ -85,7 +87,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
   const slot = selectedSquadData?.timeSlot ?? participant.timeSlot;
 
   const steps = [
-    { num: 1, title: "Squad", icon: Users },
+    { num: 1, title: placement.name, icon: Users },
     { num: 2, title: "Informations", icon: CheckCircle },
     { num: 3, title: "Repas", icon: Utensils },
     { num: 4, title: "Maquillage", icon: Paintbrush },
@@ -148,8 +150,8 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection de la squad</h3>
-                <p className="text-muted-foreground">Choisissez la squad pour ce participant</p>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection {placement.of}</h3>
+                <p className="text-muted-foreground">Choisissez {placement.article} pour ce participant</p>
               </div>
 
               <SquadSelector
@@ -165,7 +167,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Informations de la squad</h3>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Informations {placement.of}</h3>
                 <p className="text-muted-foreground">Détails du créneau et briefing</p>
               </div>
 
@@ -175,7 +177,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                 <div className="space-y-4">
                   <div className="p-6 rounded-lg bg-primary/5 border-2 border-primary/20">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-xl font-bold text-primary">Squad {selectedSquadData.number}</h4>
+                      <h4 className="text-xl font-bold text-primary">{placement.name} {selectedSquadData.number}</h4>
                       <Badge className="bg-primary">{selectedSquadData.type}</Badge>
                     </div>
 
@@ -183,7 +185,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                     {selectedSquadData.participants && selectedSquadData.participants.length > 0 && (
                       <div className="mb-4">
                         <p className="text-sm font-semibold text-foreground mb-2">
-                          Membres de la squad ({selectedSquadData.participants.length}) :
+                          Membres {placement.of} ({selectedSquadData.participants.length}) :
                         </p>
                         <div className="grid grid-cols-2 gap-2 mt-2">
                           {selectedSquadData.participants.map((p) => (
@@ -206,7 +208,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
                 </div>
               ) : (
                 <div className="p-6 text-center text-muted-foreground">
-                  <p>Aucune squad sélectionnée</p>
+                  <p>Aucune {placement.noun} sélectionnée</p>
                 </div>
               )}
             </div>

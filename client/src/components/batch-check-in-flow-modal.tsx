@@ -8,6 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ChevronRight, ChevronLeft, CheckCircle, Users, Utensils, Paintbrush, MapPin, Loader2 } from "lucide-react";
+import { placementLabels } from "./squad-placement";
 import { SquadSelector } from "./squad-selector";
 import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 import { format } from "date-fns";
@@ -22,6 +23,7 @@ interface BatchCheckInFlowModalProps {
 type Step = 1 | 2 | 3 | 4 | 5;
 
 export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: BatchCheckInFlowModalProps) {
+  const placement = placementLabels(participants[0]?.type);
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedSquad, setSelectedSquad] = useState("");
@@ -107,7 +109,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
   const slot = timeSlots.find(slot => slot.id === selectedTimeSlotId) ?? selectedSquadData?.timeSlot;
 
   const steps = [
-    { num: 1, title: "Squad", icon: Users },
+    { num: 1, title: placement.name, icon: Users },
     { num: 2, title: "Informations", icon: CheckCircle },
     { num: 3, title: "Repas", icon: Utensils },
     { num: 4, title: "Maquillage", icon: Paintbrush },
@@ -170,7 +172,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
           {currentStep === 1 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection du créneau et de la squad</h3>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Sélection du créneau et {placement.of}</h3>
                 <p className="text-muted-foreground">Tous les participants seront assignés au même créneau et à la même squad</p>
               </div>
 
@@ -221,7 +223,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
               {/* Squad Selection */}
               {selectedTimeSlotId && (
                 <div className="space-y-3">
-                  <h4 className="font-semibold text-sm">{!participants[0]?.timeSlotId ? "2. " : ""}Sélectionner une squad</h4>
+                  <h4 className="font-semibold text-sm">{!participants[0]?.timeSlotId ? "2. " : ""}Sélectionner une {placement.noun}</h4>
                   <SquadSelector
                     squads={squadsWithParticipants}
                     players={participants}
@@ -237,7 +239,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
           {currentStep === 2 && (
             <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-semibold text-foreground mb-2">Informations de la squad</h3>
+                <h3 className="text-2xl font-semibold text-foreground mb-2">Informations {placement.of}</h3>
                 <p className="text-muted-foreground">Détails du créneau et briefing</p>
               </div>
 
@@ -247,13 +249,13 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                 <div className="space-y-4">
                   <div className="p-6 rounded-lg bg-primary/5 border-2 border-primary/20">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-xl font-bold text-primary">Squad {selectedSquadData.number}</h4>
+                      <h4 className="text-xl font-bold text-primary">{placement.name} {selectedSquadData.number}</h4>
                       <Badge className="bg-primary">{selectedSquadData.type}</Badge>
                     </div>
 
                     {selectedSquadData.participants && selectedSquadData.participants.length > 0 && (
                       <div className="mb-4">
-                        <p className="text-sm font-semibold text-foreground mb-2">Membres actuels de la squad :</p>
+                        <p className="text-sm font-semibold text-foreground mb-2">Membres actuels {placement.of} :</p>
                         <div className="flex flex-wrap gap-2">
                           {selectedSquadData.participants.map((p) => (
                             <Badge key={p.id} variant="outline" className="text-xs">
@@ -274,13 +276,13 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
 
                   <div className="p-4 rounded-lg bg-muted/50 border">
                     <p className="text-sm text-muted-foreground">
-                      <strong>Important :</strong> Les participants doivent connaître leur squad pour retrouver facilement leurs coéquipiers après le briefing.
+                      <strong>Important :</strong> Les participants doivent connaître leur {placement.noun} pour retrouver facilement leurs coéquipiers après le briefing.
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="p-6 text-center text-muted-foreground">
-                  <p>Aucune squad sélectionnée</p>
+                  <p>Aucune {placement.noun} sélectionnée</p>
                 </div>
               )}
             </div>
@@ -359,7 +361,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
                       <ul className="text-sm text-muted-foreground space-y-2 list-disc list-inside">
                         <li>À leur tour, les participants présentent leur badge numérique ou imprimé au stand de maquillage</li>
                         <li>Ils doivent être prêts pour le briefing à l'heure prévue</li>
-                        <li>Une fois maquillés, ils peuvent rejoindre leur squad</li>
+                        <li>Une fois maquillés, ils peuvent rejoindre leur {placement.noun}</li>
                       </ul>
                     </div>
                   </div>

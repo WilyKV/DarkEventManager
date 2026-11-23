@@ -5,6 +5,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { WelcomeDialog } from "@/components/welcome-dialog";
+import { placementLabels, placementMembers, type PlacementMember } from "@/components/squad-placement";
 import { WelcomeGuide } from "@/components/welcome-guide";
 import type { OfflineArrival } from "@/components/offline-group-welcome";
 import { OfflineSquadRoster } from "@/components/offline-squad-roster";
@@ -291,14 +292,10 @@ export default function OfflineCheckInPage() {
   const teams = new Map(data?.squads.map(team => [team.id, team.number]));
   const pending = new Set([...(data?.pending ?? []), ...Array.from(archived)]);
   const canPrepare = hasAnyRole(checkInRoles);
-  const counts = new Map<number, number>();
-  if (welcomeOpen || selected) {
-    for (const { state } of participants) {
-      if (state.squadId !== null) counts.set(state.squadId, (counts.get(state.squadId) ?? 0) + 1);
-    }
-  }
+  const membersByTeam = placementMembers(welcomeOpen || selected
+    ? participants.map(player => ({ ...player, squadId: player.state.squadId })) : []);
   const welcomeTeams = data && (welcomeOpen || selected)
-    ? data.squads.map(team => ({ ...team, members: counts.get(team.id) ?? 0 })) : [];
+    ? data.squads.map(team => ({ ...team, members: membersByTeam.get(team.id)?.length ?? 0 })) : [];
   const welcomeRoster: CheckInRoster | undefined = welcomeOpen && data ? {
     players: participants.map(player => ({
       id: player.id, firstName: player.firstName, lastName: player.lastName, type: player.type,
@@ -394,7 +391,7 @@ export default function OfflineCheckInPage() {
               <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 p-3">
                 <div className="min-w-0">
                   <p className="break-words font-medium">{player.firstName} {player.lastName}</p>
-                  <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · Équipe ${teams.get(player.state.squadId)}` : ""}</p>
+                  <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · ${placementLabels(player.type).name} ${teams.get(player.state.squadId)}` : ""}</p>
                   {player.id < 0 && <p className="text-xs text-muted-foreground">Créé sur cet appareil</p>}
                   {data.conflicts[player.id] && <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>}
                 </div>
@@ -460,7 +457,7 @@ export default function OfflineCheckInPage() {
               onSaveOfflineGroup={arrivals => saveGroup(unlocked, arrivals)} />
           )}
           {selected && (
-            <CheckInDialog key={selected.id} player={selected}
+            <CheckInDialog key={selected.id} player={selected} membersByTeam={membersByTeam}
               slot={data.timeSlots.find(slot => slot.id === selected.timeSlotId)}
               teams={welcomeTeams.filter(team => team.id === selected.state.squadId ||
                 (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
@@ -522,10 +519,11 @@ export default function OfflineCheckInPage() {
   );
 }
 
-function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, onSave, onRestore }: {
+function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, error, onClose, onSave, onRestore }: {
   player: OfflineParticipant;
   slot?: CheckInRoster["slots"][number];
   teams: CheckInRoster["teams"];
+  membersByTeam: ReadonlyMap<number, readonly PlacementMember[]>;
   conflict?: string;
   busy: boolean;
   error: string;
@@ -544,7 +542,7 @@ function CheckInDialog({ player, slot, teams, conflict, busy, error, onClose, on
           <DialogDescription>Modifications enregistrées sur cet appareil.</DialogDescription>
         </DialogHeader>
         <WelcomeGuide type={player.type} initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
-          slot={slot} teams={teams} allowCapacityOverride review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
+          slot={slot} teams={teams} membersByTeam={membersByTeam} allowCapacityOverride review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
           saveLabel="Enregistrer sur cet appareil"
           onSave={(details, _, overflowConfirmed) => onSave({
             arrived,

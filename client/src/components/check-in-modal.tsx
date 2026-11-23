@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CheckCircle2, Loader2, History } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { placementLabels } from "./squad-placement";
 import { SquadSelector } from "./squad-selector";
 
 interface CheckInModalProps {
@@ -20,6 +21,7 @@ interface CheckInModalProps {
 }
 
 export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalProps) {
+  const placement = placementLabels(participant.type);
   const { toast } = useToast();
   const [arrived, setArrived] = useState(participant.arrived);
   const [selectedSquad, setSelectedSquad] = useState(participant.squadId?.toString() || "");
@@ -159,7 +161,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-muted-foreground" />
-                <Label className="text-base font-semibold">Historique des changements de squad</Label>
+                <Label className="text-base font-semibold">Historique des changements {placement.of}</Label>
               </div>
               <div className="rounded-lg border bg-card">
                 <div className="max-h-32 overflow-y-auto">
@@ -172,11 +174,11 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1">
                           <span className="text-muted-foreground">
-                            {log.previousSquadId ? `Squad ${log.previousSquad?.number}` : "Aucune squad"}
+                            {log.previousSquadId ? `${placement.name} ${log.previousSquad?.number}` : `Aucune ${placement.noun}`}
                           </span>
                           <span className="mx-2">→</span>
                           <span className="font-semibold text-primary">
-                            {log.newSquadId ? `Squad ${log.newSquad?.number}` : "Aucune squad"}
+                            {log.newSquadId ? `${placement.name} ${log.newSquad?.number}` : `Aucune ${placement.noun}`}
                           </span>
                         </div>
                         <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -247,7 +249,7 @@ export function CheckInModal({ participant, onClose, onSuccess }: CheckInModalPr
                   data-testid="checkbox-squad-explained"
                 />
                 <Label htmlFor="check-squad" className="cursor-pointer leading-relaxed">
-                  <strong>Squad:</strong> Les ajouter à une squad pour qu'ils connaissent leurs potes. Ils doivent connaître leur squad pour les retrouver facilement après le briefing
+                  <strong>{placement.name}:</strong> Les ajouter à une {placement.noun} pour qu'ils connaissent leurs potes. Ils doivent connaître leur {placement.noun} pour les retrouver facilement après le briefing
                 </Label>
               </div>
 

@@ -5,7 +5,7 @@ import { timeSlotPhases } from "@shared/time-slot-notes";
 import { zombieChecklist } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { orderSquads, recommendSquad, SquadPlacementCard, squadPlaces } from "./squad-placement";
+import { orderSquads, placementLabels, recommendSquad, SquadPlacementCard, squadPlaces, type PlacementMember } from "./squad-placement";
 import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 
 const instructions = {
@@ -60,12 +60,15 @@ interface WelcomeGuideProps {
   error: string;
   onReload?: () => void;
   squadOnly?: boolean;
+  requirePlacement?: boolean;
+  groupSeatsNeeded?: (id: number) => number;
+  membersByTeam?: ReadonlyMap<number, readonly PlacementMember[]>;
   lockSquad?: boolean;
   onSave: (details: CheckInDetails, keepTeamForGroup: boolean, overflowConfirmed: boolean) => void;
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
   const [index, setIndex] = useState(review ? items.length : 0);
@@ -78,14 +81,19 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   const heading = useRef<HTMLHeadingElement>(null);
   const scroll = useRef<HTMLDivElement>(null);
   const item = items[index];
-  const stage = item === undefined ? undefined : instructions[item];
+  const words = placementLabels(type);
+  const stage = item === "squadExplained" ? {
+    ...instructions.squadExplained,
+    title: `Présenter ${words.article}`,
+    text: `Annoncez le numéro ${words.of} et où retrouver ses coéquipiers après le briefing.`,
+  } : item === undefined ? undefined : instructions[item];
   const complete = item !== undefined && Boolean(details.checklist[item]);
   const canConfirm = item !== "squadExplained" || details.squadId !== null;
   const selectedTeam = teams.find(team => team.id === details.squadId);
   const newSeatNeeded = (id: number) => Number(id !== initialDetails.squadId);
-  const seatsForGroup = (id: number) => sharedArrival
+  const seatsForGroup = groupSeatsNeeded ?? ((id: number) => sharedArrival
     ? groupSize * newSeatNeeded(id)
-    : groupSize - 1 + newSeatNeeded(id);
+    : groupSize - 1 + newSeatNeeded(id));
   const groupRecommendation = recommendSquad(teams, seatsForGroup);
   const recommendation = groupRecommendation ?? (groupSize > 1 ? recommendSquad(teams, newSeatNeeded) : undefined);
   const seats = selectedTeam ? (sharedArrival ? seatsForGroup(selectedTeam.id) : newSeatNeeded(selectedTeam.id)) : 0;
@@ -95,6 +103,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
     (!selectedTeam || (needsOverride && (!allowCapacityOverride || !overflowConfirmed)));
   const fitsGroup = groupSize > 1 && Boolean(selectedTeam && squadPlaces(selectedTeam) >= seatsForGroup(selectedTeam.id));
   const groupUnavailable = keepTeamForGroup && groupSize > 1 && !fitsGroup;
+  const mustChooseSquad = requirePlacement && !canConfirm;
 
   useEffect(() => {
     if (scroll.current) scroll.current.scrollTop = 0;
@@ -165,25 +174,27 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
               <div className="space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-x-2">
                   <p className="min-w-0 break-words text-sm font-semibold">{slot?.name ?? "Sans créneau"}</p>
-                  {details.squadId !== null && <Button type="button" variant="ghost" className="px-2 text-muted-foreground"
-                    onClick={() => chooseTeam(null)}>Sans équipe</Button>}
+                  {details.squadId !== null && !requirePlacement && <Button type="button" variant="ghost" className="px-2 text-muted-foreground"
+                    onClick={() => chooseTeam(null)}>Sans {words.noun}</Button>}
                 </div>
-                {teams.length === 0 ? <p className="text-sm text-muted-foreground">Aucune équipe disponible pour ce créneau.</p> : (
+                {teams.length === 0 ? <p className="text-sm text-muted-foreground">
+                  Aucune {words.noun} disponible pour ce créneau.{requirePlacement && ` Il faut une ${words.noun} pour accueillir le groupe.`}
+                </p> : (
                   <>
                     {!allowCapacityOverride && (!recommendation || groupSize > 1) && (
                       <p className="text-sm text-muted-foreground">
-                        {!recommendation ? "Aucune place disponible. Vous pouvez continuer sans équipe." : groupRecommendation
+                        {!recommendation ? `Aucune place disponible. Vous pouvez continuer sans ${words.noun}.` : groupRecommendation
                           ? `${groupSize} personnes de ce créneau peuvent être placées ensemble.`
-                          : `Aucune équipe n’a assez de place pour les ${groupSize} personnes. Répartissez-les entre les équipes disponibles.`}
+                          : `Aucune ${words.noun} n’a assez de place pour les ${groupSize} personnes.`}
                       </p>
                     )}
-                    <ul aria-label="Équipes du créneau" className="space-y-2">
-                      {orderSquads(teams, newSeatNeeded, plannedTeamId ?? recommendation?.id).map(team => {
+                    <ul aria-label={`${words.plural} du créneau`} className="grid gap-3 sm:grid-cols-2">
+                      {orderSquads(teams, sharedArrival ? seatsForGroup : newSeatNeeded, plannedTeamId ?? recommendation?.id).map(team => {
                         const label = team.id === plannedTeamId ? "Choix du groupe"
                           : team.id === recommendation?.id ? (groupRecommendation ? "Recommandée" : "Pour ce joueur") : undefined;
                         return (
                           <li key={team.id}>
-                            <SquadPlacementCard team={team} label={label} selected={team.id === details.squadId}
+                            <SquadPlacementCard team={team} profile={type} people={membersByTeam?.get(team.id)} label={label} selected={team.id === details.squadId}
                               disabled={!allowCapacityOverride && squadPlaces(team) < newSeatNeeded(team.id)} onSelect={() => chooseTeam(team.id)} />
                           </li>
                         );
@@ -204,7 +215,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 ) : <p className="text-sm text-muted-foreground">Aucun créneau attribué. Vérifiez l’horaire avec l’organisation.</p>}
                 {selectedTeam?.briefing?.trim() && (
                   <div className="space-y-1 border-l-2 border-primary/60 pl-3 text-sm">
-                    <p className="font-semibold">Consignes de l’équipe {selectedTeam.number}</p>
+                    <p className="font-semibold">Consignes {words.of} {selectedTeam.number}</p>
                     <p className="whitespace-pre-wrap break-words text-muted-foreground">{selectedTeam.briefing}</p>
                   </div>
                 )}
@@ -220,10 +231,10 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 {items.length ? "Vérifier avant d’enregistrer" : "Confirmer l’arrivée"}
               </h3>
               <p className="mt-1 break-words text-sm text-muted-foreground">
-                {slot?.name ?? "Sans créneau"}{type !== "staff" && (selectedTeam ? ` · Équipe ${selectedTeam.number}` : " · Sans équipe")}
+                {slot?.name ?? "Sans créneau"}{type !== "staff" && (selectedTeam ? ` · ${words.name} ${selectedTeam.number}` : ` · Sans ${words.noun}`)}
               </p>
               {keepTeamForGroup && fitsGroup && (
-                <p className="mt-1 text-sm text-muted-foreground">Équipe proposée aux {groupSize} personnes de ce créneau.</p>
+                <p className="mt-1 text-sm text-muted-foreground">{words.name} proposée aux {groupSize} personnes de ce créneau.</p>
               )}
             </div>
             {type === "staff" && <WelcomeSchedule slot={slot} phases={timeSlotPhases} notesOnly />}
@@ -237,9 +248,9 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                   return (
                     <li key={key}>
                       <button type="button" disabled={saving} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60 focus-visible:outline-primary"
-                        aria-label={`${instructions[key].title} ${status}`}
+                        aria-label={`${key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title} ${status}`}
                         onClick={() => { setEditing(true); setIndex(position); }}>
-                        <span className="font-medium">{instructions[key].title}</span>
+                        <span className="font-medium">{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
                         <span className={cn("flex shrink-0 items-center gap-1 text-xs", confirmed ? "text-primary" : "text-muted-foreground")}>
                           {confirmed && <Check className="size-3.5" aria-hidden />}
                           {status}
@@ -264,8 +275,8 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
         )}
         {(teamUnavailable || groupUnavailable) && (!stage || item === "squadExplained") && !(allowCapacityOverride && needsOverride) && (
           <p role="alert" className="text-sm text-destructive">
-            {teamUnavailable ? "Cette équipe n’a plus de place ou n’est plus disponible. Choisissez une autre équipe."
-              : "L’équipe n’a plus assez de place pour tout le groupe. Choisissez une autre équipe ou poursuivez individuellement."}
+            {teamUnavailable ? `Cette ${words.noun} n’a plus de place ou n’est plus disponible. Choisissez une autre ${words.noun}.`
+              : `Choisissez une ${words.noun} avec assez de place pour tout le groupe ou poursuivez individuellement.`}
           </p>
         )}
         {error && (
@@ -280,17 +291,20 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
               <label className="flex min-h-11 items-center gap-2.5 rounded-lg bg-muted/45 px-3 py-2 text-sm font-medium">
                 <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={keepTeamForGroup}
                   onChange={event => setKeepTeamForGroup(event.target.checked)} />
-                Proposer cette équipe aux {groupSize} personnes
+                Proposer cette {words.noun} aux {groupSize} personnes
               </label>
             )}
-            <Button type="button" className="w-full" disabled={item === "squadExplained" && (teamUnavailable || groupUnavailable)} onClick={() => {
+            <Button type="button" className="w-full" disabled={item === "squadExplained" && (teamUnavailable || groupUnavailable || mustChooseSquad)} onClick={() => {
               if (squadOnly) {
                 onSave({ ...details, checklist: { ...details.checklist, squadExplained: canConfirm } },
                   keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
               } else if (complete || !canConfirm) next();
               else mark(item, true);
             }}>
-              {(squadOnly && canConfirm) || complete ? (squadOnly ? "Confirmer l’équipe" : "Continuer") : !canConfirm ? "Continuer sans équipe" : item === "mapGiven" ? "Carte remise" : zombieChecklist[item]} <ArrowRight />
+              {item === "squadExplained"
+                ? mustChooseSquad || (squadOnly && canConfirm) ? `Confirmer ${words.article}`
+                  : complete ? "Continuer" : canConfirm ? `${words.name} présentée` : `Continuer sans ${words.noun}`
+                : complete ? "Continuer" : item === "mapGiven" ? "Carte remise" : zombieChecklist[item]} <ArrowRight />
             </Button>
             {!squadOnly && (index > 0 || editing || canConfirm || complete) && (
               <div className="flex flex-wrap justify-between gap-x-2">

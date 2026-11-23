@@ -1,4 +1,5 @@
-import { Check, Users } from "lucide-react";
+import { useId, useState } from "react";
+import { Check, ChevronDown, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SquadCapacity = {
@@ -31,45 +32,78 @@ export function orderSquads<T extends SquadCapacity>(teams: readonly T[], seatsN
     a.number - b.number);
 }
 
-export function SquadPlacementCard({ team, selected, disabled, label, onSelect }: {
+export const placementLabels = (type?: string) => type === "zombie"
+  ? { name: "Squad", plural: "Squads", noun: "squad", article: "la squad", of: "de la squad" }
+  : { name: "Équipe", plural: "Équipes", noun: "équipe", article: "l’équipe", of: "de l’équipe" };
+
+export type PlacementMember = { id: number; firstName: string; lastName: string };
+
+export function placementMembers(players: readonly (PlacementMember & { squadId: number | null })[]) {
+  const groups = new Map<number, PlacementMember[]>();
+  for (const player of players) {
+    if (player.squadId === null) continue;
+    const members = groups.get(player.squadId) ?? [];
+    members.push(player);
+    groups.set(player.squadId, members);
+  }
+  return groups;
+}
+
+export function SquadPlacementCard({ team, profile, people = [], selected, disabled, label, onSelect }: {
   team: SquadCapacity;
+  profile?: string;
+  people?: readonly PlacementMember[];
   selected: boolean;
   disabled?: boolean;
   label?: string;
   onSelect: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const memberListId = useId();
   const { maxMembers, members } = team;
   const places = squadPlaces(team);
   const filled = maxMembers === null ? 0 : Math.min(100, 100 * members / Math.max(1, maxMembers));
+  const name = `${placementLabels(profile).name} ${team.number}`;
 
   return (
-    <button type="button" aria-pressed={selected} disabled={disabled} onClick={onSelect}
-      className={cn("block w-full rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected ? "border-primary bg-primary/10" : label ? "border-primary/50 bg-primary/5 hover:border-primary" : "border-border bg-background hover:border-primary/60",
-        disabled && "cursor-not-allowed bg-muted/35 hover:border-border")}>
-      <span className="flex items-start gap-2">
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-semibold">Équipe {team.number}</span>
-          {label && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary">{label}</span>}
+    <div className={cn("overflow-hidden rounded-2xl border bg-card shadow-sm transition-colors",
+      selected ? "border-primary ring-1 ring-primary" : label ? "border-primary/40" : "border-border")}>
+      <button type="button" aria-pressed={selected} disabled={disabled} onClick={onSelect}
+        className={cn("flex min-h-[76px] w-full items-center gap-3 px-3 py-2.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4",
+          selected ? "bg-primary/10" : "hover:bg-muted/60", disabled && "cursor-not-allowed opacity-70")}>
+        <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", selected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}>
+          {selected ? <Check className="size-5" aria-hidden /> : <Users className="size-5" aria-hidden />}
         </span>
-        <span className={cn("grid size-5 shrink-0 place-items-center rounded-full border", selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/60")}>
-          {selected && <Check className="size-3.5" aria-hidden />}
+        <span className="min-w-0 flex-1">
+          <span className="block text-lg font-bold leading-tight">{name}</span>
+          {label && <span className="text-xs font-semibold text-primary">{label}</span>}
         </span>
-      </span>
-      <span className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs">
-        <span className="inline-flex items-center gap-1.5 tabular-nums text-muted-foreground">
-          <Users className="size-3.5" aria-hidden />
-          {maxMembers === null ? members : `${members} / ${maxMembers}`} {members === 1 ? "affecté" : "affectés"}
-        </span>
-        <span className={cn("font-semibold", places > 0 ? "text-foreground" : "text-muted-foreground")}>
+        <span className={cn("rounded-full px-2 py-1 text-right text-xs font-semibold",
+          places === 0 ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300")}>
           {maxMembers === null ? "Sans limite de places" : places === 0 ? "Complète" : `${places} ${places === 1 ? "place libre" : "places libres"}`}
         </span>
-      </span>
+      </button>
       {maxMembers !== null && (
-        <span aria-hidden className="mt-2 block h-1.5 overflow-hidden rounded-full bg-muted">
-          <span className={cn("block h-full rounded-full", places === 0 ? "bg-muted-foreground/60" : "bg-primary")} style={{ width: `${filled}%` }} />
-        </span>
+        <div aria-hidden className="mx-3 h-1.5 overflow-hidden rounded-full bg-muted sm:mx-4">
+          <div className={cn("h-full rounded-full", places === 0 ? "bg-muted-foreground/60" : "bg-emerald-500")} style={{ width: `${filled}%` }} />
+        </div>
       )}
-    </button>
+      <button type="button" aria-expanded={expanded} aria-controls={memberListId}
+        aria-label={`Membres · ${name} · ${members}`} data-testid={`button-toggle-squad-${team.id}`}
+        onClick={() => setExpanded(!expanded)}
+        className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4">
+        <span className="font-bold tabular-nums">{maxMembers === null ? members : `${members} / ${maxMembers}`}</span>
+        <span className="flex-1 text-muted-foreground"> {members === 1 ? "membre" : "membres"}</span>
+        <ChevronDown className={cn("size-4 shrink-0 transition-transform", expanded && "rotate-180")} aria-hidden />
+      </button>
+      <div id={memberListId} hidden={!expanded} className="border-t bg-muted/30 px-3 py-2 sm:px-4">
+        {expanded && (people.length ? (
+          <ul aria-label={`Membres · ${name}`} className="divide-y divide-border text-sm">
+            {[...people].sort((a, b) => a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr"))
+              .map(person => <li className="break-words py-1.5" key={person.id} data-testid={`participant-${person.id}`}>{person.firstName} {person.lastName}</li>)}
+          </ul>
+        ) : <p className="text-sm text-muted-foreground">{members ? "Détail indisponible" : "Aucun membre"}</p>)}
+      </div>
+    </div>
   );
 }

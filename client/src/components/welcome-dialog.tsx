@@ -63,6 +63,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
   const [largeGroup, setLargeGroup] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
   const [savedIds, setSavedIds] = useState<number[]>([]);
+  const [savedSquadId, setSavedSquadId] = useState<number>();
   const [search, setSearch] = useState("");
   const [letter, setLetter] = useState("");
   const [type, setType] = useState<CheckInType | null>(null);
@@ -104,6 +105,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
     setLargeGroup(false);
     setSelection([]);
     setSavedIds([]);
+    setSavedSquadId(undefined);
     setSearch("");
     setLetter("");
     setSelectedOnly(false);
@@ -130,6 +132,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
         for (const { player, details, overflowConfirmed } of arrivals) {
           if (savedIds.includes(player.id)) continue;
           await onSave(player, details, overflowConfirmed);
+          if (details.squadId !== null && player.type !== "staff") setSavedSquadId(details.squadId);
           setSavedIds(previous => [...previous, player.id]);
         }
       }
@@ -285,7 +288,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
 
         {step === "welcome" && (
           <OfflineGroupWelcome key={reviewVersion} roster={roster} ids={selection} saving={saving} error={error}
-            savedIds={savedIds} onConfirm={confirm}
+            savedIds={savedIds} savedSquadId={savedSquadId} onConfirm={confirm}
             onBack={() => setStep("select")}
             onReplan={async () => {
               if (saving) return;

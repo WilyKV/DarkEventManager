@@ -3,6 +3,7 @@ import { ArrowLeft, ArrowRight, CalendarClock, Droplet, Flag, Paintbrush, Pause,
 import { Button } from "@/components/ui/button";
 import type { CheckInRoster, CheckInType } from "@shared/check-in";
 import type { WelcomeTimeSlot } from "@shared/time-slot-notes";
+import { placementLabels } from "./squad-placement";
 import type { OfflineArrival } from "./offline-group-welcome";
 
 function localFrenchVoice() {
@@ -36,6 +37,7 @@ export function WelcomeBriefing({ type, slot, arrivals, teams, onBack, onContinu
     return () => synth.removeEventListener("voiceschanged", update);
   }, []);
 
+  const words = placementLabels(type);
   const teamsById = new Map(teams.map(team => [team.id, team]));
   const namesByTeam = new Map<number, string[]>();
   for (const { player, details } of arrivals) {
@@ -48,8 +50,8 @@ export function WelcomeBriefing({ type, slot, arrivals, teams, onBack, onContinu
       colors: "from-indigo-950 to-violet-950" },
     ...Array.from(namesByTeam, ([id, names]) => {
       const team = teamsById.get(id)!;
-      return { title: `Équipe ${team.number}`, Icon: Users,
-        text: `${names.join(", ")}. Retrouvez votre équipe après le briefing. ${team.briefing?.trim() ?? ""}`.trim(),
+      return { title: `${words.name} ${team.number}`, Icon: Users,
+        text: `${names.join(", ")}. Retrouvez votre ${words.noun} après le briefing. ${team.briefing?.trim() ?? ""}`.trim(),
         colors: "from-blue-950 to-indigo-950" };
     }),
     ...type === "zombie" ? [
@@ -135,7 +137,7 @@ export function WelcomeBriefing({ type, slot, arrivals, teams, onBack, onContinu
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" onClick={onBack}><ArrowLeft /> {type === "staff" ? "Personnes" : "Équipes"}</Button>
+        <Button type="button" variant="outline" onClick={onBack}><ArrowLeft /> {type === "staff" ? "Personnes" : words.plural}</Button>
         {playing && !finished && <Button type="button" variant="outline" onClick={() => setPlaying(false)}><Pause /> Pause</Button>}
         {!finished && <Button type="button" variant="outline" disabled={!playing} onClick={() => { setSkipped(true); setIndex(index + 1); }}><SkipForward /> Suivant</Button>}
         {finished && <Button type="button" variant="outline" onClick={() => { setIndex(0); setSkipped(false); setPlaying(true); }}><RotateCcw /> Rejouer</Button>}

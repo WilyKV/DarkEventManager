@@ -59,12 +59,15 @@ interface WelcomeGuideProps {
   saving: boolean;
   error: string;
   onReload?: () => void;
+  squadOnly?: boolean;
+  lockSquad?: boolean;
   onSave: (details: CheckInDetails, keepTeamForGroup: boolean, overflowConfirmed: boolean) => void;
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false }: WelcomeGuideProps) {
-  const items = checkInProfiles[type].checklist;
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false }: WelcomeGuideProps) {
+  const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
+    squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
   const [index, setIndex] = useState(review ? items.length : 0);
   const [editing, setEditing] = useState(false);
   const [details, setDetails] = useState(() => plannedTeamId === undefined ? initialDetails : {
@@ -134,9 +137,9 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
         <div className="shrink-0 space-y-1 pb-3">
           <div className="flex min-h-11 flex-wrap items-center justify-between gap-x-2">
             <p className="text-sm font-semibold text-primary">
-              {stage ? `Étape ${index + 1} sur ${items.length}` : "Récapitulatif de l’accueil"}
+              {stage ? (squadOnly ? "Affectation" : `Étape ${index + 1} sur ${items.length}`) : "Récapitulatif de l’accueil"}
             </p>
-            {stage && !editing && <Button type="button" variant="ghost" className="px-2" onClick={showSummary}>Voir le récapitulatif</Button>}
+            {stage && !editing && !squadOnly && <Button type="button" variant="ghost" className="px-2" onClick={showSummary}>Voir le récapitulatif</Button>}
           </div>
           <div className="flex gap-1" aria-hidden>
             {items.map((key, position) => (
@@ -281,12 +284,15 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
               </label>
             )}
             <Button type="button" className="w-full" disabled={item === "squadExplained" && (teamUnavailable || groupUnavailable)} onClick={() => {
-              if (complete || !canConfirm) next();
+              if (squadOnly) {
+                onSave({ ...details, checklist: { ...details.checklist, squadExplained: canConfirm } },
+                  keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
+              } else if (complete || !canConfirm) next();
               else mark(item, true);
             }}>
-              {complete ? "Continuer" : !canConfirm ? "Continuer sans équipe" : item === "mapGiven" ? "Carte remise" : zombieChecklist[item]} <ArrowRight />
+              {(squadOnly && canConfirm) || complete ? (squadOnly ? "Confirmer l’équipe" : "Continuer") : !canConfirm ? "Continuer sans équipe" : item === "mapGiven" ? "Carte remise" : zombieChecklist[item]} <ArrowRight />
             </Button>
-            {(index > 0 || editing || canConfirm || complete) && (
+            {!squadOnly && (index > 0 || editing || canConfirm || complete) && (
               <div className="flex flex-wrap justify-between gap-x-2">
                 {(index > 0 || editing) && <Button type="button" variant="ghost" className="px-2.5"
                   onClick={() => editing ? showSummary() : setIndex(index - 1)}><ArrowLeft /> {editing ? "Récapitulatif" : "Précédent"}</Button>}

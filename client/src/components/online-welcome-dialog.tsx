@@ -27,18 +27,19 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
     : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
   const retry = () => { void query.refetch(); };
 
-  return <WelcomeDialog onClose={onClose} roster={online ? query.data : undefined} profileTypes={profileTypes} onReload={retry}
+  return <WelcomeDialog onClose={onClose} roster={query.data} profileTypes={profileTypes} onReload={async () => (await query.refetch({ throwOnError: true })).data}
     unavailable={!online || query.isError ? (
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className="w-full text-sm text-muted-foreground">{online ? "Impossible de joindre le serveur." : "Vous êtes hors connexion."}</p>
         {online && <Button type="button" variant="outline" onClick={retry}>Réessayer</Button>}
         {canOpenLocal && <Link href={offlineCheckInPage} className={buttonVariants()}>Ouvrir l’accueil hors ligne</Link>}
       </div>
-    ) : <p role="status" className="text-sm text-muted-foreground">Chargement des listes…</p>}
-    onSave={async (player, details) => {
+    ) : !query.data && <p role="status" className="text-sm text-muted-foreground">Chargement des listes…</p>}
+    onSave={async (player, details, overflowConfirmed) => {
+      if (!online) throw new Error("Reconnectez-vous pour enregistrer ce groupe.");
       let saved: CheckInPlayer;
       try {
-        const response = await apiRequest("POST", `${checkInPath}/${player.id}`, { ...details, revision: player.revision }, AbortSignal.timeout(15_000));
+        const response = await apiRequest("POST", `${checkInPath}/${player.id}`, { ...details, revision: player.revision, ...(overflowConfirmed && { allowOverCapacity: true }) }, AbortSignal.timeout(15_000));
         saved = await response.json();
       } catch (error) {
         const response = error instanceof Error ? /^\d+: (.*)$/.exec(error.message) : null;

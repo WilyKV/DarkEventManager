@@ -11,7 +11,7 @@ import { db } from "./db";
 import { hasSessionRole, requireRole } from "./auth-middleware";
 import { checkSyncPermissions } from "./sync-middleware";
 
-const formSchema = checkInDetailsSchema.extend({ revision: z.string().length(64) });
+const formSchema = checkInDetailsSchema.extend({ revision: z.string().length(64), allowOverCapacity: z.boolean().optional() });
 
 export function allowedCheckInTypes(roles: unknown): CheckInType[] {
   if (hasSessionRole(roles, ["admin"])) return [...checkInTypes];
@@ -40,7 +40,7 @@ export function registerCheckInRoutes(app: Express) {
       const [config] = await tx.select({ eventDay: appConfig.eventDay }).from(appConfig).orderBy(appConfig.id).limit(1);
       const players = (await tx.select().from(participants).where(and(inArray(participants.type, types), isNull(participants.deletedAt))))
         .flatMap(row => isCheckInType(row.type) ? [asCheckInPlayer(row, row.type)] : []);
-      const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name,
+      const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
         briefingTime: timeSlots.briefingTime, gameTime: timeSlots.gameTime, mealTime: timeSlots.mealTime, exitTime: timeSlots.exitTime,
         welcomeNotes: timeSlots.welcomeNotes })
         .from(timeSlots).where(inArray(timeSlots.type, types));
@@ -57,7 +57,7 @@ export function registerCheckInRoutes(app: Express) {
     const id = z.coerce.number().int().positive().safeParse(req.params.id);
     const form = formSchema.safeParse(req.body);
     if (!id.success || !form.success) return res.status(400).json({ message: "Fiche d’accueil invalide." });
-    const { revision, checklist, squadId } = form.data;
+    const { revision, checklist, squadId, allowOverCapacity } = form.data;
     const types = allowedCheckInTypes(req.session?.user?.roles);
 
     const result = await db.transaction(async tx => {
@@ -90,7 +90,7 @@ export function registerCheckInRoutes(app: Express) {
           return { status: 409, body: { message: "Cette équipe ne correspond plus au créneau. Rechargez la fiche." } };
         }
         const [{ members }] = await tx.select({ members: count() }).from(participants).where(eq(participants.squadId, team.id));
-        if (team.maxMembers !== null && members >= team.maxMembers) {
+        if (!allowOverCapacity && team.maxMembers !== null && members >= team.maxMembers) {
           return { status: 409, body: { message: "Cette équipe est complète. Choisissez une autre équipe." } };
         }
       }

@@ -1,268 +1,318 @@
-import { useId, useMemo, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Search, UserCheck } from "lucide-react";
-import { checkInProfileLabels, checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
+import { useId, useState, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Check, Footprints, Plus, Search, ShieldCheck, Skull, UserCheck } from "lucide-react";
+import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
-import { formatEventDay } from "@shared/event-day";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { WelcomeGuide } from "./welcome-guide";
 import { OfflineGroupWelcome, type OfflineArrival } from "./offline-group-welcome";
 
-type Step = "count" | "select" | "welcome" | "done";
+type Step = "profile" | "count" | "select" | "welcome" | "done";
 
 type WelcomeDialogProps = {
   roster?: CheckInRoster;
   profileTypes?: readonly CheckInType[];
   unavailable?: ReactNode;
   onClose: () => void;
-  onReload?: () => void;
+  onReload?: () => Promise<CheckInRoster | undefined>;
 } & ({
-  onSave: (player: CheckInPlayer, details: CheckInDetails) => Promise<void>;
+  onSave: (player: CheckInPlayer, details: CheckInDetails, overflowConfirmed: boolean) => Promise<void>;
   onSaveOfflineGroup?: never;
 } | {
   onSave?: never;
   onSaveOfflineGroup: (arrivals: OfflineArrival[]) => Promise<void>;
 });
 
-const selectClass = "min-h-11 w-full rounded-md border border-input bg-background px-2 text-sm sm:px-3";
-const nameOrder = new Intl.Collator("fr", { sensitivity: "base" });
+const nameOrder = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
+const profileCards = {
+  zombie: { Icon: Skull, colors: "border-red-500/40 bg-red-950 text-red-50 hover:bg-red-900" },
+  survivant: { Icon: Footprints, colors: "border-blue-500/40 bg-blue-950 text-blue-50 hover:bg-blue-900" },
+  staff: { Icon: ShieldCheck, colors: "border-emerald-500/40 bg-emerald-950 text-emerald-50 hover:bg-emerald-900" },
+};
+const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
+const initial = (name: string) => {
+  const letter = normalizePlayerName(name).trim().charAt(0).toUpperCase();
+  return /^[A-Z]$/.test(letter) ? letter : "#";
+};
 
-export function WelcomeDialog({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps) {
+function readWave(key: string) {
+  try { return sessionStorage.getItem(key) ?? undefined; } catch { return undefined; }
+}
+
+export function WelcomeDialog(props: WelcomeDialogProps) {
+  const { roster, unavailable, onClose } = props;
+  if (roster) return <WelcomeSession {...props} roster={roster} />;
+  return (
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Accueillir</DialogTitle>
+          <DialogDescription>Choisissez des personnes à accueillir.</DialogDescription>
+        </DialogHeader>
+        {unavailable}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps & { roster: CheckInRoster }) {
   const countId = useId();
-  const [step, setStep] = useState<Step>("count");
+  const [step, setStep] = useState<Step>("profile");
   const [quantity, setQuantity] = useState("1");
+  const [largeGroup, setLargeGroup] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
-  const [plannedTeams, setPlannedTeams] = useState<Map<number, number>>(() => new Map());
-  const [savedCount, setSavedCount] = useState(0);
+  const [savedIds, setSavedIds] = useState<number[]>([]);
   const [search, setSearch] = useState("");
-  const [type, setType] = useState<CheckInType | "all">("all");
-  const [slotFilter, setSlotFilter] = useState("all");
+  const [letter, setLetter] = useState("");
+  const [type, setType] = useState<CheckInType | null>(null);
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [reviewVersion, setReviewVersion] = useState(0);
+  const [wave, setWave] = useState<string>();
+  const [showWaves, setShowWaves] = useState(false);
 
-  const eligible = useMemo(() => (roster?.players ?? [])
-    .filter(player => !player.returned)
-    .sort((a, b) => nameOrder.compare(a.firstName, b.firstName) || nameOrder.compare(a.lastName, b.lastName)), [roster]);
-  const byId = new Map(eligible.map(player => [player.id, player]));
-  const slots = new Map(roster?.slots.map(slot => [slot.id, slot]));
-  const visibleSlots = roster?.slots.filter(slot => eligible.some(player => player.timeSlotId === slot.id && (type === "all" || player.type === type))) ?? [];
+  const profilePlayers = roster.players.filter(player => player.type === type && !player.returned);
+  const profileSlots = roster.slots.filter(slot => slot.type === type ||
+    (!slot.type && profilePlayers.some(player => player.timeSlotId === slot.id)))
+    .sort((a, b) => nameOrder.compare(a.briefingTime, b.briefingTime) || nameOrder.compare(a.name, b.name) || a.id - b.id);
+  const waveOptions = profileSlots.map(slot => ({ value: String(slot.id), label: slot.name }));
+  if (profilePlayers.some(player => player.timeSlotId === null) || !waveOptions.length) {
+    waveOptions.push({ value: "none", label: "Sans créneau" });
+  }
+  const waveKey = `welcome-wave:${roster.eventDay ?? "event"}:${type}:${profileSlots.map(slot => slot.id).join(",")}`;
+  const preferredWave = wave ?? readWave(waveKey);
+  const waveIndex = preferredWave === "finished" ? waveOptions.length : Math.max(0, waveOptions.findIndex(option => option.value === preferredWave));
+  const currentWave = waveOptions[waveIndex];
+  const wavePlayers = profilePlayers.filter(player => String(player.timeSlotId ?? "none") === currentWave?.value)
+    .sort((a, b) => nameOrder.compare(a.lastName, b.lastName) || nameOrder.compare(a.firstName, b.firstName) || a.id - b.id);
+  const selected = selection.filter(id => wavePlayers.some(player => player.id === id));
   const total = Number(quantity);
-  const validCount = Number.isInteger(total) && total >= 1 && total <= eligible.length;
-  const selected = selection.filter(id => byId.has(id));
+  const validCount = Number.isInteger(total) && total >= 1 && total <= wavePlayers.length;
   const terms = normalizePlayerName(search).trim().split(/\s+/).filter(Boolean);
-  const matches = eligible.filter(player => {
-    if (selectedOnly) return selection.includes(player.id);
-    const name = normalizePlayerName(`${player.firstName} ${player.lastName}`);
-    return (type === "all" || player.type === type) &&
-      (slotFilter === "all" || String(player.timeSlotId ?? "none") === slotFilter) &&
-      terms.every(word => name.includes(word));
+  const letters = new Set(wavePlayers.map(player => initial(player.lastName)));
+  const matches = wavePlayers.filter(player => {
+    if (selectedOnly) return selected.includes(player.id);
+    if (!terms.length) return initial(player.lastName) === letter;
+    const name = normalizePlayerName(`${player.lastName} ${player.firstName}`);
+    return terms.every(word => name.includes(word));
   });
-  const current = byId.get(selection[savedCount]);
-  const offlineArrivals = onSaveOfflineGroup && step === "welcome";
-  const groupToPlace = current && current.type !== "staff" && current.timeSlotId !== null
-    ? selection.slice(savedCount + 1).filter(id => {
-      const player = byId.get(id);
-      return player?.type === current.type && player.timeSlotId === current.timeSlotId &&
-        player.details.squadId === null && !plannedTeams.has(id);
-    })
-    : [];
 
-  async function save(details: CheckInDetails, keepTeamForGroup: boolean) {
-    if (saving || !current || !onSave) return;
+  function resetGroup() {
+    setQuantity("1");
+    setLargeGroup(false);
+    setSelection([]);
+    setSavedIds([]);
+    setSearch("");
+    setLetter("");
+    setSelectedOnly(false);
+    setError("");
+    setShowWaves(false);
+    setStep("count");
+  }
+
+  function switchWave(value: string) {
+    try { sessionStorage.setItem(waveKey, value); } catch {}
+    setWave(value);
+    resetGroup();
+  }
+
+  async function confirm(arrivals: OfflineArrival[]) {
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
-      await onSave(current, details);
-      const teamId = details.squadId;
-      if (keepTeamForGroup && teamId !== null) {
-        setPlannedTeams(previous => {
-          const planned = new Map(previous);
-          for (const id of groupToPlace) planned.set(id, teamId);
-          return planned;
-        });
+      if (onSaveOfflineGroup) {
+        await onSaveOfflineGroup(arrivals);
+        setSavedIds(arrivals.map(({ player }) => player.id));
+      } else if (onSave) {
+        for (const { player, details, overflowConfirmed } of arrivals) {
+          if (savedIds.includes(player.id)) continue;
+          await onSave(player, details, overflowConfirmed);
+          setSavedIds(previous => [...previous, player.id]);
+        }
       }
-      const next = savedCount + 1;
-      setSavedCount(next);
-      if (next === selection.length) setStep("done");
+      setStep("done");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer cette fiche.");
+      setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
     } finally {
       setSaving(false);
     }
   }
 
-  const title = step === "done" ? "Accueil terminé"
-    : offlineArrivals ? (selection.length > 1 ? "Accueillir le groupe" : `${current?.firstName ?? ""} ${current?.lastName ?? ""}`.trim())
-      : step === "welcome" && current ? `${current.firstName} ${current.lastName}` : "Accueillir";
-  const description = !roster ? "Choisissez des personnes à accueillir."
-    : step === "count" ? "Combien de personnes se présentent ?"
-      : step === "select" ? "Sélectionnez les personnes à accueillir ensemble."
-        : offlineArrivals ? `${selection.length} à accueillir · Enregistrement sur cet appareil`
-        : step === "welcome" ? `Personne ${savedCount + 1} sur ${selection.length}${current ? ` · ${checkInProfiles[current.type].label}` : ""}`
-          : `${savedCount} ${savedCount === 1 ? "personne accueillie" : "personnes accueillies"}.`;
+  const title = {
+    profile: "Qui accueillez-vous ?",
+    count: "Combien de personnes ?",
+    select: "Choisir les personnes",
+    welcome: "Accueillir le groupe",
+    done: "Accueil terminé",
+  }[step];
+  const waveLabel = currentWave?.label ?? "Toutes les vagues sont terminées";
 
   return (
     <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="flex max-h-[calc(100dvh-1.5rem)] w-[calc(100%-1.25rem)] max-w-xl flex-col overflow-hidden rounded-xl p-4 sm:p-6"
+      <DialogContent className="flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-8 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:grid [&>button]:place-items-center"
         onInteractOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (saving) event.preventDefault(); }}>
-        <DialogHeader className="shrink-0 pr-7 text-left">
-          <DialogTitle className="text-xl">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-          {step === "welcome" && roster?.eventDay && <time dateTime={roster.eventDay} className="text-xs capitalize text-muted-foreground">
-            {formatEventDay(roster.eventDay)}
-          </time>}
+        <DialogHeader className="shrink-0 pr-12 text-left">
+          <DialogTitle className="text-2xl sm:text-4xl">{title}</DialogTitle>
+          <DialogDescription>
+            {step === "profile" ? "Choisissez un profil." :
+              `${type ? checkInProfiles[type].label : ""} · ${waveLabel}`}
+          </DialogDescription>
         </DialogHeader>
 
-        {!roster ? unavailable : step === "count" ? (
-          <form className="space-y-4" onSubmit={event => {
+        {unavailable}
+
+        {step === "profile" && (
+          <div className="grid min-h-0 flex-1 auto-rows-fr gap-3 overflow-y-auto sm:grid-cols-3 sm:gap-5">
+            {profileTypes.map(value => {
+              const { Icon, colors } = profileCards[value];
+              return (
+                <button key={value} type="button" className={cn("flex min-h-24 items-center justify-center gap-4 rounded-2xl border p-4 text-xl font-bold transition-colors sm:flex-col sm:text-3xl", colors)}
+                  onClick={() => { setType(value); setWave(undefined); resetGroup(); }}>
+                  <Icon className="size-10 sm:size-20" strokeWidth={1.4} aria-hidden />
+                  {checkInProfiles[value].label}
+                </button>
+              );
+            })}
+            {!profileTypes.length && <p role="status">Aucun profil disponible pour cet accueil.</p>}
+          </div>
+        )}
+
+        {step === "count" && (
+          <form className="flex min-h-0 flex-1 flex-col gap-3" onSubmit={event => {
             event.preventDefault();
             if (validCount) {
               setSelection(selected.slice(0, total));
               setStep("select");
             }
           }}>
-            {eligible.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" onClick={() => setStep("profile")}><ArrowLeft /> Changer de profil</Button>
+              <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>Choisir une vague</Button>
+              {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline"
+                onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
+            </div>
+            {showWaves && (
+              <select aria-label="Vague active" className="min-h-11 rounded-lg border bg-background px-3" value={currentWave?.value ?? "finished"}
+                onChange={event => switchWave(event.target.value)}>
+                {!currentWave && <option value="finished">Vagues terminées</option>}
+                {waveOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            )}
+            {wavePlayers.length ? (
               <>
-                <div className="grid grid-cols-5 gap-1.5" aria-label="Nombre de personnes">
-                  {[1, 2, 3, 4, 5].map(value => (
-                    <Button key={value} type="button" className="px-1 text-base"
+                <div role="group" aria-label="Nombre de personnes" className="grid min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-2 sm:gap-4">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(value => (
+                    <Button key={value} type="button" className="h-full min-h-10 rounded-xl px-1 text-3xl font-bold sm:rounded-2xl sm:text-6xl"
                       variant={total === value ? "default" : "outline"} aria-pressed={total === value}
                       aria-label={`${value} ${value === 1 ? "personne" : "personnes"}`}
-                      disabled={value > eligible.length} onClick={() => setQuantity(String(value))}>{value}</Button>
+                      disabled={value > wavePlayers.length} onClick={() => { setQuantity(String(value)); setLargeGroup(false); }}>{value}</Button>
                   ))}
                 </div>
-                <label className="block text-sm font-medium" htmlFor={countId}>Nombre de personnes</label>
-                <Input id={countId} type="number" inputMode="numeric" min={1} max={eligible.length} required
-                  value={quantity} onChange={event => setQuantity(event.target.value)} className="min-h-11" />
-                <Button type="submit" className="w-full" disabled={!validCount}>Choisir les personnes <ArrowRight /></Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {wavePlayers.length > 8 && <Button type="button" variant="outline" aria-expanded={largeGroup}
+                    onClick={() => { setLargeGroup(!largeGroup); setQuantity(largeGroup ? "1" : "9"); }}>
+                    <Plus /> Plus de 8
+                  </Button>}
+                  {largeGroup && <>
+                    <label htmlFor={countId} className="sr-only">Nombre de personnes</label>
+                    <Input id={countId} type="number" inputMode="numeric" min={9} max={wavePlayers.length} required
+                      value={quantity} onChange={event => setQuantity(event.target.value)} className="min-h-11 w-24" />
+                  </>}
+                  <Button type="submit" className="min-h-12 flex-1" disabled={!validCount}>Choisir les personnes <ArrowRight /></Button>
+                </div>
               </>
-            ) : (
-              <p role="status" className="rounded-lg border border-border p-3 text-sm text-muted-foreground">
-                Aucune personne disponible dans les listes d’accueil.
-              </p>
-            )}
+            ) : <p role="status" className="rounded-xl border p-4 text-muted-foreground">
+              {currentWave ? "Aucune personne de ce profil dans cette vague." : "Vous pouvez rouvrir une vague depuis le sélecteur."}
+            </p>}
           </form>
-        ) : step === "select" ? (
+        )}
+
+        {step === "select" && (
           <>
             <div className="shrink-0 space-y-2">
-              {!selectedOnly && (
-                <>
-                  {profileTypes.length > 1 && (
-                    <div role="group" aria-label="Filtrer par profil" className="grid grid-flow-col auto-cols-fr gap-1.5">
-                      {profileTypes.map(value => (
-                        <Button key={value} type="button" variant={type === value ? "default" : "outline"}
-                          aria-pressed={type === value} className="px-1.5" onClick={() => {
-                            setType(type === value ? "all" : value);
-                            setSlotFilter("all");
-                          }}>{checkInProfileLabels[value]}</Button>
-                      ))}
-                    </div>
-                  )}
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden />
-                    <Input type="search" aria-label="Rechercher une personne" placeholder="Prénom ou nom"
-                      className="min-h-11 pl-9" value={search} onChange={event => setSearch(event.target.value)} />
-                  </div>
-                  <select aria-label="Filtrer par créneau" className={selectClass} value={slotFilter}
-                    onChange={event => setSlotFilter(event.target.value)}>
-                    <option value="all">Tous les créneaux</option>
-                    {visibleSlots.map(slot => <option key={slot.id} value={slot.id}>{slot.name}</option>)}
-                    {eligible.some(player => player.timeSlotId == null && (type === "all" || player.type === type)) &&
-                      <option value="none">Sans créneau</option>}
-                  </select>
-                </>
-              )}
+              <div className="relative">
+                <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden />
+                <Input type="search" aria-label="Rechercher une personne" placeholder="Nom ou prénom"
+                  className="min-h-11 pl-9" value={search} onChange={event => { setSearch(event.target.value); setSelectedOnly(false); }} />
+              </div>
+              <div role="group" aria-label="Initiale du nom de famille" className="grid grid-cols-9 gap-1 sm:grid-cols-[repeat(14,minmax(0,1fr))] sm:gap-2">
+                {alphabet.map(value => (
+                  <Button key={value} type="button" variant={!selectedOnly && !terms.length && letter === value ? "default" : "outline"}
+                    aria-pressed={!selectedOnly && !terms.length && letter === value} disabled={!letters.has(value)}
+                    className="h-10 px-0 text-base sm:h-12 sm:text-xl" onClick={() => { setLetter(value); setSearch(""); setSelectedOnly(false); }}>{value}</Button>
+                ))}
+              </div>
               <div className="flex flex-wrap items-center justify-between gap-x-2">
                 <p role="status" className="text-sm font-semibold">{selected.length} sur {total} sélectionnées</p>
-                <Button type="button" variant="ghost" size="sm"
-                  onClick={() => setSelectedOnly(!selectedOnly)}>{selectedOnly ? "Voir toute la liste" : "Voir ma sélection"}</Button>
+                <Button type="button" variant="ghost" onClick={() => setSelectedOnly(!selectedOnly)}>
+                  {selectedOnly ? "Retour à la recherche" : "Voir ma sélection"}
+                </Button>
               </div>
             </div>
-            <ul className="min-h-0 space-y-1.5 overflow-y-auto overscroll-contain" aria-label="Personnes à accueillir">
-              {matches.length === 0 && <li className="p-3 text-sm text-muted-foreground">{selectedOnly ? "Aucune personne sélectionnée." : "Aucun résultat."}</li>}
+            <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain" aria-label="Personnes à accueillir">
+              {matches.length === 0 && <li className="p-3 text-sm text-muted-foreground">{selectedOnly ? "Aucune personne sélectionnée." : letter || terms.length ? "Aucun résultat." : "Choisissez une lettre ou recherchez un nom."}</li>}
               {matches.map(player => {
-                const active = selection.includes(player.id);
+                const active = selected.includes(player.id);
                 return (
                   <li key={player.id}>
                     <button type="button" aria-pressed={active} disabled={!active && selected.length >= total}
                       onClick={() => setSelection(active ? selected.filter(id => id !== player.id) : [...selected, player.id])}
-                      className={cn("flex min-h-14 w-full items-center gap-3 rounded-lg border px-3 py-2 text-left disabled:opacity-55",
-                        active ? "border-primary bg-primary/10" : "border-border bg-card hover:border-primary/60")}>
-                      <span className={cn("grid size-5 shrink-0 place-items-center rounded border", active ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground")}>
-                        {active && <Check className="size-4" aria-hidden />}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block break-words text-sm font-medium">{player.firstName} {player.lastName}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0)?.name ?? "Sans créneau"}
-                          {player.arrived ? " · Déjà arrivé" : ""}
-                        </span>
+                      className={cn("flex min-h-14 w-full items-center gap-3 rounded-xl border px-4 py-2 text-left disabled:opacity-50 sm:min-h-16",
+                        active ? "border-emerald-500 bg-emerald-100 text-emerald-950 dark:bg-emerald-950 dark:text-emerald-50" : "border-border bg-card hover:border-primary/60")}>
+                      {active && <Check className="size-5 shrink-0" aria-hidden />}
+                      <span className="min-w-0 break-words text-base font-medium sm:text-lg">
+                        <strong>{player.lastName}</strong> {player.firstName}
+                        {player.arrived && <span className="ml-2 text-xs opacity-75">Déjà arrivé</span>}
                       </span>
                     </button>
                   </li>
                 );
               })}
             </ul>
-            <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
+            <div className="flex shrink-0 gap-2 border-t pt-3">
               <Button type="button" variant="outline" onClick={() => setStep("count")}><ArrowLeft /> Retour</Button>
-              <Button type="button" className="flex-1" disabled={!validCount || selected.length !== total} onClick={() => {
+              <Button type="button" className="min-h-12 flex-1" disabled={!validCount || selected.length !== total} onClick={() => {
                 setSelection(selected);
                 setStep("welcome");
               }}>Commencer l’accueil <ArrowRight /></Button>
             </div>
           </>
-        ) : offlineArrivals && onSaveOfflineGroup ? (
-          <OfflineGroupWelcome roster={roster} ids={selection} saving={saving} error={error}
-            onConfirm={async arrivals => {
+        )}
+
+        {step === "welcome" && (
+          <OfflineGroupWelcome key={reviewVersion} roster={roster} ids={selection} saving={saving} error={error}
+            savedIds={savedIds} onConfirm={confirm}
+            onBack={() => setStep("select")}
+            onReplan={async () => {
+              if (saving) return;
               setSaving(true);
-              setError("");
               try {
-                await onSaveOfflineGroup(arrivals);
-                setSavedCount(arrivals.length);
-                setStep("done");
-              } catch (reason) {
-                setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
+                await onReload?.();
+                setSelection(selection.filter(id => !savedIds.includes(id)));
+                setError("");
+                setReviewVersion(previous => previous + 1);
+              } catch {
+                setError("Impossible d’actualiser les fiches. Réessayez.");
               } finally {
                 setSaving(false);
               }
             }} />
-        ) : step === "welcome" ? (
-          current ? (
-            <WelcomeGuide key={`${current.id}:${current.revision}`} type={current.type} initialDetails={current.details}
-              slot={slots.get(current.timeSlotId ?? 0)}
-              teams={roster.teams.filter(team => team.id === current.details.squadId ||
-                (team.timeSlotId === current.timeSlotId && (!team.type || team.type === current.type)))}
-              groupSize={groupToPlace.length + 1}
-              plannedTeamId={current.details.squadId === null ? plannedTeams.get(current.id) : undefined}
-              summary={current.arrived && <p className="text-sm font-medium text-primary">Arrivée déjà enregistrée</p>}
-              onSave={(details, keepTeamForGroup) => { void save(details, keepTeamForGroup); }} saving={saving} error={error}
-              saveLabel={savedCount + 1 === selection.length ? "Enregistrer et terminer" : "Enregistrer et continuer"}
-              onReload={onReload && (() => { setError(""); onReload(); })} />
-          ) : (
-            <p role="alert" className="text-sm text-muted-foreground">
-              Cette fiche n’est plus disponible. Les arrivées déjà enregistrées sont conservées.
-            </p>
-          )
-        ) : (
+        )}
+
+        {step === "done" && (
           <div className="space-y-4">
-            <p className="flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 p-3 text-sm"><UserCheck className="size-5" aria-hidden /> Les arrivées ont été enregistrées.</p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => {
-                setStep("count");
-                setQuantity("1");
-                setSelection([]);
-                setPlannedTeams(new Map());
-                setSavedCount(0);
-                setSearch("");
-                setType("all");
-                setSlotFilter("all");
-                setSelectedOnly(false);
-              }}>Nouveau groupe</Button>
-              <Button type="button" onClick={onClose}>Terminer</Button>
+            <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 font-medium">
+              <UserCheck className="size-6" aria-hidden />
+              {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>
+              {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
+                onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
             </div>
           </div>
         )}

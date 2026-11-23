@@ -1,26 +1,31 @@
-import React, { useState } from "react";
+import React from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WelcomeDialog } from "@/components/welcome-dialog";
-import type { CheckInRoster } from "@shared/check-in";
+import type { CheckInPlayer, CheckInRoster } from "@shared/check-in";
 
+function player(id: number, firstName: string, lastName: string, overrides: Partial<CheckInPlayer> = {}): CheckInPlayer {
+  return { id, firstName, lastName, type: "zombie", timeSlotId: 1, arrived: false, returned: false,
+    revision: String(id), details: { squadId: null, checklist: {} }, ...overrides };
+}
+
+const clara = player(1, "Clara", "Martin");
+const lucie = player(2, "Lucie", "Évrard");
+const paul = player(3, "Paul", "Martin");
 const roster: CheckInRoster = {
-  players: [
-    { id: 1, firstName: "Élodie", lastName: "Martin", type: "zombie", timeSlotId: 1, arrived: false, returned: false,
-      revision: "zombie", details: { squadId: null, checklist: {} } },
-    { id: 2, firstName: "Gaël", lastName: "Durand", type: "survivant", timeSlotId: 2, arrived: false, returned: false,
-      revision: "survivant", details: { squadId: null, checklist: {} } },
-    { id: 3, firstName: "Aline", lastName: "Borel", type: "staff", timeSlotId: null, arrived: true, returned: false,
-      revision: "staff", details: { squadId: null, checklist: {} } },
-    { id: 4, firstName: "Sam", lastName: "Sorti", type: "zombie", timeSlotId: 1, arrived: true, returned: true,
-      revision: "sorti", details: { squadId: null, checklist: {} } },
+  players: [paul, clara, lucie,
+    player(4, "Gaël", "Durand", { timeSlotId: 2 }),
+    player(5, "Mia", "Martin", { type: "survivant", timeSlotId: 3 }),
+    player(6, "Aline", "Borel", { type: "staff", timeSlotId: null }),
+    player(7, "Sam", "Sorti", { returned: true }),
   ],
   slots: [
-    { id: 1, name: "Vague 18 h", mealTime: "17:45", briefingTime: "18:00", gameTime: "19:00", exitTime: "22:00",
+    { id: 2, type: "zombie", name: "Vague 20 h", briefingTime: "20:00", gameTime: "21:00" },
+    { id: 1, type: "zombie", name: "Vague 18 h", mealTime: "17:45", briefingTime: "18:00", gameTime: "19:00", exitTime: "22:00",
       welcomeNotes: { meal: "Repas à la buvette.", briefing: "Rendez-vous sous le préau.",
         game: "Départ au portail vert.", exit: "Retour par le parking.", other: "Récupérez vos sacs en repartant." } },
-    { id: 2, name: "Vague 20 h", briefingTime: "20:00", gameTime: "21:00" },
+    { id: 3, type: "survivant", name: "Vague des survivants", briefingTime: "17:00", gameTime: "18:00" },
   ],
   teams: [
     { id: 1, number: 2, timeSlotId: 1, maxMembers: 8, members: 1, briefing: "Rendez-vous au portail nord." },
@@ -28,206 +33,185 @@ const roster: CheckInRoster = {
   ],
 };
 
-describe("Accueil groupé", () => {
-  it("sélectionne le nombre demandé, conserve la sélection entre filtres et ouvre la bonne fiche", async () => {
-    const user = userEvent.setup();
-    const save = vi.fn().mockResolvedValue(undefined);
-    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSave={save} />);
+type User = ReturnType<typeof userEvent.setup>;
+const button = (name: string | RegExp) => screen.getByRole("button", { name });
+const click = (user: User, name: string | RegExp) => user.click(button(name));
 
-    await user.click(screen.getByRole("button", { name: "3 personnes" }));
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    const begin = screen.getByRole("button", { name: "Commencer l’accueil" });
-    expect(begin).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /Sam Sorti/ })).toBeNull();
+async function begin(user: User, quantity = 1) {
+  await click(user, "Zombie");
+  await click(user, quantity === 1 ? "1 personne" : `${quantity} personnes`);
+  await click(user, "Choisir les personnes");
+}
+
+async function reviewArrival(user: User) {
+  await click(user, "Passer la présentation");
+  await click(user, "Vérifier les arrivées");
+}
+
+beforeEach(() => sessionStorage.clear());
+
+describe("Accueil tactile", () => {
+  it("filtre par profil, par vague et par initiale et conserve la sélection entre les lettres", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSave={onSave} />);
+    expect(button("Survivant")).toBeVisible();
+    expect(button("Staff")).toBeVisible();
+
+    await click(user, "Zombie");
+    expect(screen.getByText("Zombie · Vague 18 h")).toBeVisible();
+    expect(within(screen.getByRole("group", { name: "Nombre de personnes" })).getAllByRole("button")).toHaveLength(8);
+    await click(user, "2 personnes");
+    await click(user, "Choisir les personnes");
+    expect(button("Commencer l’accueil")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Martin/ })).toBeNull();
+
+    await click(user, "M");
     const players = within(screen.getByRole("list", { name: "Personnes à accueillir" })).getAllByRole("button");
-    expect(players[0]).toHaveTextContent("Aline Borel");
-    expect(players[1]).toHaveTextContent("Élodie Martin");
-    expect(players[2]).toHaveTextContent("Gaël Durand");
-    const zombies = screen.getByRole("button", { name: "Zombies", exact: true });
-    await user.click(zombies);
-    expect(zombies).toHaveAttribute("aria-pressed", "true");
-    expect(screen.queryByRole("button", { name: /Gaël Durand/ })).toBeNull();
-    await user.click(zombies);
-    expect(zombies).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByRole("button", { name: /Gaël Durand/ })).toBeVisible();
-    await user.type(screen.getByRole("searchbox"), "martin elodie");
-    await user.click(screen.getByRole("button", { name: /Élodie Martin/ }));
-    await user.clear(screen.getByRole("searchbox"));
-    await user.click(screen.getByRole("button", { name: "Survivants", exact: true }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Filtrer par créneau" }), "2");
-    await user.click(screen.getByRole("button", { name: /Gaël Durand/ }));
-    expect(begin).toBeDisabled();
-    expect(screen.getByText("2 sur 3 sélectionnées")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Staff", exact: true }));
-    await user.click(screen.getByRole("button", { name: /Aline Borel/ }));
-    await user.click(screen.getByRole("button", { name: "Voir ma sélection" }));
-    expect(screen.getByRole("button", { name: /Élodie Martin/, pressed: true })).toBeVisible();
-    await user.click(begin);
+    expect(players[0]).toHaveTextContent("Martin Clara");
+    expect(players[1]).toHaveTextContent("Martin Paul");
+    expect(players).toHaveLength(2);
+    await click(user, /Martin Clara/);
+    await click(user, "E");
+    await click(user, /Évrard Lucie/);
+    expect(button(/Évrard Lucie/)).toHaveAttribute("aria-pressed", "true");
+    await click(user, "M");
+    expect(button(/Martin Clara/)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/Martin Paul/)).toBeDisabled();
 
-    expect(screen.getByText("Étape 1 sur 6")).toBeVisible();
-    expect(screen.getByRole("button", { name: /Équipe 3.*Complète/ })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: /Équipe 2.*Recommandée/ }));
-    await user.click(screen.getByRole("button", { name: "Équipe présentée" }));
-    expect(screen.getByText("18:00")).toBeVisible();
-    expect(screen.getByText("22:00")).toBeVisible();
-    expect(screen.getByText("Rendez-vous au portail nord.")).toBeVisible();
-    expect(screen.getByText("Rendez-vous sous le préau.")).toBeVisible();
-    expect(screen.getByText("Départ au portail vert.")).toBeVisible();
-    expect(screen.getByText("Retour par le parking.")).toBeVisible();
-    expect(screen.queryByText("Repas à la buvette.")).toBeNull();
-    expect(screen.queryByRole("region", { name: "Autre" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Briefing expliqué" }));
-    expect(screen.getByText("17:45")).toBeVisible();
-    expect(screen.getByText("Repas à la buvette.")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
-    await user.click(screen.getByRole("button", { name: "Ordre de passage au maquillage expliqué" }));
-    await user.click(screen.getByRole("button", { name: "Bouteille d’eau remise" }));
-    await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
-    expect(within(screen.getByRole("region", { name: "Autre" })).getByText("Récupérez vos sacs en repartant.")).toBeVisible();
-    expect(screen.getByRole("button", { name: /Remettre le ticket repas À faire/ })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Proposer une carte Facultatif/ })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
-    expect(await screen.findByRole("heading", { name: "Gaël Durand" })).toBeVisible();
-    expect(screen.getByText("Étape 1 sur 3")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Continuer sans équipe" }));
-    await user.click(screen.getByRole("button", { name: "Briefing expliqué" }));
-    await user.click(screen.getByRole("button", { name: "Passer cette étape" }));
-    expect(screen.queryByRole("region", { name: "Autre" })).toBeNull();
-    expect(screen.queryByRole("button", { name: /maquillage/ })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
-    expect(await screen.findByRole("heading", { name: "Aline Borel" })).toBeVisible();
-    expect(screen.queryByRole("list", { name: "Équipes du créneau" })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Enregistrer et terminer" }));
-
-    expect(await screen.findByText("3 personnes accueillies.")).toBeVisible();
-    expect(save.mock.calls.map(([player]) => player.id)).toEqual([1, 2, 3]);
-    expect(save).toHaveBeenNthCalledWith(1, roster.players[0], {
-      squadId: 1, checklist: { squadExplained: true, briefingExplained: true, waterBottleGiven: true, makeupWaitExplained: true },
-    });
-    expect(save).toHaveBeenNthCalledWith(2, roster.players[1], { squadId: null, checklist: { briefingExplained: true } });
-  });
-
-  it("affiche les profils accessibles même si leur liste est vide", async () => {
-    const user = userEvent.setup();
-    render(<WelcomeDialog roster={{ ...roster, players: [roster.players[0]] }} onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    const filters = within(screen.getByRole("group", { name: "Filtrer par profil" }));
-    expect(filters.getAllByRole("button")).toHaveLength(3);
-    await user.click(filters.getByRole("button", { name: "Staff" }));
+    const search = screen.getByRole("searchbox");
+    await user.type(search, "durand gaël");
     expect(screen.getByText("Aucun résultat.")).toBeVisible();
+    await user.clear(search);
+    await user.type(search, "lucie evrard");
+    expect(button(/Évrard Lucie/)).toHaveAttribute("aria-pressed", "true");
+    await click(user, "Voir ma sélection");
+    expect(button(/Martin Clara/)).toBeVisible();
+    await click(user, "Commencer l’accueil");
+
+    const recommended = button(/Équipe 2.*Recommandée/);
+    expect(recommended).toHaveTextContent("7 places libres");
+    await user.click(recommended);
+    await click(user, "Confirmer l’équipe");
+    expect(screen.getByText("Bonjour Clara ! Bonjour Lucie !")).toBeVisible();
+    expect(onSave).not.toHaveBeenCalled();
+    await reviewArrival(user);
+    await click(user, "Valider les 2 arrivées");
+    expect(await screen.findByText("2 personnes accueillies.")).toBeVisible();
+    expect(onSave.mock.calls.map(([person, details]) => [person.id, details.squadId])).toEqual([[1, 1], [2, 1]]);
+
+    await click(user, "Nouveau groupe");
+    expect(screen.getByText("Zombie · Vague 18 h")).toBeVisible();
+    await click(user, "Clôturer la vague");
+    expect(screen.getByText("Zombie · Vague 20 h")).toBeVisible();
+    await click(user, "Choisir les personnes");
+    await click(user, "D");
+    expect(button(/Durand Gaël/)).toBeVisible();
+    expect(button("M")).toBeDisabled();
   });
 
-  it("conserve la fiche en cours en cas d’erreur d’enregistrement", async () => {
+  it("retrouve la vague active après fermeture du dialogue", async () => {
     const user = userEvent.setup();
-    const save = vi.fn().mockRejectedValueOnce(new Error("Serveur inaccessible")).mockResolvedValue(undefined);
-    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSave={save} />);
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    await user.click(screen.getByRole("button", { name: /Élodie Martin/ }));
-    expect(screen.getByRole("button", { name: /Gaël Durand/ })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Commencer l’accueil" }));
+    const props = { roster, onClose: vi.fn(), onSave: vi.fn() };
+    const first = render(<WelcomeDialog {...props} />);
+    await click(user, "Zombie");
+    await click(user, "Clôturer la vague");
+    first.unmount();
+    render(<WelcomeDialog {...props} />);
+    await click(user, "Zombie");
+    expect(screen.getByText("Zombie · Vague 20 h")).toBeVisible();
+    await click(user, "Clôturer la vague");
+    expect(screen.getByText(/Toutes les vagues sont terminées/)).toBeVisible();
+  });
 
-    await user.click(screen.getByRole("button", { name: "Voir le récapitulatif" }));
-    await user.click(screen.getByRole("button", { name: /Donner la bouteille d’eau À faire/ }));
-    await user.click(screen.getByRole("button", { name: "Bouteille d’eau remise" }));
-    const submit = screen.getByRole("button", { name: "Enregistrer et terminer" });
-    await user.click(submit);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Serveur inaccessible");
-    expect(screen.getByRole("button", { name: /Donner la bouteille d’eau Confirmé/ })).toBeVisible();
-    await user.click(submit);
+  it("permet de saisir plus de huit personnes sans afficher d’autres vagues", async () => {
+    const user = userEvent.setup();
+    render(<WelcomeDialog roster={{ ...roster, players: Array.from({ length: 15 }, (_, i) => player(i + 20, `Prénom ${i}`, "Martin")) }}
+      onClose={vi.fn()} onSave={vi.fn()} />);
+    await click(user, "Zombie");
+    await click(user, "Plus de 8");
+    const number = screen.getByRole("spinbutton", { name: "Nombre de personnes" });
+    await user.clear(number);
+    await user.type(number, "15");
+    await click(user, "Choisir les personnes");
+    expect(screen.getByText("0 sur 15 sélectionnées")).toBeVisible();
+  });
+
+  it("permet de garder le staff sans créneau et limite le choix aux profils autorisés", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(<WelcomeDialog roster={roster} profileTypes={["staff"]} onSave={onSave} onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Zombie" })).toBeNull();
+    await click(user, "Staff");
+    expect(screen.getByText("Staff · Sans créneau")).toBeVisible();
+    await click(user, "Choisir les personnes");
+    await click(user, "B");
+    await click(user, /Borel Aline/);
+    await click(user, "Commencer l’accueil");
+    expect(screen.getByText("Bonjour Aline !")).toBeVisible();
+    await reviewArrival(user);
+    await click(user, "Valider l’arrivée");
     expect(await screen.findByText("1 personne accueillie.")).toBeVisible();
-    expect(save).toHaveBeenCalledTimes(2);
   });
 
-  it("conserve les confirmations existantes et permet de les corriger depuis le récapitulatif", async () => {
+  it("permet de confirmer un dépassement avant l’enregistrement local groupé", async () => {
     const user = userEvent.setup();
-    const save = vi.fn().mockResolvedValue(undefined);
-    const player = { ...roster.players[0], arrived: true, details: {
-      squadId: 1, checklist: { squadExplained: true, mealTicketGiven: true, briefingExplained: true },
-    } };
-    render(<WelcomeDialog roster={{ ...roster, players: [player] }} onClose={vi.fn()} onSave={save} />);
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    await user.click(screen.getByRole("button", { name: /Élodie Martin/ }));
-    await user.click(screen.getByRole("button", { name: "Commencer l’accueil" }));
-    await user.click(screen.getByRole("button", { name: "Voir le récapitulatif" }));
-    await user.click(screen.getByRole("button", { name: /Remettre le ticket repas Confirmé/ }));
-    await user.click(screen.getByRole("button", { name: "Marquer à faire" }));
-    expect(screen.getByRole("button", { name: /Remettre le ticket repas À faire/ })).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Enregistrer et terminer" }));
-    expect(save).toHaveBeenCalledWith(player, {
+    const onSaveOfflineGroup = vi.fn();
+    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSaveOfflineGroup={onSaveOfflineGroup} />);
+    await begin(user, 2);
+    await click(user, "M");
+    await click(user, /Martin Clara/);
+    await click(user, /Martin Paul/);
+    await click(user, "Commencer l’accueil");
+    await click(user, /Équipe 3.*Complète/);
+    expect(button("Confirmer l’équipe")).toBeDisabled();
+    await user.click(screen.getByRole("checkbox", { name: /Confirmer le dépassement/ }));
+    await click(user, "Confirmer l’équipe");
+    await reviewArrival(user);
+    await click(user, "Valider les 2 arrivées");
+    expect(onSaveOfflineGroup).toHaveBeenCalledTimes(1);
+    expect(onSaveOfflineGroup.mock.calls[0][0].map(({ player, details, overflowConfirmed }: {
+      player: CheckInPlayer; details: CheckInPlayer["details"]; overflowConfirmed: boolean;
+    }) => [player.id, details.squadId, overflowConfirmed])).toEqual([[1, 2, true], [3, 2, true]]);
+  });
+
+  it("reprend un enregistrement en ligne partiel sans renvoyer les fiches déjà enregistrées", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error("Serveur indisponible")).mockResolvedValueOnce(undefined);
+    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSave={onSave} />);
+    await begin(user, 2);
+    await click(user, "M");
+    await click(user, /Martin Clara/);
+    await click(user, /Martin Paul/);
+    await click(user, "Commencer l’accueil");
+    await click(user, "Continuer sans équipe");
+    await reviewArrival(user);
+    await click(user, "Valider les 2 arrivées");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Serveur indisponible");
+    await click(user, "Réessayer");
+    expect(await screen.findByText("2 personnes accueillies.")).toBeVisible();
+    expect(onSave.mock.calls.map(([person]) => person.id)).toEqual([1, 3, 3]);
+  });
+
+  it("conserve les confirmations existantes et permet de les corriger", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const previous = { ...clara, arrived: true, details: { squadId: 1,
+      checklist: { squadExplained: true, mealTicketGiven: true, briefingExplained: true } } };
+    render(<WelcomeDialog roster={{ ...roster, players: [previous] }} onClose={vi.fn()} onSave={onSave} />);
+    await begin(user);
+    await click(user, "M");
+    await click(user, /Martin Clara/);
+    await click(user, "Commencer l’accueil");
+    await click(user, "Confirmer l’équipe");
+    await click(user, "Passer la présentation");
+    await click(user, /Remettre le ticket repas Confirmé/);
+    await click(user, "Marquer à faire");
+    expect(button(/Remettre le ticket repas À faire/)).toBeVisible();
+    await click(user, "Vérifier les arrivées");
+    await click(user, "Valider l’arrivée");
+    expect(onSave).toHaveBeenCalledWith(previous, {
       squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true },
-    });
-  });
-
-  it("recommande l’équipe qui peut se remplir avec le groupe compatible et reprend le choix après une sauvegarde", async () => {
-    const user = userEvent.setup();
-    const first = roster.players[0];
-    const second = { ...first, id: 5, firstName: "Louise" };
-    const assigned = { ...first, id: 6, firstName: "Morgan", details: { ...first.details, squadId: 10 } };
-    const save = vi.fn();
-    function Session() {
-      const [active, setActive] = useState<CheckInRoster>({
-        ...roster,
-        players: [first, second, assigned, roster.players[1]],
-        teams: [
-          { id: 10, number: 1, timeSlotId: 1, maxMembers: 8, members: 7 },
-          { id: 11, number: 2, timeSlotId: 1, maxMembers: 8, members: 3 },
-          { id: 12, number: 3, timeSlotId: 1, maxMembers: 8, members: 6 },
-          { id: 13, number: 4, timeSlotId: 1, maxMembers: 8, members: 6, type: "survivant" },
-          { id: 14, number: 5, timeSlotId: 1, maxMembers: null, members: 9 },
-        ],
-      });
-      return <WelcomeDialog roster={active} onClose={vi.fn()} onSave={async (player, details) => {
-        save(player.id, details.squadId);
-        setActive(previous => ({
-          ...previous,
-          teams: previous.teams.map(team => ({
-            ...team, members: team.members + Number(team.id === details.squadId) - Number(team.id === player.details.squadId),
-          })),
-        }));
-      }} />;
-    }
-    render(<Session />);
-    await user.click(screen.getByRole("button", { name: "4 personnes" }));
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    for (const name of [/Élodie Martin/, /Louise Martin/, /Morgan Martin/, /Gaël Durand/]) {
-      await user.click(screen.getByRole("button", { name }));
-    }
-    await user.click(screen.getByRole("button", { name: "Commencer l’accueil" }));
-    const cards = within(screen.getByRole("list", { name: "Équipes du créneau" }));
-    const suggested = cards.getByRole("button", { name: /Équipe 3.*Recommandée/ });
-    expect(cards.getAllByRole("button")[0]).toBe(suggested);
-    expect(suggested).toHaveTextContent("6 / 8 affectés");
-    expect(suggested).toHaveTextContent("2 places libres");
-    expect(cards.queryByRole("button", { name: /Équipe 4/ })).toBeNull();
-    expect(cards.getByRole("button", { name: /Équipe 5/ })).toHaveTextContent("Sans limite de places");
-    await user.click(cards.getByRole("button", { name: /Équipe 1/ }));
-    expect(screen.queryByRole("checkbox", { name: /Proposer cette équipe/ })).toBeNull();
-    await user.click(suggested);
-    await user.click(screen.getByRole("checkbox", { name: "Proposer cette équipe aux 2 personnes" }));
-    await user.click(screen.getByRole("button", { name: "Équipe présentée" }));
-    await user.click(screen.getByRole("button", { name: "Voir le récapitulatif" }));
-    await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
-    expect(await screen.findByRole("heading", { name: "Louise Martin" })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Équipe 3.*Choix du groupe/, pressed: true })).toHaveTextContent("7 / 8 affectés");
-    await user.click(screen.getByRole("button", { name: "Voir le récapitulatif" }));
-    await user.click(screen.getByRole("button", { name: "Enregistrer et continuer" }));
-    expect(await screen.findByRole("heading", { name: "Morgan Martin" })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Équipe 1/, pressed: true })).toBeVisible();
-    expect(screen.getByRole("button", { name: /Équipe 3.*Complète/ })).toBeDisabled();
-    expect(save.mock.calls).toEqual([[first.id, 12], [second.id, 12]]);
-  });
-
-  it("indique qu’il faut répartir le groupe si aucune équipe ne peut prendre tout le monde", async () => {
-    const user = userEvent.setup();
-    render(<WelcomeDialog roster={{ ...roster, players: [roster.players[0], { ...roster.players[0], id: 5, firstName: "Louise" }],
-      teams: [{ ...roster.teams[0], members: 7 }, roster.teams[1]] }} onClose={vi.fn()} onSave={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: "2 personnes" }));
-    await user.click(screen.getByRole("button", { name: "Choisir les personnes" }));
-    await user.click(screen.getByRole("button", { name: /Élodie Martin/ }));
-    await user.click(screen.getByRole("button", { name: /Louise Martin/ }));
-    await user.click(screen.getByRole("button", { name: "Commencer l’accueil" }));
-    expect(screen.getByText(/Aucune équipe n’a assez de place pour les 2 personnes/)).toBeVisible();
-    expect(screen.getByRole("button", { name: /Équipe 2.*Pour ce joueur/ })).toBeEnabled();
-    expect(screen.getByRole("button", { name: /Équipe 3.*Complète/ })).toBeDisabled();
+    }, false);
   });
 });

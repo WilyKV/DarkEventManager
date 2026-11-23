@@ -49,7 +49,7 @@ export type CheckInPlayer = {
 export type CheckInRoster = {
   eventDay?: string | null;
   players: CheckInPlayer[];
-  slots: WelcomeTimeSlot[];
+  slots: (WelcomeTimeSlot & { type?: CheckInType })[];
   teams: { id: number; number: number; timeSlotId: number; type?: string; maxMembers: number | null; members: number; briefing?: string | null }[];
 };
 

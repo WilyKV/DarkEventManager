@@ -5,6 +5,7 @@ import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPl
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SouvenirPhotoDialog } from "@/components/souvenir-photo-dialog";
 import { SouvenirPhoto } from "@/components/participant-card";
 import { WelcomeDialog } from "@/components/welcome-dialog";
 import { placementLabels, placementMembers, type PlacementMember } from "@/components/squad-placement";
@@ -72,6 +73,7 @@ export default function OfflineCheckInPage() {
   const [profile, setProfile] = useState<CheckInType | "all">("all");
   const [view, setView] = useState<"list" | "squads">("list");
   const [selectedId, setSelectedId] = useState<number>();
+  const [photosOpen, setPhotosOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number>();
@@ -242,6 +244,15 @@ export default function OfflineCheckInPage() {
     });
   }
 
+  async function changePendingPhoto(active: UnlockedCopy, id: number, photo: string | null | undefined) {
+    if (!await run(async () => {
+      const pendingPhotos = { ...active.data.pendingPhotos };
+      if (photo === undefined) delete pendingPhotos[id];
+      else pendingPhotos[id] = photo;
+      await persist(active, { ...active.data, pendingPhotos });
+    })) throw new Error("Impossible de modifier la photo sur cet appareil.");
+  }
+
   async function sync(active: UnlockedCopy) {
     let current = active;
     try {
@@ -326,6 +337,7 @@ export default function OfflineCheckInPage() {
     setUnlocked(undefined);
     setSelectedId(undefined);
     setWelcomeOpen(false);
+    setPhotosOpen(false);
     setAddOpen(false);
     setDeleteId(undefined);
     setSearch("");
@@ -463,22 +475,14 @@ export default function OfflineCheckInPage() {
             <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)}
               onSaveOfflineGroup={arrivals => saveGroup(unlocked, arrivals)} />
           )}
+          {photosOpen && <SouvenirPhotoDialog players={participants} pendingPhotos={data.pendingPhotos} busy={busy}
+            onClose={() => setPhotosOpen(false)} onSave={(id, photo) => changePendingPhoto(unlocked, id, photo)}
+            onCancel={id => changePendingPhoto(unlocked, id, undefined)} />}
           {selected && (
             <CheckInDialog key={selected.id} player={selected} membersByTeam={membersByTeam}
               pendingPhoto={data.pendingPhotos?.[selected.id]}
-              onCancelPendingPhoto={async () => {
-                if (!await run(async () => {
-                  const pendingPhotos = { ...data.pendingPhotos };
-                  delete pendingPhotos[selected.id];
-                  await persist(unlocked, { ...data, pendingPhotos });
-                })) throw new Error("Impossible d’annuler l’envoi.");
-              }}
-              onSavePhoto={async photo => {
-                const saved = await run(async () => {
-                  await persist(unlocked, { ...data, pendingPhotos: { ...data.pendingPhotos, [selected.id]: photo } });
-                });
-                if (!saved) throw new Error("Impossible d’enregistrer la photo sur cet appareil.");
-              }}
+              onCancelPendingPhoto={() => changePendingPhoto(unlocked, selected.id, undefined)}
+              onSavePhoto={photo => changePendingPhoto(unlocked, selected.id, photo)}
               slot={data.timeSlots.find(slot => slot.id === selected.timeSlotId)}
               teams={welcomeTeams.filter(team => team.id === selected.state.squadId ||
                 (team.timeSlotId === selected.timeSlotId && team.type === selected.type))}
@@ -521,7 +525,7 @@ export default function OfflineCheckInPage() {
       )}
       <OfflineNavigation ready={Boolean(unlocked)} busy={busy} view={view}
         onList={() => setView("list")} onSquads={() => setView("squads")}
-        onWelcome={() => setWelcomeOpen(true)}>
+        onWelcome={() => setWelcomeOpen(true)} onPhotos={() => setPhotosOpen(true)}>
         {unlocked && <>
           <SheetClose asChild><Button type="button" variant="outline" disabled={busy || !online || !user || !pending.size}
             onClick={() => run(() => sync(unlocked))}><Upload /> Envoyer au serveur</Button></SheetClose>

@@ -14,7 +14,7 @@ import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
 import { requireAuth } from "./auth-middleware";
-import { registerParticipantCardRoutes } from "./participant-card-routes";
+import { purgeExpiredParticipantCards, registerParticipantCardRoutes } from "./participant-card-routes";
 import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
 import { validateSessionAccount } from "./session-account";
@@ -149,5 +149,10 @@ app.use(publishLiveChanges);
 
     // Start WebSocket Sync Server
     wsSyncServer.start(server);
+    const purgeSouvenirs = () => {
+      void purgeExpiredParticipantCards().catch(err => appLogger.error({ err }, "Échec de la purge des espaces souvenir"));
+    };
+    purgeSouvenirs();
+    setInterval(purgeSouvenirs, 60 * 60 * 1000).unref();
   });
 })();

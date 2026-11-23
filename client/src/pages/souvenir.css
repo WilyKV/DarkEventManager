@@ -161,3 +161,29 @@
 @media (prefers-reduced-motion: reduce) {
   .souvenir-enter, .souvenir-backdrop::after, .souvenir-question { animation: none; }
 }
+
+.souvenir-highlights, .souvenir-album {
+  margin-top: 1.25rem;
+  padding: clamp(1rem, 3vw, 1.75rem);
+  border: 1px solid #ffffff26;
+  border-radius: 1.15rem;
+  background: #19121c;
+}
+.souvenir-highlights h2, .souvenir-album h2 { font-size: clamp(1.1rem, 2vw, 1.4rem); font-weight: 800; }
+.souvenir-highlights dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .9rem; margin-top: 1rem; }
+.souvenir-highlights dl > div { border-left: 2px solid var(--souvenir-accent); padding-left: .85rem; }
+.souvenir-highlights dt, .souvenir-album p { color: #e1cdd5; font-size: .9rem; }
+.souvenir-highlights dd { color: var(--souvenir-accent); font-size: clamp(1.7rem, 5vw, 3.5rem); font-weight: 900; overflow-wrap: anywhere; }
+.souvenir-album {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .85rem 1rem;
+  border-color: color-mix(in srgb, var(--souvenir-accent) 40%, transparent);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--souvenir-glow) 33%, #19121c), #19121c 80%);
+}
+.souvenir-album-icon { display: grid; place-items: center; flex-shrink: 0; width: 2.75rem; height: 2.75rem; border-radius: .7rem; color: var(--souvenir-accent); background: #ffffff12; }
+.souvenir-album a { margin-left: auto; display: inline-flex; align-items: center; gap: .55rem; padding: .7rem 1rem; border-radius: .6rem; background: var(--souvenir-accent); color: #190b11; font-size: .9rem; font-weight: 800; }
+.souvenir-album a:hover { text-decoration: underline; }
+.souvenir-album a:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+.souvenir-album a svg { width: 1rem; height: 1rem; }

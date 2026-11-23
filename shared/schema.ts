@@ -3,7 +3,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
-import type { SouvenirSummary } from "./participant-card";
+import type { SouvenirAttendance, SouvenirSettings, SouvenirSummary } from "./participant-card";
 import { timeSlotNotesSchema, type TimeSlotNotes } from "./time-slot-notes";
 
 // Time Slots Table
@@ -64,6 +64,7 @@ export const participantCards = pgTable("participant_cards", {
   code: text("code").notNull(),
   summary: jsonb("summary").$type<SouvenirSummary>().notNull(),
   photo: text("photo"),
+  photoRemovedAt: timestamp("photo_removed_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 });
 
@@ -175,6 +176,7 @@ export const appConfig = pgTable("app_config", {
   lastSyncAt: timestamp("last_sync_at"),
   eventDay: date("event_day", { mode: "string" }),
   eventClosedAt: timestamp("event_closed_at", { withTimezone: true }),
+  souvenirSettings: jsonb("souvenir_settings").$type<SouvenirSettings & { closedCounts?: SouvenirAttendance }>(),
   analyticsStartedAt: timestamp("analytics_started_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at").defaultNow(),
   serverLamportTs: integer("server_lamport_ts").notNull().default(0),

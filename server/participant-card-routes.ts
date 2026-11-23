@@ -1,10 +1,10 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
 import type { Express } from "express";
 import rateLimit from "express-rate-limit";
-import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { appConfig, participantCards, participants, squads, timeSlots } from "@shared/schema";
-import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
+import { appConfig, auditLogs, discounts, mealDiscounts, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
+import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { checkInRoles } from "@shared/check-in";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -33,13 +33,41 @@ const photoSchema = z.object({
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+const emptySettings: SouvenirSettings = { zombies: null, survivors: null, photoUrl: null };
+const souvenirSettingsSchema = z.object({
+  zombies: z.int32().nonnegative().nullable(),
+  survivors: z.int32().nonnegative().nullable(),
+  photoUrl: z.string().trim().max(2048).pipe(z.url({ protocol: /^https?$/ })).refine(value => {
+    const url = new URL(value);
+    return !url.username && !url.password;
+  }).nullable(),
+}).strict();
+
+async function countAttendance(tx: Transaction): Promise<SouvenirAttendance> {
+  const counts = await tx.select({ type: participants.type, total: count() }).from(participants)
+    .where(and(isNull(participants.deletedAt), inArray(participants.type, ["zombie", "survivant"]),
+      or(eq(participants.arrived, true), isNotNull(participants.arrivedAt))))
+    .groupBy(participants.type);
+  return {
+    zombies: counts.find(row => row.type === "zombie")?.total ?? 0,
+    survivors: counts.find(row => row.type === "survivant")?.total ?? 0,
+  };
+}
+
+async function eventHighlights(tx: Transaction, config: typeof appConfig.$inferSelect): Promise<SouvenirHighlights> {
+  const settings = config.souvenirSettings ?? emptySettings;
+  const automatic = config.souvenirSettings?.closedCounts ?? await countAttendance(tx);
+  return { zombies: settings.zombies ?? automatic.zombies,
+    survivors: settings.survivors ?? automatic.survivors, photoUrl: settings.photoUrl };
+}
+
 async function cardPlayers(tx: Transaction, ids?: number[]) {
   const squadCounts = tx.select({ squadId: participants.squadId, total: count().as("total") })
     .from(participants).where(isNull(participants.deletedAt)).groupBy(participants.squadId).as("souvenir_squad_counts");
   return tx.select({
     id: participants.id, createdAt: participants.createdAt, firstName: participants.firstName,
     lastName: participants.lastName, type: participants.type, wave: timeSlots.name, squad: squads.number, squadBriefing: squads.briefing,
-    arrivedAt: participants.arrivedAt, squadSize: squadCounts.total,
+    arrivedAt: participants.arrivedAt, gameStart: timeSlots.gameTime, gameEnd: timeSlots.exitTime, squadSize: squadCounts.total,
   }).from(participants).leftJoin(timeSlots, eq(timeSlots.id, participants.timeSlotId))
     .leftJoin(squads, eq(squads.id, participants.squadId))
     .leftJoin(squadCounts, eq(squadCounts.squadId, squads.id))
@@ -53,8 +81,8 @@ function identityOf(player: Pick<CardPlayer, "id" | "createdAt">) {
 }
 
 function recap(player: CardPlayer, eventDay: string | null): SouvenirSummary {
-  const { firstName, lastName, type, wave, squad, squadBriefing, squadSize, arrivedAt } = player;
-  return { firstName, lastName, type, wave, squad, squadBriefing, squadSize, arrivedAt: arrivedAt?.toISOString() ?? null, eventDay };
+  const { firstName, lastName, type, wave, squad, squadBriefing, squadSize, arrivedAt, gameStart, gameEnd } = player;
+  return { firstName, lastName, type, wave, squad, squadBriefing, squadSize, gameStart, gameEnd, arrivedAt: arrivedAt?.toISOString() ?? null, eventDay };
 }
 
 async function lockedConfig(tx: Transaction, id: number) {
@@ -70,11 +98,13 @@ async function issueCards(tx: Transaction, players: CardPlayer[], config: typeof
     .from(participantCards).where(inArray(participantCards.identity, keys));
   const byIdentity = new Map(rows.map(card => [card.identity, card]));
   const expiresAt = config.eventClosedAt ? souvenirExpiry(config.eventClosedAt) : null;
+  const highlights = expiresAt && players.some(player => !byIdentity.has(identityOf(player)))
+    ? await eventHighlights(tx, config) : undefined;
   const missing = players.flatMap(player => {
     const identity = identityOf(player);
     if (byIdentity.has(identity)) return [];
     return [{
-      identity, participantId: player.id, summary: recap(player, config.eventDay),
+      identity, participantId: player.id, summary: { ...recap(player, config.eventDay), highlights },
       token: randomBytes(20).toString("base64url"),
       code: Array.from({ length: 10 }, () => codeCharacters[randomInt(codeCharacters.length)]).join(""),
       expiresAt,
@@ -97,16 +127,34 @@ export async function closeParticipantCards() {
     if (config.eventClosedAt) return;
     const closedAt = new Date();
     const expiresAt = souvenirExpiry(closedAt);
+    const closedCounts = await countAttendance(tx);
+    const souvenirSettings = { ...(config.souvenirSettings ?? emptySettings), closedCounts };
+    const highlights = await eventHighlights(tx, { ...config, souvenirSettings });
     const roster = await cardPlayers(tx);
     const issued = await tx.select({ id: participantCards.id, identity: participantCards.identity })
       .from(participantCards).where(isNull(participantCards.expiresAt));
     const byIdentity = new Map(roster.map(player => [identityOf(player), player]));
     for (const card of issued) {
       const player = byIdentity.get(card.identity);
-      if (player) await tx.update(participantCards).set({ expiresAt, summary: recap(player, config.eventDay) })
+      if (player) await tx.update(participantCards).set({ expiresAt, summary: { ...recap(player, config.eventDay), highlights } })
         .where(eq(participantCards.id, card.id));
     }
-    await tx.update(appConfig).set({ eventClosedAt: closedAt }).where(eq(appConfig.id, id));
+    await tx.update(appConfig).set({ eventClosedAt: closedAt, souvenirSettings }).where(eq(appConfig.id, id));
+  });
+}
+
+async function completeArchivedSummary(card: typeof participantCards.$inferSelect, currentConfig?: typeof appConfig.$inferSelect) {
+  const summary = card.summary;
+  if (summary.highlights && summary.gameStart !== undefined && summary.gameEnd !== undefined) return summary;
+  const config = currentConfig ?? await storage.getSyncConfig();
+  if (!card.expiresAt || !config.eventClosedAt ||
+      card.expiresAt.getTime() !== souvenirExpiry(config.eventClosedAt).getTime()) return summary;
+  return db.transaction(async tx => {
+    const [player] = await cardPlayers(tx, [card.participantId]);
+    const schedule = player && identityOf(player) === card.identity && player.wave === summary.wave
+      ? { gameStart: summary.gameStart ?? player.gameStart, gameEnd: summary.gameEnd ?? player.gameEnd }
+      : {};
+    return { ...summary, ...schedule, highlights: summary.highlights ?? await eventHighlights(tx, config) };
   });
 }
 
@@ -127,6 +175,49 @@ export async function participantFromCardQR(payload: string) {
   return participant && identityOf(participant) === card.identity ? participant : undefined;
 }
 
+async function eraseParticipantCard(tx: Transaction, card: Pick<typeof participantCards.$inferSelect, "id" | "token" | "identity" | "participantId">) {
+  const id = card.participantId;
+  const [person] = await tx.select({ id: participants.id, createdAt: participants.createdAt })
+    .from(participants).where(eq(participants.id, id)).for("update");
+  if (person && identityOf(person) === card.identity) {
+    await tx.delete(serverEvents).where(or(
+      and(eq(serverEvents.aggregateType, "participant"), eq(serverEvents.aggregateId, String(id))),
+      sql`${serverEvents.payload}->>'participantId' = ${String(id)}`,
+      sql`${serverEvents.payload}->'data'->>'participantId' = ${String(id)}`,
+    ));
+    await tx.delete(auditLogs).where(and(eq(auditLogs.tableName, "participants"), eq(auditLogs.recordId, id)));
+    await tx.delete(squadAuditLog).where(eq(squadAuditLog.participantId, id));
+    await tx.delete(discounts).where(eq(discounts.participantId, id));
+    await tx.delete(mealDiscounts).where(eq(mealDiscounts.participantId, id));
+    await tx.delete(purchases).where(eq(purchases.participantId, id));
+    await tx.delete(mealPurchases).where(eq(mealPurchases.participantId, id));
+    await tx.delete(sessions).where(or(
+      sql`${sessions.sess}->'visitor'->>'participantId' = ${String(id)}`,
+      sql`${sessions.sess}->>'souvenirToken' = ${card.token}`,
+    ));
+    await tx.delete(participants).where(eq(participants.id, id));
+  } else {
+    await tx.delete(sessions).where(sql`${sessions.sess}->>'souvenirToken' = ${card.token}`);
+  }
+  await tx.delete(participantCards).where(eq(participantCards.id, card.id));
+}
+
+export async function purgeExpiredParticipantCards() {
+  const { id } = await storage.getSyncConfig();
+  const expired = sql`${participantCards.expiresAt} <= now()`;
+  let removed: number;
+  do {
+    removed = await db.transaction(async tx => {
+      await lockedConfig(tx, id);
+      const batch = await tx.select({ id: participantCards.id, token: participantCards.token,
+        identity: participantCards.identity, participantId: participantCards.participantId })
+        .from(participantCards).where(expired).limit(100).for("update");
+      for (const card of batch) await eraseParticipantCard(tx, card);
+      return batch.length;
+    });
+  } while (removed === 100);
+}
+
 export function registerParticipantCardRoutes(app: Express) {
   const staff = requireRole(...checkInRoles);
   const unlockLimit = rateLimit({
@@ -136,6 +227,33 @@ export function registerParticipantCardRoutes(app: Express) {
   app.use(cardsPath, (_req, res, next) => {
     res.setHeader("Cache-Control", "private, no-store");
     next();
+  });
+
+  app.get(souvenirSettingsPath, requireRole("admin"), async (_req, res) => {
+    const config = await storage.getSyncConfig();
+    const { closedCounts, ...settings } = config.souvenirSettings ?? { ...emptySettings, closedCounts: undefined };
+    const automatic = closedCounts ?? await db.transaction(countAttendance);
+    res.json({ ...settings, automatic });
+  });
+
+  app.patch(souvenirSettingsPath, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const parsed = souvenirSettingsSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Saisissez des effectifs entiers positifs ou nuls et un lien HTTP(S) valide." });
+    const { id } = await storage.getSyncConfig();
+    const saved = await db.transaction(async tx => {
+      const config = await lockedConfig(tx, id);
+      const automatic = config.souvenirSettings?.closedCounts ?? await countAttendance(tx);
+      const souvenirSettings = { ...parsed.data, ...(config.eventClosedAt && { closedCounts: automatic }) };
+      await tx.update(appConfig).set({ souvenirSettings }).where(eq(appConfig.id, id));
+      if (config.eventClosedAt) {
+        const highlights = await eventHighlights(tx, { ...config, souvenirSettings });
+        await tx.update(participantCards).set({
+          summary: sql`${participantCards.summary} || ${JSON.stringify({ highlights })}::jsonb`,
+        }).where(eq(participantCards.expiresAt, souvenirExpiry(config.eventClosedAt)));
+      }
+      return { ...parsed.data, automatic };
+    });
+    res.json(saved);
   });
 
   app.get(`${cardsPath}/template`, staff, async (req, res) => {
@@ -198,10 +316,14 @@ export function registerParticipantCardRoutes(app: Express) {
       if (identity && identity !== offlinePlayerIdentity(player)) return 409;
       const [card] = await issueCards(tx, [player], config);
       if (card.expiresAt && card.expiresAt <= new Date()) return 410;
-      await tx.update(participantCards).set({ photo }).where(eq(participantCards.id, card.id));
-      return 204;
+      const [updated] = await tx.update(participantCards).set(photo === null ? { photo: null, photoRemovedAt: new Date() } : { photo }).where(and(
+        eq(participantCards.id, card.id),
+        photo !== null ? isNull(participantCards.photoRemovedAt) : undefined,
+      )).returning({ id: participantCards.id });
+      return updated ? 204 : 422;
     });
     if (status === 409) return res.status(status).json({ message: "La fiche a changé. Vérifiez l’identité avant d’envoyer la photo." });
+    if (status === 422) return res.status(status).json({ message: "Le participant a demandé le retrait de sa photo." });
     res.sendStatus(status);
   });
 
@@ -233,8 +355,9 @@ export function registerParticipantCardRoutes(app: Express) {
       if (!card?.photo) return res.sendStatus(404);
       return res.type("image/jpeg").send(Buffer.from(card.photo, "base64"));
     }
-    const summary = card?.expiresAt ? card.summary : recap(player, config.eventDay);
-    return res.json({ ...summary, expiresAt: expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card?.photo) });
+    const summary = card?.expiresAt ? await completeArchivedSummary(card, config) : recap(player, config.eventDay);
+    const highlights = summary.highlights ?? (!card?.expiresAt ? await db.transaction(tx => eventHighlights(tx, config)) : undefined);
+    return res.json({ ...summary, highlights, expiresAt: expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card?.photo) });
   });
 
   app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`], async (req, res) => {
@@ -243,18 +366,50 @@ export function registerParticipantCardRoutes(app: Express) {
     if (!card || (card.expiresAt && card.expiresAt <= new Date())) {
       return res.status(410).json({ message: "Cet espace souvenir a expiré." });
     }
-    let summary = card.summary;
-    if (!card.expiresAt) {
-      const [player] = await db.transaction(tx => cardPlayers(tx, [card.participantId]));
-      if (!player || identityOf(player) !== card.identity) return res.sendStatus(404);
-      const config = await storage.getSyncConfig();
-      summary = recap(player, config.eventDay);
-    }
     if (req.path.endsWith("/photo")) {
       if (!card.photo) return res.sendStatus(404);
       return res.type("image/jpeg").send(Buffer.from(card.photo, "base64"));
     }
+    let summary;
+    if (card.expiresAt) {
+      summary = await completeArchivedSummary(card);
+    } else {
+      const [player] = await db.transaction(tx => cardPlayers(tx, [card.participantId]));
+      if (!player || identityOf(player) !== card.identity) return res.sendStatus(404);
+      const config = await storage.getSyncConfig();
+      summary = { ...recap(player, config.eventDay), highlights: await db.transaction(tx => eventHighlights(tx, config)) };
+    }
     res.json({ ...summary, expiresAt: card.expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card.photo) });
+  });
+
+  app.delete(`${cardsPath}/view/:token/photo`, async (req, res) => {
+    if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    const [updated] = await db.update(participantCards).set({ photo: null, photoRemovedAt: new Date() })
+      .where(and(eq(participantCards.token, req.params.token),
+        or(isNull(participantCards.expiresAt), sql`${participantCards.expiresAt} > now()`)))
+      .returning({ id: participantCards.id });
+    return res.sendStatus(updated ? 204 : 410);
+  });
+
+  app.delete(`${cardsPath}/view/:token`, async (req, res) => {
+    if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    const { id } = await storage.getSyncConfig();
+    const status = await db.transaction(async tx => {
+      await lockedConfig(tx, id);
+      const [card] = await tx.select({ id: participantCards.id, token: participantCards.token,
+        identity: participantCards.identity, participantId: participantCards.participantId, expiresAt: participantCards.expiresAt })
+        .from(participantCards).where(eq(participantCards.token, req.params.token)).for("update");
+      if (!card) return 404;
+      if (!card.expiresAt) return 409;
+      await eraseParticipantCard(tx, card);
+      return 204;
+    });
+    if (status === 409) return res.status(409).json({ message: "La suppression complète est disponible après la clôture de l’événement." });
+    if (status === 204) {
+      delete req.session.souvenirToken;
+      delete req.session.visitor;
+    }
+    return res.sendStatus(status);
   });
 
   app.delete(`${cardsPath}/open/:token`, (req, res) => {

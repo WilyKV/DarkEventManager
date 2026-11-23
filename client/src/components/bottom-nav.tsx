@@ -1,12 +1,12 @@
 import { Link, useLocation } from "wouter";
-import { LogOut, Menu, UserCheck } from "lucide-react";
+import { Camera, LogOut, Menu, UserCheck } from "lucide-react";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { homeItem, useManagementNav } from "@/lib/management-nav";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { InstallAppButton } from "./install-prompt";
 
-export function BottomNav({ onWelcome }: { onWelcome?: () => void }) {
+export function BottomNav({ onWelcome, onPhotos }: { onWelcome?: () => void; onPhotos?: () => void }) {
   const [location] = useLocation();
   const modules = useManagementNav();
   const { logout } = useAuth();
@@ -30,6 +30,10 @@ export function BottomNav({ onWelcome }: { onWelcome?: () => void }) {
             <Icon className="size-5" aria-hidden />{path === "/admin" ? "Admin" : path === "/scan" ? "Scanner" : label}
           </Link>
         ))}
+        {onPhotos && <button type="button" onClick={onPhotos}
+          className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-semibold text-primary hover:bg-primary/10">
+          <Camera className="size-5" aria-hidden /> Photos
+        </button>}
         <Sheet>
           <SheetTrigger className={cn("flex flex-1 flex-col items-center justify-center gap-1 rounded-lg px-1 text-xs font-medium text-muted-foreground hover:text-foreground",
             modules.some(item => item.path === location) && !shortcuts.some(item => item.path === location) && "text-primary")}>

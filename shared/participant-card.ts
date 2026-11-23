@@ -1,4 +1,10 @@
 export const cardsPath = "/api/participant-cards";
+export const souvenirSettingsPath = `${cardsPath}/settings`;
+export type SouvenirAttendance = { zombies: number; survivors: number };
+export type SouvenirSettings = { zombies: number | null; survivors: number | null; photoUrl: string | null };
+export type SouvenirSettingsResponse = SouvenirSettings & { automatic: SouvenirAttendance };
+export type SouvenirHighlights = SouvenirAttendance & { photoUrl: string | null };
+
 export const souvenirPath = "/souvenir";
 export const adminSouvenirPath = "/souvenir/admin";
 export const souvenirCodeHint = "Majuscules, minuscules et espaces acceptés";
@@ -20,6 +26,9 @@ export type SouvenirSummary = {
   wave: string | null;
   squad: number | null;
   squadBriefing?: string | null;
+  gameStart?: string | null;
+  gameEnd?: string | null;
+  highlights?: SouvenirHighlights;
   squadSize?: number | null;
   arrivedAt?: string | null;
   eventDay: string | null;

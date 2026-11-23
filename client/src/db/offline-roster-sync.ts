@@ -125,13 +125,20 @@ export async function sendOfflineChanges(
     const id = Number(key);
     const player = byId.get(id);
     if (!player || id <= 0 || archives.has(id)) continue;
-    await apiRequest("PATCH", `${cardsPath}/${id}/photo`, {
-      ownerId: current.ownerId, identity: player.identity, photo,
-    }, AbortSignal.timeout(20_000));
+    let applied = true;
+    try {
+      await apiRequest("PATCH", `${cardsPath}/${id}/photo`, {
+        ownerId: current.ownerId, identity: player.identity, photo,
+      }, AbortSignal.timeout(20_000));
+    } catch (error) {
+      // A definitive withdrawal disallows uploading older local copies.
+      if (!(error instanceof Error) || !/^(410|422):/.test(error.message)) throw error;
+      applied = false;
+    }
     const pendingPhotos = { ...current.pendingPhotos };
     delete pendingPhotos[id];
     current = await persist({ ...current, pendingPhotos });
-    if (!updates.some(update => update.id === id)) sent++;
+    if (applied && !updates.some(update => update.id === id)) sent++;
   }
   return { sent, remaining: new Set([...(current.archives ?? []), ...current.pending,
     ...Object.keys(current.pendingPhotos ?? {}).map(Number)]).size };

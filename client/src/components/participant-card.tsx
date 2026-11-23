@@ -1,6 +1,7 @@
+import { SouvenirDeleteAction } from "./souvenir-delete-action";
 import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Trash2 } from "lucide-react";
+import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -153,7 +154,9 @@ export function SouvenirPhoto({ onSave, pendingPhoto, onCancelPendingPhoto, disa
     {pendingPhoto !== undefined && <p className="text-sm text-muted-foreground">Modification enregistrée sur cet appareil, en attente d’envoi.</p>}
     <div className="flex flex-wrap gap-2">
       {draft && <Button type="button" disabled={!consent || disabled || busy} onClick={() => void save(draft)}>Associer la photo</Button>}
-      <Button type="button" variant="outline" disabled={disabled || busy} onClick={() => void save(null)}><Trash2 /> Retirer la photo</Button>
+      <SouvenirDeleteAction label="Retirer la photo"
+        description="La photo sera supprimée de l’espace souvenir et les envois suivants seront bloqués."
+        disabled={disabled || busy} onConfirm={() => void save(null)} />
       {pendingPhoto !== undefined && onCancelPendingPhoto && <Button type="button" variant="ghost" disabled={disabled || busy}
         onClick={async () => {
           try { await onCancelPendingPhoto(); setNotice("Envoi local annulé."); }

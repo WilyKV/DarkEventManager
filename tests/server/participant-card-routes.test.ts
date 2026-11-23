@@ -2,11 +2,14 @@ import express from "express";
 import session from "express-session";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cardsPath, souvenirExpiry } from "@shared/participant-card";
+import { cardsPath, souvenirExpiry, souvenirSettingsPath } from "@shared/participant-card";
 
-const { readCard } = vi.hoisted(() => ({ readCard: vi.fn() }));
+const { readCard, savePhotoWithdrawal } = vi.hoisted(() => ({ readCard: vi.fn(), savePhotoWithdrawal: vi.fn() }));
 vi.mock("../../server/db", () => ({
-  db: { select: () => ({ from: () => ({ where: readCard }) }) },
+  db: {
+    select: () => ({ from: () => ({ where: readCard }) }),
+    update: () => ({ set: savePhotoWithdrawal }),
+  },
 }));
 
 import { registerParticipantCardRoutes } from "../../server/participant-card-routes";
@@ -32,7 +35,8 @@ describe("Espace souvenir", () => {
   beforeEach(() => {
     readCard.mockReset().mockResolvedValue([{
       participantId: 12, token, code, expiresAt: new Date(Date.now() + 86_400_000),
-      summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: "Vague 2", squad: 4, eventDay: null },
+      summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: "Vague 2", squad: 4, eventDay: null,
+        gameStart: "20:00", gameEnd: "22:00", highlights: { zombies: 64, survivors: 80, photoUrl: "https://example.com/album" } },
       photo: "/9j/2Q==",
     }]);
   });
@@ -47,7 +51,7 @@ describe("Espace souvenir", () => {
     const recap = await agent.get(view);
     expect(recap.status).toBe(200);
     expect(recap.headers["cache-control"]).toContain("no-store");
-    expect(recap.body).toMatchObject({ firstName: "Clara", wave: "Vague 2", squad: 4, photoAvailable: true });
+    expect(recap.body).toMatchObject({ firstName: "Clara", wave: "Vague 2", squad: 4, photoAvailable: true, gameStart: "20:00", gameEnd: "22:00", highlights: { zombies: 64, survivors: 80 } });
     expect(recap.body).not.toHaveProperty("code");
     expect(recap.body).not.toHaveProperty("photo");
     expect((await agent.get(`${view}/photo`)).headers["content-type"]).toMatch(/^image\/jpeg/);
@@ -72,6 +76,26 @@ describe("Espace souvenir", () => {
     expect((await agent.post(open).send({ code })).status).toBe(204);
     expect((await agent.get(`${cardsPath}/admin/12`)).status).toBe(401);
     expect((await request(makeApp("admin")).get(`${cardsPath}/admin/invalide`)).status).toBe(404);
+  });
+
+  it("protège les réglages admin et les actions de suppression", async () => {
+    const app = makeApp();
+    expect((await request(app).get(souvenirSettingsPath)).status).toBe(401);
+    expect((await request(app).patch(souvenirSettingsPath)).status).toBe(401);
+    expect((await request(app).delete(view)).status).toBe(401);
+    expect((await request(app).delete(`${view}/photo`)).status).toBe(401);
+    const agent = request.agent(app);
+    expect((await agent.post(open).send({ code })).status).toBe(204);
+    expect((await agent.delete(`${cardsPath}/view/${"B".repeat(27)}`)).status).toBe(401);
+    expect((await agent.delete(`${cardsPath}/view/${"B".repeat(27)}/photo`)).status).toBe(401);
+  });
+
+  it("efface la photo authentifiée et mémorise le retrait pour les envois suivants", async () => {
+    savePhotoWithdrawal.mockReturnValue({ where: () => ({ returning: async () => [{ id: 3 }] }) });
+    const agent = request.agent(makeApp());
+    expect((await agent.post(open).send({ code })).status).toBe(204);
+    expect((await agent.delete(`${view}/photo`)).status).toBe(204);
+    expect(savePhotoWithdrawal).toHaveBeenCalledWith({ photo: null, photoRemovedAt: expect.any(Date) });
   });
 
   it("refuse une carte expirée même après ouverture de la session", async () => {

@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent, type ReactNode } from "react";
-import { ArrowRight, CalendarDays, Clock3, Download, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
 import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
+import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import "./souvenir.css";
@@ -16,7 +17,7 @@ function Detail({ icon, label, children }: { icon: ReactNode; label: string; chi
   </div>;
 }
 
-function SouvenirPortrait({ summary, src }: { summary: ParticipantSouvenir; src: string }) {
+function SouvenirPortrait({ summary, src, onRemove, busy }: { summary: ParticipantSouvenir; src: string; onRemove?: () => void; busy: boolean }) {
   const [failed, setFailed] = useState(false);
   const hasPhoto = summary.photoAvailable && !failed;
   return <figure className={`souvenir-portrait ${hasPhoto ? "souvenir-portrait--photo" : ""}`}>
@@ -27,6 +28,10 @@ function SouvenirPortrait({ summary, src }: { summary: ParticipantSouvenir; src:
     <figcaption>
       {hasPhoto ? <a href={src} download="photo-souvenir.jpg"><Download /> Télécharger ma photo</a> : "Aucune photo disponible"}
     </figcaption>
+    {summary.photoAvailable && onRemove && <div className="flex justify-center pb-2">
+      <SouvenirDeleteAction label="Retirer ma photo" description="Votre photo sera supprimée définitivement de l’espace souvenir."
+        disabled={busy} onConfirm={onRemove} />
+    </div>}
   </figure>;
 }
 
@@ -52,6 +57,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [erased, setErased] = useState(false);
 
   async function unlock(event: FormEvent) {
     event.preventDefault();
@@ -87,6 +93,26 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
     }
   }
 
+  async function erase(scope: "photo" | "all") {
+    if (busy || adminId) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(scope === "photo" ? `${view}/photo` : view, { method: "DELETE" });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? "Impossible de supprimer les données.");
+      if (scope === "photo") {
+        setSummary(current => current && { ...current, photoAvailable: false });
+      } else {
+        setSummary(undefined);
+        setErased(true);
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Connexion au serveur impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const squadLabel = summary?.type === "zombie" ? "Squad" : "Équipe";
   const role = summary?.type === "survivant" ? "Survivant" : summary?.type === "staff" ? "Staff" : "Zombie";
 
@@ -96,7 +122,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
       <header className="souvenir-masthead">
         <span className="souvenir-brand">ZOMB’IN<span> THE DARK</span></span>
         {adminId && <span className="text-sm">Aperçu administrateur</span>}
-        {summary && !adminId && <Button type="button" variant="ghost" onClick={() => void close()} className="souvenir-close">
+        {summary && !adminId && <Button type="button" variant="ghost" disabled={busy} onClick={() => void close()} className="souvenir-close">
           <LogOut /> Fermer mon espace
         </Button>}
       </header>
@@ -112,7 +138,8 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
               <CalendarDays /> {eventDate.format(new Date(summary.eventDay))}
             </time>}
           </div>
-          <SouvenirPortrait summary={summary} src={`${view}/photo`} />
+          <SouvenirPortrait summary={summary} src={`${view}/photo`} busy={busy}
+            onRemove={adminId ? undefined : () => void erase("photo")} />
         </section>
         <section className="souvenir-recap souvenir-enter" aria-label="Récapitulatif de la participation">
           {summary.type !== "staff" && <div className="souvenir-squad">
@@ -127,15 +154,45 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
             {summary.arrivedAt && <Detail icon={<Clock3 />} label="Arrivée">
               <time dateTime={summary.arrivedAt}>{parisDate.format(new Date(summary.arrivedAt))}</time>
             </Detail>}
+            {summary.gameStart && <Detail icon={<Clock3 />} label="Début du jeu">{summary.gameStart}</Detail>}
+            {summary.gameEnd && <Detail icon={<Flag />} label="Fin du jeu · vague">{summary.gameEnd}</Detail>}
             {summary.squadBriefing && <Detail icon={<Users />} label={`Consignes · ${squadLabel}`}>{summary.squadBriefing}</Detail>}
           </dl>
+        </section>
+        {summary.highlights && <section className="souvenir-highlights" aria-label="La soirée en chiffres">
+          <h2>La soirée en chiffres</h2>
+          <dl>
+            <div><dt>Zombies présents</dt><dd>{summary.highlights.zombies.toLocaleString("fr-FR")}</dd></div>
+            <div><dt>Survivants présents</dt><dd>{summary.highlights.survivors.toLocaleString("fr-FR")}</dd></div>
+          </dl>
+        </section>}
+        <section className="souvenir-album" aria-labelledby="souvenir-album-title">
+          <span className="souvenir-album-icon" aria-hidden><Images /></span>
+          <div>
+            <h2 id="souvenir-album-title">Photos de l’événement</h2>
+            <p>{summary.highlights?.photoUrl ? "Retrouvez les photos de la soirée dans l’album." : "Les photos de l’événement seront bientôt disponibles."}</p>
+          </div>
+          {summary.highlights?.photoUrl && <a href={summary.highlights.photoUrl} target="_blank" rel="noopener noreferrer">
+            Voir les photos <ArrowRight aria-hidden />
+          </a>}
         </section>
         <footer className="souvenir-footer">
           <LockKeyhole aria-hidden />
           {summary.expiresAt ? <p>Espace disponible jusqu’au <time dateTime={summary.expiresAt}>{parisDate.format(new Date(summary.expiresAt))}</time>, soit trois mois après la clôture de l’événement.</p>
             : <p>Cet espace restera accessible jusqu’à trois mois après la clôture de l’événement.</p>}
         </footer>
-      </> : adminId ? (
+        {!adminId && <section className="souvenir-highlights" aria-labelledby="souvenir-data-title">
+          <h2 id="souvenir-data-title">Mes données personnelles</h2>
+          <p className="my-3 text-sm text-[#e1cdd5]">{summary.expiresAt
+            ? "Vous pouvez demander leur effacement avant la date prévue."
+            : "La suppression complète est disponible après la clôture de l’événement."}</p>
+          <SouvenirDeleteAction label="Supprimer mes données" disabled={busy || !summary.expiresAt}
+            description="Votre fiche, son récapitulatif et votre photo seront supprimés de l’application. Le code de la carte cessera de fonctionner."
+            onConfirm={() => void erase("all")} />
+        </section>}
+      </> : erased ? <section className="souvenir-unlock">
+        <div><h1>Vos données ont été supprimées.</h1><p>Le code de cette carte ne permet plus d’ouvrir l’espace souvenir.</p></div>
+      </section> : adminId ? (
         <section className="souvenir-unlock">
           <div>
             <h1>Espace souvenir</h1>

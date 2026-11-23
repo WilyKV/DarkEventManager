@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ArrowLeft, Skull, UserCheck } from "lucide-react";
+import { ArrowLeft, Camera, Skull, UserCheck } from "lucide-react";
 import { PageTransition } from "./page-transition";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "./notification-center";
+import { OnlineSouvenirPhotoDialog } from "./souvenir-photo-dialog";
 import { OnlineWelcomeDialog } from "./online-welcome-dialog";
 import { checkInRoles } from "@shared/check-in";
 import { useAuth } from "@/lib/auth";
@@ -29,6 +30,7 @@ export function ManagementLayout({
   useHistoryBack = false,
 }: ManagementLayoutProps) {
   const { visitor, hasAnyRole } = useAuth();
+  const [photosOpen, setPhotosOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const canWelcome = hasAnyRole(checkInRoles);
   const openWelcome = () => setWelcomeOpen(true);
@@ -83,6 +85,9 @@ export function ManagementLayout({
                     <UserCheck aria-hidden /> Accueillir
                   </Button>
                 )}
+                {canWelcome && <Button type="button" variant="outline" className="hidden md:inline-flex" onClick={() => setPhotosOpen(true)}>
+                  <Camera aria-hidden /> Photos
+                </Button>}
                 {actions}
               </div>
             </header>
@@ -95,7 +100,8 @@ export function ManagementLayout({
         </div>
       </div>
 
-      <BottomNav onWelcome={canWelcome ? openWelcome : undefined} />
+      <BottomNav onWelcome={canWelcome ? openWelcome : undefined} onPhotos={canWelcome ? () => setPhotosOpen(true) : undefined} />
+      {canWelcome && photosOpen && <OnlineSouvenirPhotoDialog onClose={() => setPhotosOpen(false)} />}
       {canWelcome && welcomeOpen && <OnlineWelcomeDialog onClose={() => setWelcomeOpen(false)} />}
     </div>
   );

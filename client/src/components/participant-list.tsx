@@ -1,3 +1,4 @@
+import { ArrivalTime, ArrivalTimeOption } from "./arrival-time";
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ interface ParticipantListProps {
 }
 
 export function ParticipantList({ participants, timeSlots, squads, type, onUpdate }: ParticipantListProps) {
+  const [showArrivalTimes, setShowArrivalTimes] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<string>("all");
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
@@ -101,6 +103,8 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
             ))}
           </select>
         </div>
+
+        <ArrivalTimeOption checked={showArrivalTimes} onChange={setShowArrivalTimes} />
 
         {/* Batch Actions */}
         {selectedIds.size > 0 && (
@@ -192,6 +196,7 @@ export function ParticipantList({ participants, timeSlots, squads, type, onUpdat
                           En attente
                         </Badge>
                       )}
+                      {showArrivalTimes && (participant.arrived || participant.arrivedAt) && <ArrivalTime value={participant.arrivedAt} />}
                       {participant.checklistCompleted && (
                         <Badge className="bg-chart-1 text-white" data-testid={`badge-checklist-${participant.id}`}>
                           Checklist OK

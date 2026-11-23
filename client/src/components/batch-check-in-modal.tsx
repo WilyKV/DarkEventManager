@@ -62,7 +62,7 @@ export function BatchCheckInModal({ participants, onClose, onSuccess }: BatchChe
         participants.map(participant =>
           apiRequest("PATCH", `/api/participants/${participant.id}`, {
             arrived: true,
-            arrivedAt: new Date(),
+            arrivedAt: participant.arrivedAt ?? (participant.arrived ? null : new Date()),
             timeSlotId: selectedTimeSlotId,
             squadId: normalizedSquadId,
             mealTicketGiven: true,

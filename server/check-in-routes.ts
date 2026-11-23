@@ -96,7 +96,7 @@ export function registerCheckInRoutes(app: Express) {
       }
 
       const [saved] = await tx.update(participants).set({
-        arrived: true, arrivedAt: row.arrivedAt ?? new Date(), squadId: details.squadId,
+        arrived: true, arrivedAt: row.arrivedAt ?? (row.arrived ? null : new Date()), squadId: details.squadId,
         ...details.checklist, ...(type !== "staff" && { checklistCompleted: checkInChecklistComplete(type, details) }),
       }).where(eq(participants.id, row.id)).returning();
       if (changedTeam) await tx.insert(squadAuditLog).values({

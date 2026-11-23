@@ -4,7 +4,7 @@ import { Camera, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -17,7 +17,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, firstNameY, lastNameY, qrX, qrY, qrSize, codeY } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, qrX, qrY, qrSize, codeY } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -33,7 +33,7 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
   const url = new URL(`${souvenirPath}/${card.token}`, window.location.origin).href;
   const face = "participant-card-face isolate relative aspect-[85/55] w-full max-w-[425px] overflow-hidden rounded-xl bg-[#100b12] text-white shadow-lg [container-type:inline-size]";
   const cream = "absolute rounded-[2.35cqw] bg-white text-[#101828]";
-  const nameStyle = "absolute overflow-hidden break-words font-extrabold leading-[1.08]";
+  const printedName = printedCardName(card);
   const background = (side: "front" | "back") => <>
     <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(120deg,#0d0b11,${theme.dark} 58%,#100b12)` }} />
     {theme.zombie && <img alt="" src={`/${cardAssets}/${cardArtwork}`} className="pointer-events-none absolute left-0 w-full max-w-none"
@@ -46,20 +46,18 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
   return <div className="grid w-full gap-3">
     <section aria-label="Recto" className={face}>
       {background("front")}
-      <div aria-hidden className={cream} style={at(4.5, 16.5, 48.5, 23.5)} />
-      <span aria-hidden className="absolute rounded-full" style={{ ...at(4.5, 19, 0.6, 18.5), background: theme.accent }} />
-      <div className="text-[#101828]">
-        {[card.firstName, card.lastName].map((name, index) =>
-          <p key={index} className={nameStyle}
-            style={{ ...at(nameX, index === 0 ? firstNameY : lastNameY, nameWidth, 10.5), fontSize: `${Math.min(6.2, 115 / Math.max(1, name.length))}cqw` }}>{name}</p>
-        )}
-      </div>
+      <div aria-hidden className={cream} style={at(4.5, namePanelY, 48.5, namePanelHeight)} />
+      <span aria-hidden className="absolute rounded-full" style={{ ...at(4.5, namePanelY + 2, 0.6, namePanelHeight - 4), background: theme.accent }} />
+      <p className="absolute -translate-y-1/2 truncate font-extrabold leading-tight text-[#101828]"
+        style={{ ...at(nameX, nameCenterY, nameWidth), fontSize: `${Math.min(7, 112 / Math.max(1, printedName.length))}cqw` }}>
+        {printedName}
+      </p>
       <div aria-hidden className={cream} style={at(54.5, 12.5, 25, 25)} />
       <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
       <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
-      <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 45, 4, 4)} />
-      <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(12, 45.5)}>Repas</span>
+      <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 44.25, mealBoxSize, mealBoxSize)} />
+      <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, 45.5)}>Repas</span>
       <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>N° de passage</span>
       <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, 45, 14, 4)} />
     </section>

@@ -69,7 +69,7 @@ export function SimpleCheckInModal({ participant, onClose, onSuccess }: SimpleCh
 
     const updateData: any = {
       arrived: true,
-      arrivedAt: new Date(),
+      arrivedAt: participant.arrivedAt ?? (participant.arrived ? null : new Date()),
       squadId: normalizedSquadId,
       mealTicketGiven: true,
       waterBottleGiven: true,

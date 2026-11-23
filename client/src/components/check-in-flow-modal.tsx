@@ -81,7 +81,7 @@ export function CheckInFlowModal({ participant, onClose, onSuccess }: CheckInFlo
 
     const updateData: any = {
       arrived: true,
-      arrivedAt: new Date(),
+      arrivedAt: participant.arrivedAt ?? (participant.arrived ? null : new Date()),
       timeSlotId: selectedTimeSlotId,
       squadId: normalizedSquadId,
       mealTicketGiven: true,

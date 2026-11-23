@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, participantCards, participants, squads, timeSlots } from "@shared/schema";
-import { cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
+import { cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, type PrintableCard, type SouvenirSummary } from "@shared/participant-card";
 import { checkInRoles } from "@shared/check-in";
 import { db } from "./db";
 import { storage } from "./storage";
@@ -150,10 +150,13 @@ export function registerParticipantCardRoutes(app: Express) {
       if (roster.length !== ids.length || roster.some(player => !allowed.some(type => type === player.type))) return null;
       const byId = new Map(roster.map(player => [player.id, player]));
       const ordered = ids.map(participantId => byId.get(participantId)!);
+      const names = await tx.select({ id: participants.id, firstName: participants.firstName, lastName: participants.lastName })
+        .from(participants).where(isNull(participants.deletedAt));
+      const prefixes = cardSurnamePrefixes(names);
       const records = await issueCards(tx, ordered, config);
-      return ordered.map(({ id, firstName, lastName, type }, index): PrintableCard => {
+      return ordered.map(({ id, firstName, type }, index): PrintableCard => {
         const { token, code } = records[index];
-        return { id, token, code, firstName, lastName, type };
+        return { id, token, code, firstName, surnamePrefix: prefixes.get(id) ?? "", type };
       });
     });
     if (!cards) return res.status(404).json({ message: "Une fiche est introuvable dans vos listes." });

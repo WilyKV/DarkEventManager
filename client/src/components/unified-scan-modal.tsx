@@ -37,7 +37,8 @@ export function UnifiedScanModal({ open, onOpenChange, onScanComplete }: Unified
   const checkInMutation = useMutation({
     mutationFn: async (participantId: number): Promise<Participant> => {
       const res = await apiRequest("PATCH", `/api/participants/${participantId}`, {
-        arrivedAt: new Date().toISOString(),
+        arrived: true,
+        arrivedAt: scannedParticipant?.arrivedAt ?? new Date().toISOString(),
       });
       return res.json();
     },

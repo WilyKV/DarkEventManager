@@ -1,3 +1,4 @@
+import { ArrivalTime, ArrivalTimeOption } from "@/components/arrival-time";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPlus, WifiOff } from "lucide-react";
@@ -66,6 +67,7 @@ export default function OfflineCheckInPage() {
   const [unlocked, setUnlocked] = useState<UnlockedCopy>();
   const [passphrase, setPassphrase] = useState("");
   const [confirmPassphrase, setConfirmPassphrase] = useState("");
+  const [showArrivalTimes, setShowArrivalTimes] = useState(false);
   const [search, setSearch] = useState("");
   const [profile, setProfile] = useState<CheckInType | "all">("all");
   const [view, setView] = useState<"list" | "squads">("list");
@@ -174,7 +176,7 @@ export default function OfflineCheckInPage() {
         }
         return { player: local, overflowConfirmed, state: {
           arrived: true,
-          arrivedAt: local.state.arrivedAt ?? now,
+          arrivedAt: local.state.arrived ? local.state.arrivedAt : now,
           squadId: details.squadId,
           checklist: { ...local.state.checklist, ...details.checklist },
         } };
@@ -388,6 +390,7 @@ export default function OfflineCheckInPage() {
                 variant={visibleProfile === type ? "default" : "outline"} onClick={() => setProfile(type)}>{checkInProfileLabels[type]}</Button>)}
             </div>}
             <Input type="search" aria-label="Rechercher un participant" placeholder="Prénom ou nom" value={search} onChange={event => setSearch(event.target.value)} className="min-h-11" />
+            <ArrivalTimeOption checked={showArrivalTimes} onChange={setShowArrivalTimes} />
           </section>
           <ul className="divide-y divide-border rounded-xl border border-border bg-card">
             {matches.map(player => (
@@ -395,6 +398,7 @@ export default function OfflineCheckInPage() {
                 <div className="min-w-0">
                   <p className="break-words font-medium">{player.firstName} {player.lastName}</p>
                   <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · ${placementLabels(player.type).name} ${teams.get(player.state.squadId)}` : ""}</p>
+                  {showArrivalTimes && player.state.arrived && <p><ArrivalTime value={player.state.arrivedAt} /></p>}
                   {player.id < 0 && <p className="text-xs text-muted-foreground">Créé sur cet appareil</p>}
                   {data.conflicts[player.id] && <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>}
                 </div>
@@ -566,7 +570,7 @@ function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, err
           saveLabel="Enregistrer sur cet appareil"
           onSave={(details, _, overflowConfirmed) => onSave({
             arrived,
-            arrivedAt: arrived ? player.state.arrivedAt ?? new Date().toISOString() : null,
+            arrivedAt: !arrived ? null : player.state.arrived ? player.state.arrivedAt : new Date().toISOString(),
             squadId: details.squadId,
             checklist: { ...player.state.checklist, ...details.checklist },
           }, overflowConfirmed)}

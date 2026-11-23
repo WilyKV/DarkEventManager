@@ -1,3 +1,4 @@
+import { ArrivalTime, ArrivalTimeOption } from "./arrival-time";
 import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export function ParticipantListByTimeslot({
   const [selectedParticipant, setSelectedParticipant] = useState<ParticipantWithRelations | null>(null);
   const [selectedForBatch, setSelectedForBatch] = useState<Set<number>>(new Set());
   const [showBatchCheckIn, setShowBatchCheckIn] = useState(false);
+  const [showArrivalTimes, setShowArrivalTimes] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [badgeParticipant, setBadgeParticipant] = useState<ParticipantWithRelations | null>(null);
   const [editParticipant, setEditParticipant] = useState<ParticipantWithRelations | null>(null);
@@ -160,6 +162,8 @@ export function ParticipantListByTimeslot({
         />
       </div>
 
+      <ArrivalTimeOption checked={showArrivalTimes} onChange={setShowArrivalTimes} />
+
       {/* Actions groupées */}
       {selectedForBatch.size > 0 && (
         <Card className="p-4 bg-primary/5 border-primary/30">
@@ -233,6 +237,7 @@ export function ParticipantListByTimeslot({
                             <span className="block break-words text-sm font-semibold sm:text-base">{fullName}</span>
                             <span className="mt-1 flex flex-wrap items-center gap-1.5">
                               <Badge variant="outline" className={getStatusColor(participant)}>{getStatusText(participant)}</Badge>
+                              {showArrivalTimes && (participant.arrived || participant.arrivedAt) && <ArrivalTime value={participant.arrivedAt} />}
                               {participant.squad && <span className="text-xs text-muted-foreground">Équipe {participant.squad.number}</span>}
                               {participant.secretCode && type !== "zombie" && (
                                 <Badge variant="outline" className="font-mono text-xs">Code {participant.secretCode}</Badge>

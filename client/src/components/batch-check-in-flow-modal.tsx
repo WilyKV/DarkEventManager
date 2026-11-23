@@ -89,7 +89,7 @@ export function BatchCheckInFlowModal({ participants, onClose, onSuccess }: Batc
       id: p.id,
       data: {
         arrived: true,
-        arrivedAt: new Date(),
+        arrivedAt: p.arrivedAt ?? (p.arrived ? null : new Date()),
         timeSlotId: selectedTimeSlotId,
         squadId: normalizedSquadId,
         mealTicketGiven: true,

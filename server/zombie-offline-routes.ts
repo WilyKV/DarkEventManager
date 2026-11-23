@@ -35,11 +35,15 @@ export function offlinePlayerIdentity(p: Pick<Participant, "id" | "createdAt" | 
   return hash([p.id, p.createdAt, p.firstName, p.lastName, p.type]);
 }
 
+function offlineRevision(identity: string, player: Participant, state: OfflineCheckIn) {
+  return hash([identity, player.timeSlotId, player.returned, stateHash(state)]);
+}
+
 function offlineParticipant(p: Participant, type: CheckInType): OfflineParticipant {
   const identity = offlinePlayerIdentity(p);
   const state: OfflineCheckIn = {
     arrived: Boolean(p.arrived),
-    arrivedAt: p.arrived ? (p.arrivedAt ?? p.createdAt ?? new Date(0)).toISOString() : null,
+    arrivedAt: p.arrived ? p.arrivedAt?.toISOString() ?? null : null,
     squadId: p.squadId,
     checklist: {
       squadExplained: Boolean(p.squadExplained),
@@ -50,7 +54,7 @@ function offlineParticipant(p: Participant, type: CheckInType): OfflineParticipa
       mapGiven: Boolean(p.mapGiven),
     },
   };
-  const revision = hash([identity, p.timeSlotId, p.returned, stateHash(state)]);
+  const revision = offlineRevision(identity, p, state);
   return { id: p.id, type, identity, revision, firstName: p.firstName, lastName: p.lastName,
     timeSlotId: p.timeSlotId, returned: Boolean(p.returned), state };
 }
@@ -126,15 +130,21 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
             results.push({ id: update.id, error: "Ce joueur a changé, a été retiré ou est déjà sorti." });
             continue;
           }
-          if (stateHash(current.state) === stateHash(update.state)) {
+          // Old offline copies used the creation date when a legacy arrival had no timestamp.
+          const previousFallback = row.arrived && !row.arrivedAt ? (row.createdAt ?? new Date(0)).toISOString() : null;
+          const matchesLegacyRevision = previousFallback !== null &&
+            update.revision === offlineRevision(current.identity, row, { ...current.state, arrivedAt: previousFallback });
+          const state = matchesLegacyRevision && update.state.arrivedAt === previousFallback
+            ? { ...update.state, arrivedAt: null } : update.state;
+          if (stateHash(current.state) === stateHash(state)) {
             results.push({ id: update.id, revision: current.revision });
             continue;
           }
-          if (current.revision !== update.revision) {
+          if (current.revision !== update.revision && !matchesLegacyRevision) {
             results.push({ id: update.id, error: "La fiche a changé sur le serveur depuis la préparation." });
             continue;
           }
-          const { arrived, arrivedAt, squadId, checklist } = update.state;
+          const { arrived, arrivedAt, squadId, checklist } = state;
           const allowedFields: readonly ChecklistItem[] = checkInProfiles[type].checklist;
           if ((type === "staff" && squadId !== row.squadId) ||
               Object.keys(checklist).some(key => {
@@ -155,6 +165,10 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
               results.push({ id: update.id, error: "Cette équipe est pleine. Reprenez la fiche du serveur pour revoir l’affectation." });
               continue;
             }
+          }
+          if (arrived && !row.arrived && !arrivedAt) {
+            results.push({ id: update.id, error: "L’heure de la nouvelle arrivée est manquante." });
+            continue;
           }
           const arrivalDate = arrivedAt ? new Date(arrivedAt) : null;
           if (arrivalDate && arrivalDate.getTime() > Date.now() + 10 * 60_000) {

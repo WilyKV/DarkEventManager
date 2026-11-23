@@ -2,12 +2,12 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { cardArtwork, cardAssets, cardLayout, cardTheme, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardTheme, printedCardName, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, firstNameY, lastNameY, qrX, qrY, qrSize, codeY } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, qrX, qrY, qrSize, codeY } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -45,13 +45,13 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     .text(theme.label, pt(6), pt(11), { lineBreak: false, characterSpacing: 1.1 });
 
   if (side === "front") {
-    doc.roundedRect(pt(4.5), pt(16.5), pt(48.5), pt(23.5), pt(2)).fill("#ffffff");
-    doc.rect(pt(4.5), pt(19), pt(0.6), pt(18.5)).fill(theme.accent);
+    doc.roundedRect(pt(4.5), pt(namePanelY), pt(48.5), pt(namePanelHeight), pt(2)).fill("#ffffff");
+    doc.rect(pt(4.5), pt(namePanelY + 2), pt(0.6), pt(namePanelHeight - 4)).fill(theme.accent);
     doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
     doc.fillColor("#ffffff").font("CardBold").fontSize(7)
       .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
-    doc.roundedRect(pt(6), pt(45), pt(4), pt(4), pt(0.45)).fill("#ffffff");
-    doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(12), pt(45.5), { lineBreak: false });
+    doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
+    doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
     doc.fillColor("#ffffff").font("CardRegular").text("N° de passage", pt(28), pt(45.5), { lineBreak: false });
     doc.roundedRect(pt(49), pt(45), pt(14), pt(4), pt(0.45)).fill("#ffffff");
     return;
@@ -65,11 +65,14 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
 }
 
-function printName(doc: PDFKit.PDFDocument, name: string, y: number) {
-  let size = 15;
+function printName(doc: PDFKit.PDFDocument, name: string) {
+  let size = 17;
   doc.font("CardBold").fontSize(size);
   while (size > 8 && doc.widthOfString(name) > pt(nameWidth)) doc.fontSize(--size);
-  doc.fillColor("#101828").text(name, pt(nameX), pt(y), { width: pt(nameWidth), height: pt(10.5), ellipsis: true });
+  const lineHeight = doc.currentLineHeight();
+  doc.fillColor("#101828").text(name, pt(nameX), pt(nameCenterY) - lineHeight / 2, {
+    width: pt(nameWidth), height: lineHeight + 0.1, ellipsis: true,
+  });
 }
 
 export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode) {
@@ -98,8 +101,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
         if (mode === "complete" || !card) template(doc, side, theme, artwork);
         if (!card) continue;
         if (side === "front") {
-          printName(doc, card.firstName, firstNameY);
-          printName(doc, card.lastName, lastNameY);
+          printName(doc, printedCardName(card));
           const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
           const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
           doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });

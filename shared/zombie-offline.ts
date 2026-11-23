@@ -29,7 +29,7 @@ export const checkInStateSchema = z.object({
   arrivedAt: z.string().datetime().nullable(),
   squadId: z.number().int().positive().nullable(),
   checklist: zombieChecklistSchema,
-}).strict().refine(state => state.arrived === (state.arrivedAt !== null), {
+}).strict().refine(state => state.arrived || state.arrivedAt === null, {
   message: "L’heure d’arrivée doit correspondre au statut de présence.",
 });
 

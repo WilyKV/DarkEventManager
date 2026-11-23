@@ -5,7 +5,7 @@ export const photoMaxBytes = 64_000;
 export type PrintableCard = {
   id: number;
   firstName: string;
-  lastName: string;
+  surnamePrefix: string;
   type: string;
   token: string;
   code: string;
@@ -36,6 +36,27 @@ export function souvenirExpiry(closedAt: Date) {
   return expiration;
 }
 
+const letters = new RegExp("\\p{L}\\p{M}*", "gu");
+const marks = new RegExp("\\p{M}", "gu");
+function nameKey(value: string) {
+  return value.normalize("NFD").replace(marks, "").toLocaleLowerCase("fr").trim().replace(/\s+/g, " ");
+}
+
+export function cardSurnamePrefixes(roster: readonly { id: number; firstName: string; lastName: string }[]) {
+  const entries = roster.map(({ id, firstName, lastName }) => {
+    const surname = lastName.normalize("NFC").match(letters) ?? [];
+    return { id, surname, key: JSON.stringify([nameKey(firstName), nameKey(surname[0] ?? "")]) };
+  });
+  const counts = new Map<string, number>();
+  for (const { key } of entries) counts.set(key, (counts.get(key) ?? 0) + 1);
+  return new Map(entries.map(({ id, surname, key }) =>
+    [id, surname.slice(0, counts.get(key)! > 1 ? 2 : 1).join("").toLocaleUpperCase("fr")]));
+}
+
+export function printedCardName({ firstName, surnamePrefix }: Pick<PrintableCard, "firstName" | "surnamePrefix">) {
+  return surnamePrefix ? `${firstName} ${surnamePrefix}.` : firstName;
+}
+
 // Millimetres on the finished card. Keep the personalization positions aligned
 // with previously printed stock and with the browser preview.
 export const cardLayout = {
@@ -43,8 +64,10 @@ export const cardLayout = {
   height: 55,
   nameX: 6,
   nameWidth: 46,
-  firstNameY: 18,
-  lastNameY: 29,
+  nameCenterY: 25,
+  namePanelY: 18.5,
+  namePanelHeight: 13,
+  mealBoxSize: 5.5,
   qrX: 55.5,
   qrY: 13.5,
   qrSize: 23,

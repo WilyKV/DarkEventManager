@@ -115,8 +115,12 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
     setEditing(false);
   }
 
-  function mark(key: ChecklistItem, value: boolean) {
+  function setChecklistItem(key: ChecklistItem, value: boolean) {
     setDetails(previous => ({ ...previous, checklist: { ...previous.checklist, [key]: value } }));
+  }
+
+  function mark(key: ChecklistItem, value: boolean) {
+    setChecklistItem(key, value);
     next();
   }
 
@@ -241,26 +245,28 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             <OtherWelcomeNote slot={slot} />
             {summary}
             {items.length > 0 && (
-              <ul aria-label="Étapes de l’accueil" className="divide-y divide-border rounded-lg border border-border">
-                {items.map((key, position) => {
-                  const confirmed = details.checklist[key];
-                  const status = confirmed ? "Confirmé" : key === "mapGiven" ? "Facultatif" : "À faire";
-                  return (
-                    <li key={key}>
-                      <button type="button" disabled={saving} className="flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-muted/60 focus-visible:outline-primary"
-                        aria-label={`${key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title} ${status}`}
-                        onClick={() => { setEditing(true); setIndex(position); }}>
-                        <span className="font-medium">{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
-                        <span className={cn("flex shrink-0 items-center gap-1 text-xs", confirmed ? "text-primary" : "text-muted-foreground")}>
-                          {confirmed && <Check className="size-3.5" aria-hidden />}
-                          {status}
-                          <ArrowRight className="size-3.5" aria-hidden />
-                        </span>
-                      </button>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Cochez chaque point traité, en vidéo ou de vive voix.</p>
+                <ul aria-label="Étapes de l’accueil" className="divide-y divide-border rounded-lg border border-border bg-card">
+                  {items.map((key, position) => (
+                    <li key={key} className="flex flex-wrap items-center gap-x-2">
+                      <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 px-3 py-2 text-sm font-medium">
+                        <input type="checkbox" className="size-5 shrink-0 accent-primary"
+                          checked={Boolean(details.checklist[key])}
+                          disabled={saving || (key === "squadExplained" && details.squadId === null)}
+                          onChange={event => setChecklistItem(key, event.target.checked)} />
+                        <span>{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
+                      </label>
+                      {key === "squadExplained" && (
+                        <Button type="button" variant="ghost" className="mr-2 min-h-11 text-primary" disabled={saving}
+                          onClick={() => { setEditing(true); setIndex(position); }}>
+                          {details.squadId === null ? "Choisir" : "Modifier"}
+                        </Button>
+                      )}
                     </li>
-                  );
-                })}
-              </ul>
+                  ))}
+                </ul>
+              </div>
             )}
           </>
         )}

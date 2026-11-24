@@ -15,7 +15,7 @@ export function OfflineNavigation({ ready, busy, view, onList, onSquads, onWelco
   children: ReactNode;
 }) {
   return (
-    <nav aria-label="Navigation hors ligne" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+    <nav aria-label="Navigation hors ligne" className="workspace-navigation fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto grid max-w-3xl grid-cols-5 gap-1 px-2 py-1">
         <button type="button" className={itemClass} disabled={!ready} aria-pressed={ready && view === "list"} onClick={onList}><List className="size-5" aria-hidden /> Liste</button>
         <button type="button" className={itemClass} disabled={!ready} aria-pressed={ready && view === "squads"} onClick={onSquads}><Users className="size-5" aria-hidden /> Squads</button>
@@ -27,7 +27,7 @@ export function OfflineNavigation({ ready, busy, view, onList, onSquads, onWelco
         </button>
         <Sheet>
           <SheetTrigger className={itemClass}><Menu className="size-5" aria-hidden /> Menu</SheetTrigger>
-          <SheetContent side="bottom" className="mx-auto max-h-[85dvh] max-w-xl overflow-y-auto rounded-t-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          <SheetContent side="bottom" className="workspace-navigation mx-auto max-h-[85dvh] max-w-xl overflow-y-auto rounded-t-2xl pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <SheetTitle>Accueil hors ligne</SheetTitle>
             <SheetDescription>Gérez la copie enregistrée sur cet appareil.</SheetDescription>
             <div className="mt-4 grid gap-2">{children}</div>

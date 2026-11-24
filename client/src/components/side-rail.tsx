@@ -9,7 +9,7 @@ export function SideRail() {
   const modules = useManagementNav();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col overflow-y-auto border-r border-border bg-card md:flex xl:w-56">
+    <aside className="workspace-navigation fixed inset-y-0 left-0 z-40 hidden w-20 flex-col overflow-y-auto border-r border-border bg-card md:flex xl:w-56">
       <Link href="/overview" aria-label="Accueil" aria-current={location === "/overview" ? "page" : undefined}
         className="flex min-h-20 shrink-0 items-center justify-center gap-2 border-b border-border px-3 text-primary hover:bg-muted/50 xl:justify-start">
         <span className="workspace-icon size-10" data-tone="red"><Skull className="size-5" aria-hidden /></span>

@@ -476,3 +476,26 @@
   background: hsl(var(--primary) / .10);
   box-shadow: none;
 }
+
+.workspace-navigation {
+  --background: 222 20% 16%;
+  --foreground: 215 25% 95%;
+  --border: 220 14% 32%;
+  --card: 222 18% 20%;
+  --card-foreground: var(--foreground);
+  --muted: 220 16% 27%;
+  --muted-foreground: 216 17% 76%;
+  --accent: var(--muted);
+  --accent-foreground: var(--foreground);
+  --primary: 214 80% 83%;
+  --primary-foreground: 222 26% 15%;
+  --ring: var(--primary);
+  color: hsl(var(--foreground));
+}
+
+.workspace-navigation .workspace-icon { --workspace-tone: 214 45% 80%; }
+.workspace-navigation [data-tone="red"] { --workspace-tone: 352 84% 80%; }
+.workspace-navigation [data-tone="blue"] { --workspace-tone: 216 84% 81%; }
+.workspace-navigation [data-tone="green"] { --workspace-tone: 154 53% 73%; }
+.workspace-navigation [data-tone="violet"] { --workspace-tone: 260 75% 83%; }
+.workspace-navigation [data-tone="amber"] { --workspace-tone: 37 88% 74%; }

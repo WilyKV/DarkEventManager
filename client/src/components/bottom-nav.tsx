@@ -16,11 +16,11 @@ export function BottomNav({ onWelcome, onPhotos }: { onWelcome?: () => void; onP
   const shortcuts = [homeItem, ...(primary ? [primary] : []), ...(scanner ? [scanner] : [])];
 
   return (
-    <nav aria-label="Navigation mobile" className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+    <nav aria-label="Navigation mobile" className="workspace-navigation fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-md md:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
       <div className="flex h-16 items-stretch px-2">
         {shortcuts.map(({ icon: Icon, label, path }) => path === "/scan" && onWelcome ? (
           <button key={path} type="button" onClick={onWelcome}
-            className="mobile-shortcut font-semibold text-emerald-700">
+            className="mobile-shortcut font-semibold text-primary">
             <UserCheck className="size-5" aria-hidden /> Accueillir
           </button>
         ) : (
@@ -44,7 +44,7 @@ export function BottomNav({ onWelcome, onPhotos }: { onWelcome?: () => void; onP
             modules.some(item => item.path === location) && location !== admin?.path && !shortcuts.some(item => item.path === location) && "text-primary")}>
             <Menu className="size-5" aria-hidden /> Menu
           </SheetTrigger>
-          <SheetContent side="bottom" className="mx-auto max-h-[85dvh] max-w-xl overflow-y-auto rounded-t-2xl px-4 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+          <SheetContent side="bottom" className="workspace-navigation mx-auto max-h-[85dvh] max-w-xl overflow-y-auto rounded-t-2xl px-4 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <SheetTitle>Tous les menus</SheetTitle>
             <SheetDescription className="sr-only">Sections disponibles avec votre compte.</SheetDescription>
             <div className="mt-4 grid grid-cols-2 gap-2">

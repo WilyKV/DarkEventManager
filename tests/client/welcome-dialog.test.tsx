@@ -213,13 +213,18 @@ describe("Accueil tactile", () => {
     await click(user, "Commencer l’accueil");
     await click(user, "Confirmer la squad");
     await click(user, "Passer la présentation");
-    await click(user, /Remettre la carte participant Confirmé/);
-    await click(user, "Marquer à faire");
-    expect(button(/Remettre la carte participant À faire/)).toBeVisible();
+    const card = screen.getByRole("checkbox", { name: "Remettre la carte participant" });
+    const water = screen.getByRole("checkbox", { name: "Donner la bouteille d’eau" });
+    expect(card).toBeChecked();
+    expect(water).not.toBeChecked();
+    await user.click(card);
+    await user.click(water);
+    expect(card).not.toBeChecked();
+    expect(water).toBeChecked();
     await click(user, "Vérifier les arrivées");
     await click(user, "Valider l’arrivée");
     expect(onSave).toHaveBeenCalledWith(previous, {
-      squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true },
+      squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true },
     }, false);
   });
 });

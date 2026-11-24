@@ -3,7 +3,7 @@ import {
   auditLogs, demoRecords, discounts, mealDiscounts, mealItems, mealPurchases, participants,
   purchases, shopItems, squadAuditLog, squads, timeSlots, users, USER_ROLES,
 } from "@shared/schema";
-import type { DemoDataStatus } from "@shared/demo-data";
+import { demoVolumeCounts, type DemoDataPreset, type DemoDataStatus } from "@shared/demo-data";
 import { db } from "./db";
 import { storage } from "./storage";
 
@@ -11,6 +11,19 @@ const groups = [
   { type: "zombie", label: "Zombie", names: [["Alice", "Ronce"], ["Bastien", "Nocturne"], ["Chloé", "Brume"], ["Dorian", "Silex"]] },
   { type: "survivant", label: "Survivant", names: [["Emma", "Flamme"], ["Félix", "Lune"], ["Garance", "Phare"], ["Hugo", "Boussole"]] },
   { type: "staff", label: "Staff", names: [["Inès", "Balise"], ["Jules", "Relais"], ["Kenza", "Lanterne"], ["Léo", "Guetteur"]] },
+] as const;
+
+const firstNames = [
+  "Adèle", "Adrien", "Agathe", "Alexandre", "Amel", "Anaïs", "Antoine", "Aya", "Camille", "Clara",
+  "Clément", "Élias", "Élodie", "Étienne", "Eva", "Gabriel", "Hana", "Ibrahim", "Jade", "Jeanne",
+  "Karim", "Léa", "Lina", "Louise", "Lucas", "Maël", "Manon", "Maya", "Mehdi", "Nathan",
+  "Nina", "Noé", "Nora", "Paul", "Raphaël", "Salomé", "Samir", "Sarah", "Sofia", "Yanis",
+];
+
+const lastNames = [
+  "Allard", "Bernard", "Caron", "Dubois", "Étienne", "Faure", "Garnier", "Henry", "Ibrahim",
+  "Jacquet", "Klein", "Lefèvre", "Martin", "Nguyen", "Olivier", "Petit", "Quentin", "Robert",
+  "Simon", "Thomas", "Urbain", "Valette", "Weber", "Xu", "Yilmaz", "Ziani",
 ];
 
 const catalog = {
@@ -53,7 +66,7 @@ export async function getDemoDataStatus(): Promise<DemoDataStatus> {
   return summarize(await db.select().from(demoRecords));
 }
 
-export async function loadDemoData(): Promise<DemoDataStatus> {
+export async function loadDemoData(preset: DemoDataPreset = "standard"): Promise<DemoDataStatus> {
   return db.transaction(async tx => {
     await lockDemoData(tx);
     const existing = await tx.select().from(demoRecords);
@@ -64,6 +77,7 @@ export async function loadDemoData(): Promise<DemoDataStatus> {
     const meals = await tx.insert(mealItems).values(catalog.meals).returning({ id: mealItems.id });
     markers.push(...shop.map(({ id }) => ({ shopItemId: id })), ...meals.map(({ id }) => ({ mealItemId: id })));
 
+    let volumeNameIndex = 0;
     for (const { type, label, names } of groups) {
       const slots = await tx.insert(timeSlots).values([
         { name: `Démo · ${label} 18 h`, type, mealTime: "17:30", briefingTime: "18:00", gameTime: "18:30", exitTime: "19:45" },
@@ -96,6 +110,32 @@ export async function loadDemoData(): Promise<DemoDataStatus> {
         players.push(player.id);
         markers.push({ participantId: player.id });
         if (arrived) await tx.insert(squadAuditLog).values({ participantId: player.id, newSquadId: teams[team].id });
+      }
+
+      if (preset === "volume") {
+        const additionalCount = demoVolumeCounts[type] - names.length;
+        const extraPlayers = Array.from({ length: additionalCount }, (_, index) => {
+          const nameIndex = volumeNameIndex++;
+          return {
+            firstName: `Démo ${firstNames[Math.floor(nameIndex / lastNames.length)]}`,
+            lastName: lastNames[nameIndex % lastNames.length],
+            type,
+            timeSlotId: slots[index % slots.length].id,
+            hasFreemeal: type === "zombie",
+          };
+        });
+        const extraTeams = slots.flatMap(({ id }, index) => {
+          const maxMembers = type === "survivant" ? 16 : 8;
+          // Two existing examples and six existing places per wave.
+          const extraPlaces = Math.max(0, Math.ceil((additionalCount - index) / slots.length) - 4);
+          return Array.from({ length: Math.ceil(extraPlaces / maxMembers) }, (_, teamIndex) => ({
+            number: 100 + teamIndex, type, timeSlotId: id, maxMembers, briefing: "Équipe de démonstration.",
+          }));
+        });
+        const addedPlayers = await tx.insert(participants).values(extraPlayers).returning({ id: participants.id });
+        const addedTeams = await tx.insert(squads).values(extraTeams).returning({ id: squads.id });
+        markers.push(...addedPlayers.map(({ id }) => ({ participantId: id })));
+        markers.push(...addedTeams.map(({ id }) => ({ squadId: id })));
       }
 
       await tx.insert(discounts).values([

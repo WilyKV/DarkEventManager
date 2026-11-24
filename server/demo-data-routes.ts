@@ -9,8 +9,12 @@ export function registerDemoDataRoutes(app: Express) {
     res.json(await getDemoDataStatus());
   });
 
-  app.post(demoDataPath, adminOnly, async (_req, res) => {
-    res.json(await loadDemoData());
+  app.post(demoDataPath, adminOnly, async (req, res) => {
+    const preset = req.query.preset ?? "standard";
+    if (preset !== "standard" && preset !== "volume") {
+      return res.status(400).json({ message: "Scénario de test inconnu." });
+    }
+    res.json(await loadDemoData(preset));
   });
 
   app.delete(demoDataPath, adminOnly, async (_req, res) => {

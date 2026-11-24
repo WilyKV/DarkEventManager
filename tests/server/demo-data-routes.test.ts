@@ -43,7 +43,17 @@ describe("Données de test", () => {
     service.removeDemoData.mockResolvedValue(empty);
     await request(app).get(demoDataPath).expect(200, empty);
     await request(app).post(demoDataPath).expect(200, loaded);
+    expect(service.loadDemoData).toHaveBeenCalledWith("standard");
     await request(app).delete(demoDataPath).expect(200, empty);
+  });
+
+  it("sélectionne le scénario grand volume et rejette un scénario inconnu", async () => {
+    const app = createApp(["admin"]);
+    const loaded = { loaded: true, participants: 950 };
+    service.loadDemoData.mockResolvedValue(loaded);
+    await request(app).post(demoDataPath).query({ preset: "volume" }).expect(200, loaded);
+    await request(app).post(demoDataPath).query({ preset: "inconnu" }).expect(400);
+    expect(service.loadDemoData).toHaveBeenCalledExactlyOnceWith("volume");
   });
 
   it("signale un lien avec une fiche réelle sans exposer les détails PostgreSQL", async () => {

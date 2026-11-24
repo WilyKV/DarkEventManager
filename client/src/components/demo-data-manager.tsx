@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, FlaskConical, Trash2 } from "lucide-react";
-import { demoDataPath, type DemoDataStatus } from "@shared/demo-data";
+import { demoDataPath, demoVolumeCounts, type DemoDataPreset, type DemoDataStatus } from "@shared/demo-data";
 import { liveQueryPrefixes, matchesQueryPrefix } from "@shared/live-updates";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { Badge } from "@/components/ui/badge";
@@ -16,8 +16,11 @@ export function DemoDataManager() {
   const online = useOnlineStatus();
   const status = useQuery<DemoDataStatus>({ queryKey: [demoDataPath], refetchOnMount: "always" });
   const mutation = useMutation({
-    mutationFn: async (method: "POST" | "DELETE"): Promise<DemoDataStatus> => {
-      const response = await fetch(demoDataPath, { method, credentials: "same-origin" });
+    mutationFn: async (action: DemoDataPreset | "remove"): Promise<DemoDataStatus> => {
+      const response = await fetch(action === "remove" ? demoDataPath : `${demoDataPath}?preset=${action}`, {
+        method: action === "remove" ? "DELETE" : "POST",
+        credentials: "same-origin",
+      });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.message || "Impossible de modifier les données de test.");
       return body;
@@ -40,7 +43,7 @@ export function DemoDataManager() {
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle className="flex items-center gap-2 text-base">
-            <FlaskConical className="size-5 text-emerald-300" aria-hidden />
+            <FlaskConical className="size-5 text-emerald-700" aria-hidden />
             Données de test
           </CardTitle>
           {status.data && (
@@ -55,15 +58,20 @@ export function DemoDataManager() {
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={disabled || loaded} onClick={() => mutation.mutate("POST")}>
+          <Button type="button" disabled={disabled || loaded} onClick={() => mutation.mutate("standard")}>
             <Database aria-hidden />
-            {mutation.isPending && mutation.variables === "POST" ? "Chargement…" : "Charger les données de test"}
+            {mutation.isPending && mutation.variables === "standard" ? "Chargement…" : "Charger la démo standard"}
+          </Button>
+          <Button type="button" variant="outline" disabled={disabled || loaded} onClick={() => mutation.mutate("volume")}
+            aria-describedby="demo-volume-description">
+            <Database aria-hidden />
+            {mutation.isPending && mutation.variables === "volume" ? "Chargement…" : "Charger la démo grand volume"}
           </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button type="button" variant="outline" disabled={disabled || !loaded}>
                 <Trash2 aria-hidden />
-                {mutation.isPending && mutation.variables === "DELETE" ? "Suppression…" : "Supprimer les données de test"}
+                {mutation.isPending && mutation.variables === "remove" ? "Suppression…" : "Supprimer les données de test"}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="w-[calc(100%-2rem)] rounded-lg">
@@ -76,11 +84,15 @@ export function DemoDataManager() {
               <AlertDialogFooter>
                 <AlertDialogCancel>Annuler</AlertDialogCancel>
                 <AlertDialogAction className={buttonVariants({ variant: "destructive" })} disabled={!online}
-                  onClick={() => mutation.mutate("DELETE")}>Supprimer la démo</AlertDialogAction>
+                  onClick={() => mutation.mutate("remove")}>Supprimer la démo</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <p id="demo-volume-description" className="text-sm text-muted-foreground">
+          Grand volume · {demoVolumeCounts.survivant} survivants, {demoVolumeCounts.zombie} zombies et {demoVolumeCounts.staff} membres du staff, répartis sur deux vagues.
+          {loaded && " Pour changer de scénario, supprimez d’abord la démo chargée."}
+        </p>
         {!online && <p className="text-sm text-muted-foreground">Connectez-vous au serveur pour modifier les données de test.</p>}
         {online && status.isError && (
           <div className="flex flex-wrap items-center gap-2">

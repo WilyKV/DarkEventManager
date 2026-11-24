@@ -352,7 +352,7 @@ export default function RepasPage() {
   return (
     <ManagementLayout
       title="Repas"
-      subtitle="Point de vente repas"
+      subtitle="Valider les repas et enregistrer les achats"
       showHomeButton
     >
       {scannedParticipant && souvenirToken && <a className="mb-3 inline-flex text-sm font-medium underline underline-offset-4" href={`${souvenirPath}/${souvenirToken}`}>Accéder à l’espace souvenir avec le code</a>}
@@ -361,9 +361,9 @@ export default function RepasPage() {
         {/* Left column: Products */}
         <div className="lg:col-span-2 space-y-6">
           {/* Participant Scanner */}
-          <Card>
+          <Card className="workspace-header">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <User className="w-5 h-5" />
@@ -380,6 +380,7 @@ export default function RepasPage() {
                 <div className="flex gap-2">
                   <Button
                     onClick={() => setScannerOpen(true)}
+                    className="min-h-11"
                     variant={scannedParticipant ? "outline" : "default"}
                   >
                     <Scan className="w-4 h-4 mr-2" />

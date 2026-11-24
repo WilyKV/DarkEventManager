@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { ArrowLeft, Camera, Skull, UserCheck } from "lucide-react";
 import { PageTransition } from "./page-transition";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "./notification-center";
 import { OnlineSouvenirPhotoDialog } from "./souvenir-photo-dialog";
 import { OnlineWelcomeDialog } from "./online-welcome-dialog";
 import { checkInRoles } from "@shared/check-in";
 import { useAuth } from "@/lib/auth";
+import { homeItem, managementModules } from "@/lib/management-nav";
 import { SideRail } from "./side-rail";
 import { BottomNav } from "./bottom-nav";
 import { ConnectionIndicator } from "./connection-indicator";
@@ -29,6 +30,9 @@ export function ManagementLayout({
   actions,
   useHistoryBack = false,
 }: ManagementLayoutProps) {
+  const [location] = useLocation();
+  const module = managementModules.find(item => item.path === location) ?? homeItem;
+  const ModuleIcon = module.icon;
   const { visitor, hasAnyRole } = useAuth();
   const [photosOpen, setPhotosOpen] = useState(false);
   const [welcomeOpen, setWelcomeOpen] = useState(false);
@@ -47,12 +51,12 @@ export function ManagementLayout({
       <SideRail />
 
       {/* Main content area: offset by rail width on md+ */}
-      <div className="flex min-w-0 flex-1 flex-col min-h-dvh md:pl-20 xl:pl-48">
+      <div className="flex min-w-0 flex-1 flex-col min-h-dvh md:pl-20 xl:pl-56">
         <div className="flex-1 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 md:py-6">
           <div className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
-            <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border pb-3 sm:pb-4">
-              <div className="flex items-center gap-4">
+            <header className="workspace-header flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border px-4 py-5 sm:px-6 sm:py-6">
+              <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                 {/* Mobile : bouton retour OU logo "DARK EVENT" cliquable */}
                 {useHistoryBack ? (
                   <Button
@@ -66,12 +70,15 @@ export function ManagementLayout({
                   </Button>
                 ) : (
                   <Link href={visitor ? "/visitor" : "/overview"} aria-label="Retour à l’accueil" data-testid="button-back"
-                    className="grid size-11 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-emerald-300 md:hidden">
+                    className="grid size-11 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary md:hidden">
                     <Skull className="size-5" aria-hidden />
                   </Link>
                 )}
+                <span className="hidden md:block">
+                  <span className="workspace-icon size-14" data-tone={module.tone}><ModuleIcon className="size-7" aria-hidden /></span>
+                </span>
                 <div>
-                  <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">{title}</h1>
+                  <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-4xl">{title}</h1>
                   <p className="text-sm sm:text-base text-muted-foreground mt-1">{subtitle}</p>
                 </div>
               </div>
@@ -81,11 +88,11 @@ export function ManagementLayout({
                 <SyncPendingBadge />
                 <NotificationCenter />
                 {canWelcome && (
-                  <Button type="button" className="hidden md:inline-flex" onClick={openWelcome}>
+                  <Button type="button" className="hidden min-h-11 md:inline-flex" onClick={openWelcome}>
                     <UserCheck aria-hidden /> Accueillir
                   </Button>
                 )}
-                {canWelcome && <Button type="button" variant="outline" className="hidden md:inline-flex" onClick={() => setPhotosOpen(true)}>
+                {canWelcome && <Button type="button" variant="outline" className="hidden min-h-11 md:inline-flex" onClick={() => setPhotosOpen(true)}>
                   <Camera aria-hidden /> Photos
                 </Button>}
                 {actions}

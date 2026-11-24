@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { ManagementLayout } from "@/components/management-layout";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Users, UserCog, Shield, Settings, ShoppingBag, Utensils, History } from "lucide-react";
+import { ArrowLeft, ChevronRight, Database, Flag, History, Images, Settings, Shield, ShoppingBag, Skull, UserCog, Users, Utensils } from "lucide-react";
 import { ExcelImport } from "@/components/excel-import";
 import { ExcelExport } from "@/components/excel-export.tsx";
 import { ResetDataSection } from "@/components/reset-data-section";
@@ -26,9 +27,38 @@ import { ParticipantWithRelations, TimeSlot, SquadWithRelations } from "@shared/
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+const adminSections = [
+  {
+    label: "Participants et staff",
+    items: [
+      { id: "zombie", label: "Zombies", description: "Inscriptions, vagues et squads", icon: Skull, tone: "red" },
+      { id: "survivant", label: "Survivants", description: "Inscriptions, vagues et équipes", icon: Users, tone: "blue" },
+      { id: "staff", label: "Staff", description: "Fiches et équipes du staff", icon: UserCog, tone: "green" },
+    ],
+  },
+  {
+    label: "Ventes et repas",
+    items: [
+      { id: "boutique", label: "Boutique", description: "Catalogue, stocks et réductions", icon: ShoppingBag, tone: "violet" },
+      { id: "repas", label: "Repas", description: "Produits, tarifs et réductions", icon: Utensils, tone: "amber" },
+    ],
+  },
+  {
+    label: "Événement et accès",
+    items: [
+      { id: "config", label: "Réglages de l’événement", description: "Date, maquillage et synchronisation", icon: Settings, tone: "slate" },
+      { id: "souvenir", label: "Espaces souvenir", description: "Galerie, statistiques et demandes d’effacement", icon: Images, tone: "violet" },
+      { id: "users", label: "Comptes et permissions", description: "Accès à l’application et rôles du staff", icon: Shield, tone: "blue" },
+      { id: "historique", label: "Historique", description: "Activité et actions enregistrées", icon: History, tone: "slate" },
+      { id: "donnees", label: "Sauvegardes et données", description: "Sauvegardes, analyses et données de démonstration", icon: Database, tone: "green" },
+      { id: "cloture", label: "Clôture et réinitialisation", description: "Terminer l’événement ou effacer ses données", icon: Flag, tone: "red" },
+    ],
+  },
+];
+
 export default function AdminPage() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState("zombie");
+  const [activeTab, setActiveTab] = useState<string | null>(null);
   const [activeSubTab, setActiveSubTab] = useState<Record<string, string>>({
     boutique: "items",
     repas: "items",
@@ -167,197 +197,220 @@ export default function AdminPage() {
     },
   });
 
+  const selectedSection = adminSections.flatMap(group => group.items).find(item => item.id === activeTab);
+  const sectionHeading = useRef<HTMLHeadingElement>(null);
+  const sectionButtons = useRef(new Map<string, HTMLButtonElement>());
+  const previousSection = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (activeTab) sectionHeading.current?.focus();
+    else if (previousSection.current) sectionButtons.current.get(previousSection.current)?.focus();
+    previousSection.current = activeTab;
+  }, [activeTab]);
+
   return (
     <ManagementLayout
       title="Administration"
       subtitle="Comptes, données et réglages"
     >
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList aria-label="Sections d’administration" className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl border border-border p-1 min-[480px]:grid-cols-4 xl:grid-cols-8">
-          {[
-            { id: "config", label: "Configuration", icon: Settings },
-            { id: "zombie", label: "Zombies", icon: Users },
-            { id: "survivant", label: "Survivants", icon: Users },
-            { id: "staff", label: "Staff", icon: UserCog },
-            { id: "boutique", label: "Boutique", icon: ShoppingBag },
-            { id: "repas", label: "Repas", icon: Utensils },
-            { id: "users", label: "Utilisateurs", icon: Shield },
-            { id: "historique", label: "Historique", icon: History },
-          ].map(({ id, label, icon: Icon }) => (
-            <TabsTrigger key={id} value={id} className="min-h-11 justify-start gap-2 rounded-lg px-2 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary xl:justify-center">
-              <Icon className="size-4 shrink-0" aria-hidden />{label}
-            </TabsTrigger>
+      {!selectedSection ? (
+        <div className="space-y-7">
+          {adminSections.map(group => (
+            <section key={group.label} aria-label={group.label}>
+              <h2 className="mb-3 text-lg font-semibold tracking-tight">{group.label}</h2>
+              <div className="workspace-card-grid">
+                {group.items.map(({ id, label, description, icon: Icon, tone }) => (
+                  <button type="button" key={id} className="workspace-link"
+                    ref={button => {
+                      if (button) sectionButtons.current.set(id, button);
+                      else sectionButtons.current.delete(id);
+                    }}
+                    onClick={() => setActiveTab(id)}>
+                    <span className="workspace-icon size-11" data-tone={tone}><Icon className="size-5" aria-hidden /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{label}</span>
+                      <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </button>
+                ))}
+              </div>
+            </section>
           ))}
-        </TabsList>
+        </div>
+      ) : (
+        <section className="space-y-5" aria-labelledby="admin-section">
+          <Button variant="outline" className="min-h-11" onClick={() => setActiveTab(null)}><ArrowLeft aria-hidden /> Toutes les rubriques</Button>
+          <div className="flex items-center gap-3">
+            <span className="workspace-icon size-11" data-tone={selectedSection.tone}><selectedSection.icon className="size-5" aria-hidden /></span>
+            <div>
+              <h2 id="admin-section" ref={sectionHeading} tabIndex={-1} className="text-xl font-bold tracking-tight">{selectedSection.label}</h2>
+              <p className="text-sm text-muted-foreground">{selectedSection.description}</p>
+            </div>
+          </div>
+          {activeTab === "config" && <div className="space-y-4">
+            <EventDaySettings />
+            <MakeupSettings />
+            <SyncModeManager />
+          </div>}
+          {activeTab === "souvenir" && <div className="space-y-4">
+            <SouvenirSettings />
+            <SouvenirErasureRequests />
+          </div>}
+          {activeTab === "donnees" && <div className="space-y-4">
+            <EventBackupManager />
+            <AnalyticsSettings />
+            <DemoDataManager />
+          </div>}
+          {activeTab === "cloture" && <div className="space-y-4">
+            <EndEventButton />
+            <ResetDataSection
+              title="Réinitialisation de l’événement"
+              description="Téléchargez et vérifiez une sauvegarde complète avant d’effacer les données de l’événement."
+              options={[
+                { label: "Réinitialiser les données de l’événement", module: "all",
+                  description: "Les fiches, les équipes, les créneaux, la date, les achats, le catalogue et les remises seront effacés. Vos comptes permettent de vous reconnecter pour restaurer la sauvegarde." },
+              ]}
+            />
+          </div>}
 
-        {/* Configuration Tab */}
-        <TabsContent value="config" className="space-y-4">
-          <EventDaySettings />
-          <SouvenirSettings />
-          <SouvenirErasureRequests />
-          <MakeupSettings />
-          <EventBackupManager />
-          <AnalyticsSettings />
-          <DemoDataManager />
-          <SyncModeManager />
+          {/* Zombie Tab */}
+          {activeTab === "zombie" && <div className="space-y-4">
+            <ParticipantTypeSection
+              type="zombie"
+              color="red"
+              title="Participants Zombies"
+              participants={zombieParticipants}
+              timeSlots={zombieTimeSlots}
+              squads={zombieSquads}
+              onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
+              onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
+            />
+          </div>}
 
-          {/* End Event Button */}
-          <EndEventButton />
+          {/* Survivant Tab */}
+          {activeTab === "survivant" && <div className="space-y-4">
+            <ParticipantTypeSection
+              type="survivant"
+              color="blue"
+              title="Participants Survivants"
+              participants={survivantParticipants}
+              timeSlots={survivantTimeSlots}
+              squads={survivantSquads}
+              onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
+              onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
+            />
+          </div>}
 
-          {/* Reset All Data Section */}
-          <ResetDataSection
-            title="Réinitialisation de l’événement"
-            description="Téléchargez et vérifiez une sauvegarde complète avant d’effacer les données de l’événement."
-            options={[
-              { label: "Réinitialiser les données de l’événement", module: "all",
-                description: "Les fiches, les équipes, les créneaux, la date, les achats, le catalogue et les remises seront effacés. Vos comptes permettent de vous reconnecter pour restaurer la sauvegarde." },
-            ]}
-          />
-        </TabsContent>
+          {/* Staff Tab */}
+          {activeTab === "staff" && <div className="space-y-4">
+            <ParticipantTypeSection
+              type="staff"
+              color="green"
+              title="Participants Staff"
+              participants={staffParticipants}
+              timeSlots={staffTimeSlots}
+              squads={staffSquads}
+              onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
+              onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
+            />
+          </div>}
 
-        {/* Zombie Tab */}
-        <TabsContent value="zombie" className="space-y-4">
-          <h3 className="text-lg font-semibold text-red-500">Gestion Zombies</h3>
-          <ParticipantTypeSection
-            type="zombie"
-            color="red"
-            title="Participants Zombies"
-            participants={zombieParticipants}
-            timeSlots={zombieTimeSlots}
-            squads={zombieSquads}
-            onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
-            onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
-          />
-        </TabsContent>
+          {/* Boutique Tab */}
+          {activeTab === "boutique" && <div className="space-y-4">
 
-        {/* Survivant Tab */}
-        <TabsContent value="survivant" className="space-y-4">
-          <h3 className="text-lg font-semibold text-blue-500">Gestion Survivants</h3>
-          <ParticipantTypeSection
-            type="survivant"
-            color="blue"
-            title="Participants Survivants"
-            participants={survivantParticipants}
-            timeSlots={survivantTimeSlots}
-            squads={survivantSquads}
-            onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
-            onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
-          />
-        </TabsContent>
+            {/* Sous-menu Boutique */}
+            <Tabs value={activeSubTab.boutique} onValueChange={(value) => setActiveSubTab({ ...activeSubTab, boutique: value })}>
+              <TabsList className="workspace-tabs">
+                <TabsTrigger value="items">Produits</TabsTrigger>
+                <TabsTrigger value="discounts">Réductions</TabsTrigger>
+              </TabsList>
 
-        {/* Staff Tab */}
-        <TabsContent value="staff" className="space-y-4">
-          <h3 className="text-lg font-semibold text-green-500">Gestion Staff</h3>
-          <ParticipantTypeSection
-            type="staff"
-            color="green"
-            title="Participants Staff"
-            participants={staffParticipants}
-            timeSlots={staffTimeSlots}
-            squads={staffSquads}
-            onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
-            onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
-          />
-        </TabsContent>
+              {/* Produits */}
+              <TabsContent value="items" className="space-y-4 mt-4">
+                {/* Manual Product Management */}
+                <ProductManagement />
 
-        {/* Boutique Tab */}
-        <TabsContent value="boutique" className="space-y-4">
-          <h3 className="text-lg font-semibold text-indigo-500">Gestion Boutique</h3>
+                {/* Import/Export Excel */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+                  {/* Import */}
+                  <ExcelImport type="boutique" module="items" />
 
-          {/* Sous-menu Boutique */}
-          <Tabs value={activeSubTab.boutique} onValueChange={(value) => setActiveSubTab({ ...activeSubTab, boutique: value })}>
-            <TabsList className="bg-muted/30">
-              <TabsTrigger value="items">Produits</TabsTrigger>
-              <TabsTrigger value="discounts">Réductions</TabsTrigger>
-            </TabsList>
+                  {/* Export */}
+                  <ExcelExport type="boutique" module="items" />
+                </div>
 
-            {/* Produits */}
-            <TabsContent value="items" className="space-y-4 mt-4">
-              {/* Manual Product Management */}
-              <ProductManagement />
+                {/* Reset Section for Shop */}
+                <ResetDataSection
+                  title="Réinitialisation Boutique"
+                  description="Supprimer les données de la boutique"
+                  options={[
+                    { label: "Reset Produits Boutique", module: "shop", description: "Supprime tous les produits de la boutique" },
+                    { label: "Reset Achats Boutique", module: "purchases", description: "Supprime tout l'historique des achats" },
+                  ]}
+                />
+              </TabsContent>
 
-              {/* Import/Export Excel */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-                {/* Import */}
-                <ExcelImport type="boutique" module="items" />
+              {/* Réductions */}
+              <TabsContent value="discounts" className="space-y-4 mt-4">
+                <DiscountManagement />
+              </TabsContent>
+            </Tabs>
+          </div>}
 
-                {/* Export */}
-                <ExcelExport type="boutique" module="items" />
-              </div>
+          {/* Repas Tab */}
+          {activeTab === "repas" && <div className="space-y-4">
 
-              {/* Reset Section for Shop */}
-              <ResetDataSection
-                title="Réinitialisation Boutique"
-                description="Supprimer les données de la boutique"
-                options={[
-                  { label: "Reset Produits Boutique", module: "shop", description: "Supprime tous les produits de la boutique" },
-                  { label: "Reset Achats Boutique", module: "purchases", description: "Supprime tout l'historique des achats" },
-                ]}
-              />
-            </TabsContent>
+            {/* Sous-menu Repas */}
+            <Tabs value={activeSubTab.repas} onValueChange={(value) => setActiveSubTab({ ...activeSubTab, repas: value })}>
+              <TabsList className="workspace-tabs">
+                <TabsTrigger value="items">Produits</TabsTrigger>
+                <TabsTrigger value="discounts">Réductions</TabsTrigger>
+              </TabsList>
 
-            {/* Réductions */}
-            <TabsContent value="discounts" className="space-y-4 mt-4">
-              <DiscountManagement />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
+              {/* Produits */}
+              <TabsContent value="items" className="space-y-4 mt-4">
+                {/* Manual Product Management */}
+                <MealProductManagement />
 
-        {/* Repas Tab */}
-        <TabsContent value="repas" className="space-y-4">
-          <h3 className="text-lg font-semibold text-orange-500">Gestion Repas</h3>
+                {/* Import/Export Excel */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+                  {/* Import */}
+                  <ExcelImport type="repas" module="items" />
 
-          {/* Sous-menu Repas */}
-          <Tabs value={activeSubTab.repas} onValueChange={(value) => setActiveSubTab({ ...activeSubTab, repas: value })}>
-            <TabsList className="bg-muted/30">
-              <TabsTrigger value="items">Produits</TabsTrigger>
-              <TabsTrigger value="discounts">Réductions</TabsTrigger>
-            </TabsList>
+                  {/* Export */}
+                  <ExcelExport type="repas" module="items" />
+                </div>
 
-            {/* Produits */}
-            <TabsContent value="items" className="space-y-4 mt-4">
-              {/* Manual Product Management */}
-              <MealProductManagement />
+                {/* Reset Section for Meals */}
+                <ResetDataSection
+                  title="Réinitialisation Repas"
+                  description="Supprimer les données des repas"
+                  options={[
+                    { label: "Reset Produits Repas", module: "meals", description: "Supprime tous les produits de repas" },
+                    { label: "Reset Achats Repas", module: "meal-purchases", description: "Supprime tout l'historique des achats de repas" },
+                  ]}
+                />
+              </TabsContent>
 
-              {/* Import/Export Excel */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
-                {/* Import */}
-                <ExcelImport type="repas" module="items" />
+              {/* Réductions */}
+              <TabsContent value="discounts" className="space-y-4 mt-4">
+                <MealDiscountManagement />
+              </TabsContent>
+            </Tabs>
+          </div>}
 
-                {/* Export */}
-                <ExcelExport type="repas" module="items" />
-              </div>
+          {/* Users Tab - Gestion des utilisateurs */}
+          {activeTab === "users" && <div className="space-y-4">
+            <UserManagement />
+          </div>}
 
-              {/* Reset Section for Meals */}
-              <ResetDataSection
-                title="Réinitialisation Repas"
-                description="Supprimer les données des repas"
-                options={[
-                  { label: "Reset Produits Repas", module: "meals", description: "Supprime tous les produits de repas" },
-                  { label: "Reset Achats Repas", module: "meal-purchases", description: "Supprime tout l'historique des achats de repas" },
-                ]}
-              />
-            </TabsContent>
-
-            {/* Réductions */}
-            <TabsContent value="discounts" className="space-y-4 mt-4">
-              <MealDiscountManagement />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-
-        {/* Users Tab - Gestion des utilisateurs */}
-        <TabsContent value="users" className="space-y-4">
-          <h3 className="text-lg font-semibold text-pink-500">Gestion des Utilisateurs</h3>
-          <UserManagement />
-        </TabsContent>
-
-        {/* Historique Tab - Logs d'audit */}
-        <TabsContent value="historique" className="space-y-4">
-          <h3 className="text-lg font-semibold text-yellow-500">Historique des Actions</h3>
-          <AuditLogViewer />
-        </TabsContent>
-      </Tabs>
+          {/* Historique Tab - Logs d'audit */}
+          {activeTab === "historique" && <div className="space-y-4">
+            <AuditLogViewer />
+          </div>}
+        </section>
+      )}
     </ManagementLayout>
   );
 }

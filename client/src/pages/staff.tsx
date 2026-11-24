@@ -36,14 +36,14 @@ export default function StaffPage() {
       subtitle="Gestion des membres du staff"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/50 border border-border/50">
-          <TabsTrigger value="participants" className="gap-2 data-[state=active]:bg-green-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20">
+        <TabsList className="workspace-tabs">
+          <TabsTrigger value="participants">
             <Users className="w-4 h-4" />
             Membres du Staff
           </TabsTrigger>
-          <TabsTrigger value="data" className="gap-2 data-[state=active]:bg-green-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-green-500/20">
+          <TabsTrigger value="data">
             <Database className="w-4 h-4" />
-            Données
+            Import / export
           </TabsTrigger>
         </TabsList>
 

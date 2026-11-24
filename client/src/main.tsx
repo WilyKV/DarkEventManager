@@ -10,8 +10,4 @@ if ("caches" in window) {
   navigator.serviceWorker?.addEventListener("controllerchange", clearLegacyApiCache);
 }
 
-// Force dark mode
-document.documentElement.classList.add('dark');
-document.body.classList.add('dark');
-
 createRoot(document.getElementById("root")!).render(<App />);

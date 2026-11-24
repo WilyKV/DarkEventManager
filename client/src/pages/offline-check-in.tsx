@@ -360,9 +360,9 @@ export default function OfflineCheckInPage() {
 
   return (
     <main className="mx-auto min-h-dvh max-w-3xl space-y-5 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6">
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+      <header className="workspace-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border p-5 sm:p-6">
         <div>
-          <h1 className="font-display text-2xl font-semibold sm:text-3xl">Accueil hors ligne</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">Accueil hors ligne</h1>
           {data?.eventDay && <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
             <CalendarDays className="size-4" aria-hidden /> <time dateTime={data.eventDay} className="capitalize">{formatEventDay(data.eventDay)}</time>
           </p>}
@@ -380,7 +380,7 @@ export default function OfflineCheckInPage() {
             <div>
               <p className="font-medium">{participants.filter(player => player.state.arrived).length} / {participants.length} arrivés</p>
               <p className="text-sm text-muted-foreground">{pending.size ? `${pending.size} ${pending.size === 1 ? "fiche à envoyer" : "fiches à envoyer"} · Enregistré sur cet appareil` : "Aucune fiche à envoyer"}</p>
-              {!online && <p className="mt-1 text-sm text-amber-300">Hors connexion · Vous pouvez continuer la saisie.</p>}
+              {!online && <p className="mt-1 text-sm text-amber-800">Hors connexion · Vous pouvez continuer la saisie.</p>}
             </div>
             <div className="flex flex-wrap gap-2">
               <Button disabled={busy || !data.profileTypes.length} onClick={() => setAddOpen(true)}>
@@ -413,7 +413,7 @@ export default function OfflineCheckInPage() {
                   <p className="break-words text-sm text-muted-foreground">{checkInProfiles[player.type].label} · {slots.get(player.timeSlotId ?? 0) ?? "Sans créneau"}{player.state.squadId && teams.has(player.state.squadId) ? ` · ${placementLabels(player.type).name} ${teams.get(player.state.squadId)}` : ""}</p>
                   {showArrivalTimes && player.state.arrived && <p><ArrivalTime value={player.state.arrivedAt} /></p>}
                   {player.id < 0 && <p className="text-xs text-muted-foreground">Créé sur cet appareil</p>}
-                  {data.conflicts[player.id] && <p className="text-sm text-amber-400">{data.conflicts[player.id]}</p>}
+                  {data.conflicts[player.id] && <p className="text-sm text-amber-800">{data.conflicts[player.id]}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button variant={player.state.arrived ? "outline" : "default"} disabled={busy || player.returned} onClick={() => setSelectedId(player.id)}
@@ -439,7 +439,7 @@ export default function OfflineCheckInPage() {
                   <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                     <div>
                       <p>{player.firstName} {player.lastName}</p>
-                      {data.conflicts[player.id] && <p className="max-w-md text-amber-400">{data.conflicts[player.id]}</p>}
+                      {data.conflicts[player.id] && <p className="max-w-md text-amber-800">{data.conflicts[player.id]}</p>}
                       {data.archiveAttempts?.includes(player.id) && <p className="text-muted-foreground">Relancez l’envoi pour vérifier la suppression.</p>}
                     </div>
                     <Button variant="outline" size="sm" disabled={busy || data.archiveAttempts?.includes(player.id)}
@@ -498,7 +498,7 @@ export default function OfflineCheckInPage() {
       ) : copy || (online && canPrepare) ? (
         <form className="max-w-lg space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-6" onSubmit={installOrUnlock}>
           <div className="space-y-1">
-            <h2 className="flex items-center gap-2 text-lg font-semibold"><LockKeyhole className="size-4 text-emerald-300" aria-hidden />{copy ? "Déverrouiller la copie locale" : "Préparer cet appareil"}</h2>
+            <h2 className="flex items-center gap-2 text-lg font-semibold"><LockKeyhole className="size-4 text-emerald-700" aria-hidden />{copy ? "Déverrouiller la copie locale" : "Préparer cet appareil"}</h2>
             <p className="text-sm text-muted-foreground">
               {copy
                 ? "Saisissez la phrase choisie pour la copie locale. Elle fonctionne aussi en mode avion."
@@ -587,7 +587,7 @@ function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, err
             </label>
             {conflict && (
               <div className="space-y-2 border-t border-border pt-3">
-                <p className="text-sm text-amber-400">{conflict}</p>
+                <p className="text-sm text-amber-800">{conflict}</p>
                 <Button type="button" variant="outline" disabled={busy || !onRestore} onClick={onRestore}>Reprendre la fiche serveur</Button>
               </div>
             )}

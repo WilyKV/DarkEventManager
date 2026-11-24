@@ -63,25 +63,26 @@ export default function BadgesPage() {
 
   return <ManagementLayout title="Cartes participants" subtitle="Modèle vierge, cartes personnalisées et photos souvenir">
     <Tabs defaultValue="cards" className="space-y-4">
-      <TabsList><TabsTrigger value="cards"><IdCard className="mr-2 size-4" /> Cartes</TabsTrigger><TabsTrigger value="data">Données</TabsTrigger></TabsList>
+      <TabsList className="workspace-tabs"><TabsTrigger value="cards"><IdCard className="mr-2 size-4" /> Cartes</TabsTrigger><TabsTrigger value="data">Import / export</TabsTrigger></TabsList>
       <TabsContent value="cards" className="space-y-4">
         <section aria-label="Impression des cartes" className="space-y-3 rounded-2xl border border-border bg-card p-4">
+          <h2 className="text-lg font-semibold tracking-tight">Impression des cartes</h2>
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1 text-sm font-medium">Format du papier
-              <select value={layout} onChange={event => setLayout(event.target.value as CardPrintLayout)} className="min-h-9 rounded-md border border-input bg-background px-2">
+              <select value={layout} onChange={event => setLayout(event.target.value as CardPrintLayout)} className="min-h-11 rounded-md border border-input bg-background px-2">
                 <option value="a4">A4 · 10 cartes par feuille</option>
                 <option value="card">85 × 55 mm · carte individuelle</option>
               </select>
             </label>
-            <Button asChild variant="outline"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
+            <Button asChild variant="outline" className="min-h-11"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
             <label className="grid gap-1 text-sm font-medium">Faces à imprimer
-              <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-9 rounded-md border border-input bg-background px-2">
+              <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-11 rounded-md border border-input bg-background px-2">
                 <option value="complete">Carte complète recto verso</option>
                 <option value="front">Surimpression recto · prénoms, initiales et QR</option>
                 <option value="back">Surimpression verso · code</option>
               </select>
             </label>
-            <Button type="button" disabled={!ids.length || ids.length > 500 || busy} onClick={() => void download(ids)}>
+            <Button type="button" className="min-h-11" disabled={!ids.length || ids.length > 500 || busy} onClick={() => void download(ids)}>
               <Printer /> Exporter la sélection ({ids.length})
             </Button>
           </div>
@@ -93,7 +94,8 @@ export default function BadgesPage() {
         </section>
         <div className="grid gap-4 lg:grid-cols-2">
           <section aria-label="Participants à imprimer" className="space-y-3 rounded-2xl border border-border bg-card p-4">
-            <Input type="search" aria-label="Rechercher un participant" placeholder="Nom ou prénom" value={search}
+            <h2 className="text-lg font-semibold tracking-tight">Participants à imprimer</h2>
+            <Input type="search" className="min-h-11" aria-label="Rechercher un participant" placeholder="Nom ou prénom" value={search}
               onChange={event => setSearch(event.target.value)} />
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" disabled={!filtered.length}

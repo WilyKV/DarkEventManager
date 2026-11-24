@@ -26,11 +26,11 @@ export default function ScanPage() {
             Scanner un participant
           </CardTitle>
           <CardDescription>
-            La modale de scan s'ouvre automatiquement. Vous pouvez scanner plusieurs participants à la suite.
+            Placez le QR code de la carte devant la caméra. Vous pouvez scanner plusieurs cartes à la suite.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button type="button" onClick={() => setModalOpen(true)}><QrCode aria-hidden /> Scanner un badge</Button>
+          <Button type="button" className="min-h-11" onClick={() => setModalOpen(true)}><QrCode aria-hidden /> Scanner un badge</Button>
         </CardContent>
       </Card>
 

@@ -83,10 +83,10 @@ export function ParticipantTypeSection({
   return (
     <>
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
-        <TabsList className="grid h-auto w-full grid-cols-4 bg-muted/30 sm:inline-flex sm:w-auto">
+        <TabsList className="workspace-tabs">
           <TabsTrigger value="participants" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Participants</TabsTrigger>
           <TabsTrigger value="creneaux" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Créneaux</TabsTrigger>
-          <TabsTrigger value="squads" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Squads</TabsTrigger>
+          <TabsTrigger value="squads" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">{type === "zombie" ? "Squads" : "Équipes"}</TabsTrigger>
           <TabsTrigger value="tout" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Tout</TabsTrigger>
         </TabsList>
 

@@ -37,21 +37,21 @@ export default function SurvivantPage() {
   return (
     <ManagementLayout
       title="Survivants"
-      subtitle="Gestion des participants survivants"
+      subtitle="Arrivées, vagues et équipes"
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/50 border border-border/50">
-          <TabsTrigger value="participants" className="gap-2 data-[state=active]:bg-blue-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20">
+        <TabsList className="workspace-tabs">
+          <TabsTrigger value="participants">
             <Users className="w-4 h-4" />
             Participants
           </TabsTrigger>
-          <TabsTrigger value="squads" className="gap-2 data-[state=active]:bg-blue-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20">
+          <TabsTrigger value="squads">
             <Shield className="w-4 h-4" />
-            Squads
+            Équipes
           </TabsTrigger>
-          <TabsTrigger value="data" className="gap-2 data-[state=active]:bg-blue-500/90 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/20">
+          <TabsTrigger value="data">
             <Database className="w-4 h-4" />
-            Données
+            Import / export
           </TabsTrigger>
         </TabsList>
 

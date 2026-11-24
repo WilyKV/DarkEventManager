@@ -1,14 +1,12 @@
-import { checkInRoles } from "@shared/check-in";
-import { offlineCheckInPage } from "@shared/zombie-offline";
 import { lazy, Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowUpRight, ChevronDown, Skull, WifiOff } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { Link } from "wouter";
 import { ManagementLayout } from "@/components/management-layout";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { InstallAppButton } from "@/components/install-prompt";
-import { useAuth } from "@/lib/auth";
+import { useManagementNav } from "@/lib/management-nav";
 
 const DashboardAnalytics = lazy(() => import("@/components/dashboard-analytics").then(module => ({ default: module.DashboardAnalytics })));
 
@@ -25,7 +23,7 @@ interface DashboardStats {
 
 export default function OverviewPage() {
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
-  const { hasAnyRole } = useAuth();
+  const modules = useManagementNav();
   const { data: stats, isLoading, refetch } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
     refetchInterval: 10_000,
@@ -40,30 +38,26 @@ export default function OverviewPage() {
   return (
     <ManagementLayout title="Vue d’ensemble" subtitle="Zomb’in The Dark">
       <div className="space-y-6">
-        {hasAnyRole(checkInRoles) && (
-          <section aria-label="Accueil zombie" className="grid gap-3 sm:grid-cols-[3fr_2fr]">
-            {hasAnyRole(["admin", "staff_zombie"]) && <Link href="/zombie" className="group flex items-center gap-4 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/15 to-card p-4 transition-colors hover:border-primary/60 sm:p-6">
-              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/15 text-emerald-300 sm:size-14">
-                <Skull className="size-6" aria-hidden />
-              </span>
-              <span className="flex-1">
-                <span className="block text-lg font-semibold tracking-tight sm:text-xl">Accueil zombie</span>
-                <span className="block text-sm text-muted-foreground">Arrivées, checklist et équipes</span>
-              </span>
-              <ArrowUpRight className="size-5 shrink-0 text-emerald-300" aria-hidden />
-            </Link>}
-            <Link href={offlineCheckInPage} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-primary/50 sm:p-6">
-              <WifiOff className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="flex-1">
-                <span className="block font-semibold tracking-tight">Accueil hors ligne</span>
-                <span className="block text-sm text-muted-foreground">Préparer ou ouvrir la liste sur cet appareil</span>
-              </span>
-              <ArrowUpRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            </Link>
+        {modules.length > 0 && (
+          <section aria-labelledby="workspace-modules">
+            <h2 id="workspace-modules" className="mb-3 text-lg font-semibold tracking-tight">Accès aux modules</h2>
+            <div className="workspace-card-grid">
+              {modules.map(({ icon: Icon, label, path, tone, description }) => (
+                <Link key={path} href={path} className="workspace-link">
+                  <span className="workspace-icon size-11" data-tone={tone}><Icon className="size-5" aria-hidden /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-semibold">{label}</span>
+                    <span className="mt-1 block text-sm text-muted-foreground">{description}</span>
+                  </span>
+                  <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                </Link>
+              ))}
+            </div>
           </section>
         )}
 
         <section aria-label="Chiffres clés">
+          <h2 className="mb-3 text-lg font-semibold tracking-tight">Chiffres clés</h2>
           {isLoading ? (
             <Skeleton className="h-28 rounded-xl" />
           ) : stats ? (

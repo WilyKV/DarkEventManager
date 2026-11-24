@@ -76,6 +76,12 @@ function AppHome() {
 function Router() {
   const [location] = useLocation();
   const online = useOnlineStatus();
+  React.useLayoutEffect(() => {
+    const publicPage = ["/login", "/visitor", "/setup"].includes(location) || location.startsWith("/souvenir/");
+    document.documentElement.classList.toggle("dark", publicPage);
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", publicPage ? "#121417" : "#f5f7fa");
+    document.documentElement.dataset.workspace = publicPage ? "" : location.slice(1);
+  }, [location]);
   if (!online && !location.startsWith("/souvenir/") && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
     return <Redirect to={offlineCheckInPage} />;
   }

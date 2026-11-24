@@ -43,7 +43,7 @@ export function OfflineSquadRoster({ squads, timeSlots, participants }: Pick<Off
             <span className="block font-semibold">{title}</span>
             {context && <span className="block break-words text-xs text-muted-foreground">{context}</span>}
           </span>
-          <span className={extra ? "text-sm font-medium text-amber-400" : "text-sm text-muted-foreground"}>
+          <span className={extra ? "text-sm font-medium text-amber-800" : "text-sm text-muted-foreground"}>
             {all.length}{max === null ? "" : ` / ${max}`}
             {extra > 0 && <span className="block text-xs">+${extra} au-delà du maximum</span>}
           </span>
@@ -53,7 +53,7 @@ export function OfflineSquadRoster({ squads, timeSlots, participants }: Pick<Off
           {shown.map(player => (
             <li key={player.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-3 py-2 text-sm">
               <span className="min-w-0 break-words">{player.firstName} {player.lastName}</span>
-              <span className={player.state.arrived && !player.returned ? "text-emerald-400" : "text-muted-foreground"}>
+              <span className={player.state.arrived && !player.returned ? "text-emerald-700" : "text-muted-foreground"}>
                 {player.returned ? "Sorti" : player.state.arrived ? "Arrivé" : "Attendu"}
               </span>
             </li>

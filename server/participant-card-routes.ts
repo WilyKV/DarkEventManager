@@ -17,6 +17,14 @@ import { offlinePlayerIdentity } from "./zombie-offline-routes";
 
 const tokenPattern = /^[A-Za-z0-9_-]{27}$/;
 const codeCharacters = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+function generateCardCode() {
+  return Array.from({ length: 10 }, () => codeCharacters[randomInt(codeCharacters.length)]).join("");
+}
+
+function codeProof(card: Pick<typeof participantCards.$inferSelect, "token" | "code">) {
+  return createHash("sha256").update(JSON.stringify([card.token, card.code])).digest("hex");
+}
+
 const issueSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(500),
   pdf: z.enum(printModes).optional(),
@@ -107,7 +115,7 @@ async function issueCards(tx: Transaction, players: CardPlayer[], config: typeof
     return [{
       identity, participantId: player.id, summary: { ...recap(player, config.eventDay), highlights },
       token: randomBytes(20).toString("base64url"),
-      code: Array.from({ length: 10 }, () => codeCharacters[randomInt(codeCharacters.length)]).join(""),
+      code: generateCardCode(),
       expiresAt,
     }];
   });
@@ -409,6 +417,26 @@ export function registerParticipantCardRoutes(app: Express) {
     res.sendStatus(status);
   });
 
+  app.post(`${cardsPath}/admin/:id/regenerate-code`, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const id = z.coerce.number().int().positive().safeParse(req.params.id);
+    if (!id.success) return res.sendStatus(404);
+    const config = await storage.getSyncConfig();
+    const result = await db.transaction(async tx => {
+      await lockedConfig(tx, config.id);
+      const [player] = await cardPlayers(tx, [id.data]);
+      if (!player) return { status: 404 };
+      const [card] = await tx.select({ id: participantCards.id, code: participantCards.code, expiresAt: participantCards.expiresAt })
+        .from(participantCards).where(eq(participantCards.identity, identityOf(player))).for("update");
+      if (!card) return { status: 404 };
+      if (card.expiresAt && card.expiresAt <= new Date()) return { status: 410 };
+      let code = generateCardCode();
+      while (code === card.code) code = generateCardCode();
+      await tx.update(participantCards).set({ code }).where(eq(participantCards.id, card.id));
+      return { status: 200, code };
+    });
+    return result.code ? res.json({ code: result.code }) : res.sendStatus(result.status);
+  });
+
   app.post(`${cardsPath}/open/:token`, unlockLimit, async (req, res) => {
     const code = typeof req.body?.code === "string" ? req.body.code.replace(/[\s-]/g, "").toUpperCase() : "";
     const card = await getCard(req.params.token);
@@ -420,6 +448,7 @@ export function registerParticipantCardRoutes(app: Express) {
     if (!req.session.user) await new Promise<void>((resolve, reject) =>
       req.session.regenerate(err => err ? reject(err) : resolve()));
     req.session.souvenirToken = card.token;
+    req.session.souvenirCodeProof = codeProof(card);
     req.session.souvenirRemembered = req.body?.remember === true;
     if (req.session.souvenirRemembered && !req.session.user) {
       const thirtyDays = 30 * 24 * 60 * 60 * 1000;
@@ -454,6 +483,7 @@ export function registerParticipantCardRoutes(app: Express) {
     if (!card || (card.expiresAt && card.expiresAt <= new Date())) {
       return res.status(410).json({ message: "Cet espace souvenir a expiré." });
     }
+    if (req.session.souvenirCodeProof !== codeProof(card)) return res.sendStatus(401);
     if (req.path.endsWith("/photo")) {
       if (!card.photo) return res.sendStatus(404);
       return res.type("image/jpeg").send(Buffer.from(card.photo, "base64"));
@@ -472,8 +502,10 @@ export function registerParticipantCardRoutes(app: Express) {
 
   app.delete(`${cardsPath}/view/:token/photo`, async (req, res) => {
     if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    const card = await getCard(req.params.token);
+    if (!card || req.session.souvenirCodeProof !== codeProof(card)) return res.sendStatus(401);
     const [updated] = await db.update(participantCards).set({ photo: null, photoRemovedAt: new Date() })
-      .where(and(eq(participantCards.token, req.params.token),
+      .where(and(eq(participantCards.id, card.id), eq(participantCards.code, card.code),
         or(isNull(participantCards.expiresAt), sql`${participantCards.expiresAt} > now()`)))
       .returning({ id: participantCards.id });
     return res.sendStatus(updated ? 204 : 410);
@@ -486,9 +518,11 @@ export function registerParticipantCardRoutes(app: Express) {
 
   app.post(`${cardsPath}/view/:token/erasure-request`, async (req, res) => {
     if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    const card = await getCard(req.params.token);
+    if (!card || req.session.souvenirCodeProof !== codeProof(card)) return res.sendStatus(401);
     const [request] = await db.update(participantCards).set({
       erasureRequestedAt: sql`coalesce(${participantCards.erasureRequestedAt}, now())`,
-    }).where(and(eq(participantCards.token, req.params.token), sql`${participantCards.expiresAt} > now()`))
+    }).where(and(eq(participantCards.id, card.id), eq(participantCards.code, card.code), sql`${participantCards.expiresAt} > now()`))
       .returning({ requestedAt: participantCards.erasureRequestedAt });
     if (!request?.requestedAt) return res.status(409).json({ message: "La demande est disponible après la clôture et avant l’expiration de l’espace." });
     return res.json({ requestedAt: request.requestedAt.toISOString() });
@@ -522,6 +556,7 @@ export function registerParticipantCardRoutes(app: Express) {
   app.delete(`${cardsPath}/open/:token`, (req, res) => {
     if (req.session.souvenirToken === req.params.token) {
       delete req.session.souvenirToken;
+      delete req.session.souvenirCodeProof;
       delete req.session.souvenirRemembered;
     }
     res.sendStatus(204);

@@ -1,3 +1,4 @@
+import { CardCodeActions } from "@/components/card-code-actions";
 import { AdminSouvenirLink } from "@/components/admin-souvenir-link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -123,7 +124,7 @@ export default function BadgesPage() {
             </div>
             {card.isLoading && <p role="status">Préparation de la carte…</p>}
             {card.isError && <p role="alert">Impossible de charger la carte.</p>}
-            {card.data && <ParticipantCard card={card.data} />}
+            {card.data && <><CardCodeActions key={card.data.id} card={card.data} /><ParticipantCard card={card.data} /></>}
             <SouvenirPhoto key={current.id} onSave={async photo => { await apiRequest("PATCH", `${cardsPath}/${current.id}/photo`, { photo }); }} />
           </section> : <p className="p-4 text-muted-foreground">Ouvrez un nom dans la liste pour voir sa carte et associer une photo.</p>}
         </div>

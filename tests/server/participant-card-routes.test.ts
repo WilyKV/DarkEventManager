@@ -97,7 +97,7 @@ describe("Espace souvenir", () => {
     const requestedAt = new Date("2027-01-03T12:00:00Z");
     const agent = request.agent(makeApp());
     expect((await agent.post(open).send({ code })).status).toBe(204);
-    readCard.mockResolvedValueOnce([{
+    readCard.mockResolvedValue([{
       participantId: 12, token, code, expiresAt: new Date(Date.now() + 86_400_000),
       erasureRequestedAt: requestedAt,
       summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: null, squad: null, eventDay: null,
@@ -154,6 +154,26 @@ describe("Espace souvenir", () => {
     } finally {
       participant.mockRestore();
     }
+  });
+
+  it("révoque le code et l’accès mémorisé lorsque le code de la carte change", async () => {
+    const app = makeApp();
+    const agent = request.agent(app);
+    expect((await agent.post(open).send({ code, remember: true })).status).toBe(204);
+    const newCode = "WXYZ234567";
+    readCard.mockResolvedValue([{
+      id: 3, participantId: 12, token, code: newCode, expiresAt: new Date(Date.now() + 60_000),
+      summary: { firstName: "Clara", gameStart: null, gameEnd: null, highlights: { zombies: 1, survivors: 0, photoUrl: null } },
+      photo: "/9j/2Q==",
+    }]);
+    expect((await agent.get(`${view}?resume=1`)).status).toBe(401);
+    expect((await agent.get(`${view}/photo`)).status).toBe(401);
+    expect((await agent.delete(`${view}/photo`)).status).toBe(401);
+    expect((await agent.post(`${view}/erasure-request`)).status).toBe(401);
+    expect((await agent.post(open).send({ code })).status).toBe(401);
+    expect((await agent.post(open).send({ code: newCode })).status).toBe(204);
+    expect((await agent.get(view)).status).toBe(200);
+    expect((await request(makeApp("staff_zombie")).post(`${cardsPath}/admin/12/regenerate-code`)).status).toBe(403);
   });
 
   it("refuse une carte expirée même après ouverture de la session", async () => {

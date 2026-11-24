@@ -48,8 +48,9 @@ export default defineConfig({
       },
       workbox: {
         clientsClaim: true,
+        maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
         importScripts: ["/legacy-pwa-upgrade.js"],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}", "accueil-zombies/*.{mp4,m4a,ttf}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
       },

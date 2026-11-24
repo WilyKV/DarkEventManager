@@ -1,3 +1,5 @@
+import { ZombieWelcomeVideo } from "./zombie-welcome-video";
+import { normalizeWelcomeTime } from "./zombie-welcome-timeline";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -77,22 +79,37 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
   }
 
   if (!briefed) {
-    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams}
-      onBack={() => {
-        if (first.type !== "staff") setAssignment(undefined);
-        else if (savedIds.length) void onReplan();
-        else onBack();
-      }} onContinue={completed => {
-        if (completed && first.type !== "staff") {
-          setAssignment(assignment.map(arrival => ({
-            ...arrival, details: { ...arrival.details, checklist: {
-              ...arrival.details.checklist, briefingExplained: true,
-              ...(first.type === "zombie" && { makeupWaitExplained: true }),
-            } },
-          })));
-        }
-        setBriefed(true);
-      }} />;
+    const back = () => {
+      if (first.type !== "staff") setAssignment(undefined);
+      else if (savedIds.length) void onReplan();
+      else onBack();
+    };
+    const continueWelcome = (completed: boolean) => {
+      if (completed && first.type !== "staff") {
+        setAssignment(assignment.map(arrival => ({
+          ...arrival, details: { ...arrival.details, checklist: {
+            ...arrival.details.checklist, briefingExplained: true,
+            ...(first.type === "zombie" && { makeupWaitExplained: true }),
+          } },
+        })));
+      }
+      setBriefed(true);
+    };
+    const team = roster.teams.find(item => item.id === assignment[0]?.details.squadId);
+    const briefing = normalizeWelcomeTime(slot?.briefingTime);
+    const start = normalizeWelcomeTime(slot?.gameTime);
+    const end = normalizeWelcomeTime(slot?.exitTime);
+    if (first.type === "zombie" && team && briefing && start && end) {
+      const otherTimes = roster.slots.flatMap(item => {
+        const time = normalizeWelcomeTime(item.briefingTime);
+        const zombieWave = item.type === "zombie" || (!item.type && roster.players.some(player => player.type === "zombie" && player.timeSlotId === item.id));
+        return zombieWave && item.id !== slot?.id && time ? [time] : [];
+      });
+      const squadCount = roster.teams.filter(item => item.timeSlotId === team.timeSlotId && (!item.type || item.type === "zombie")).length;
+      return <ZombieWelcomeVideo names={assignment.map(({ player }) => player.firstName)} briefing={briefing}
+        start={start} end={end} squad={team.number} otherTimes={otherTimes} squadCount={squadCount} onBack={back} onContinue={continueWelcome} />;
+    }
+    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={continueWelcome} />;
   }
 
   if (!completed) {

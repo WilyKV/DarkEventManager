@@ -1,0 +1,152 @@
+@font-face {
+  font-family: "Zombie Luckiest";
+  src: url("/accueil-zombies/LuckiestGuy-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Zombie Fredoka";
+  src: url("/accueil-zombies/Fredoka.ttf") format("truetype");
+  font-display: swap;
+}
+
+.zombie-show {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.zombie-show-stage {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  place-items: center;
+  container-type: size;
+  background: #10081b;
+}
+
+.zombie-show-stage:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+.zombie-show-frame {
+  position: relative;
+  width: min(100cqw, 177.778cqh);
+  aspect-ratio: 16 / 9;
+  container-type: inline-size;
+  overflow: hidden;
+  background: #211033;
+  color: #fff5dc;
+  font-family: "Zombie Fredoka", system-ui, sans-serif;
+}
+
+.zombie-show-frame > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.zombie-show-name,
+.zombie-show-card,
+.zombie-show-center,
+.zombie-show-skip,
+.zombie-show-message {
+  --u: calc(100cqw / 1920);
+  position: absolute;
+}
+
+.zombie-show-name {
+  left: 15.625%;
+  top: 25.926%;
+  width: 68.75%;
+  height: 48.148%;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+  line-height: 1;
+  font-family: "Zombie Luckiest", system-ui, sans-serif;
+  text-shadow: 0 .5cqw #180826, 0 0 1cqw #180826;
+}
+
+.zombie-show-name span { color: #ffad63; font-size: calc(68 * var(--u)); }
+.zombie-show-name strong { max-width: 95%; overflow-wrap: anywhere; font-size: calc(164 * var(--u)); }
+
+.zombie-show-card {
+  left: 30.73%;
+  top: 46.3%;
+  width: 30%;
+  padding: calc(30 * var(--u));
+  border: .4cqw solid #1d102e;
+  border-radius: 1.8cqw;
+  background: #47246b;
+  box-shadow: 0 .55cqw #1d102e;
+  text-align: center;
+  font-family: "Zombie Luckiest", system-ui, sans-serif;
+  font-size: calc(52 * var(--u));
+  line-height: 1.12;
+}
+
+.zombie-show-card > * { display: block; }
+.zombie-show-card strong { color: #ffbd79; font-size: calc(122 * var(--u)); }
+.zombie-show-card small { font: 600 calc(35 * var(--u)) "Zombie Fredoka", sans-serif; }
+.zombie-show-game { left: 28%; width: 38%; }
+.zombie-show-game div { display: flex; justify-content: space-between; gap: .7cqw; }
+.zombie-show-game strong { font-size: calc(76 * var(--u)); }
+
+.zombie-show-center,
+.zombie-show-message {
+  display: grid;
+  inset: 0;
+  place-content: center;
+  text-align: center;
+  background: #211033d9;
+  font-size: calc(54 * var(--u));
+}
+
+.zombie-show-center button,
+.zombie-show-skip {
+  min-height: 44px;
+  border: .35cqw solid #1d102e;
+  border-radius: 1.5cqw;
+  padding: .5cqw 1.75cqw;
+  background: #c8ee6e;
+  color: #211033;
+  font-family: "Zombie Luckiest", system-ui, sans-serif;
+}
+
+.zombie-show-skip {
+  right: 2%;
+  bottom: 2%;
+  font-family: "Zombie Fredoka", sans-serif;
+  font-size: max(12px, calc(36 * var(--u)));
+}
+
+.zombie-show-quiz {
+  z-index: 1;
+  grid-template-columns: min(75%, 75cqw);
+  gap: 1cqw;
+}
+
+.zombie-show-quiz h3 { font: calc(74 * var(--u)) "Zombie Luckiest", system-ui, sans-serif; }
+.zombie-show-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5cqw; }
+.zombie-show-choices button { min-height: max(44px, 7.5cqw); background: #fff5dc; font-size: calc(84 * var(--u)); }
+.zombie-show-choices [data-answer="wrong"] { background: #ff83ae; animation: zombie-wrong .32s ease-out; }
+.zombie-show-choices [data-answer="correct"] { background: #c8ee6e; }
+.zombie-show-quiz p { min-height: 1.3em; }
+.zombie-show-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
+.zombie-show-controls button { min-height: 44px; padding: .4rem .8rem; border: 1px solid hsl(var(--border)); border-radius: .5rem; background: hsl(var(--card)); }
+
+@keyframes zombie-wrong {
+  25%, 75% { transform: translateX(-1cqw); }
+  50% { transform: translateX(1cqw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zombie-show-choices [data-answer="wrong"] { animation: none; }
+}

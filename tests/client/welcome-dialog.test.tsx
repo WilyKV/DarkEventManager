@@ -100,7 +100,7 @@ describe("Accueil tactile", () => {
     expect(recommended).toHaveAttribute("aria-pressed", "false");
     await user.click(recommended);
     await click(user, "Confirmer la squad");
-    expect(screen.getByText("Bonjour Clara ! Bonjour Lucie !")).toBeVisible();
+    expect(screen.getByRole("region", { name: "Présentation vidéo Zombies" })).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     await reviewArrival(user);
     await click(user, "Valider les 2 arrivées");

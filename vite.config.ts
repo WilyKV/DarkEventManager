@@ -14,8 +14,8 @@ export default defineConfig({
         short_name: "ZombDark",
         description:
           "Système de gestion pour l'événement Zomb'in The Dark — zombies, survivants, boutique et repas",
-        theme_color: "#121417",
-        background_color: "#121417",
+        theme_color: "#d6dae1",
+        background_color: "#d6dae1",
         display: "standalone",
         id: "/",
         scope: "/",

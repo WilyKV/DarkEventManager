@@ -86,7 +86,7 @@ export function inspectEventBackup(payload: unknown): { backup: EventBackup; sum
     if ((table === appConfig || table === participantCards) && Array.isArray(rows)) {
       for (const row of rows) {
         if (row && typeof row === "object") {
-          const optionalColumns = table === appConfig ? ["event_closed_at", "souvenir_settings", "makeup_artists"] : ["photo_removed_at"];
+          const optionalColumns = table === appConfig ? ["event_closed_at", "souvenir_settings", "makeup_artists"] : ["photo_removed_at", "erasure_requested_at"];
           for (const column of optionalColumns) if (!Object.hasOwn(row, column)) row[column] = null;
         }
       }

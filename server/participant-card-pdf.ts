@@ -7,7 +7,7 @@ import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardSh
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, qrX, qrY, qrSize, codeY } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -57,7 +57,7 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
     if (theme.zombie) {
       doc.fillColor("#ffffff").font("CardRegular").text("Maquillage", pt(28), pt(45.5), { lineBreak: false });
-      doc.roundedRect(pt(49), pt(45), pt(14), pt(4), pt(0.45)).fill("#ffffff");
+      doc.roundedRect(pt(49), pt(makeupBoxY), pt(14), pt(makeupBoxHeight), pt(0.45)).fill("#ffffff");
     }
     return;
   }

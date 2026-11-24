@@ -2,9 +2,10 @@ import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-export function SouvenirDeleteAction({ label, description, disabled, onConfirm }: {
+export function SouvenirDeleteAction({ label, description, confirmLabel = "Supprimer définitivement", disabled, onConfirm }: {
   label: string;
   description: string;
+  confirmLabel?: string;
   disabled?: boolean;
   onConfirm: () => void;
 }) {
@@ -19,7 +20,7 @@ export function SouvenirDeleteAction({ label, description, disabled, onConfirm }
       </AlertDialogHeader>
       <AlertDialogFooter>
         <AlertDialogCancel>Annuler</AlertDialogCancel>
-        <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={onConfirm}>Supprimer définitivement</AlertDialogAction>
+        <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>;

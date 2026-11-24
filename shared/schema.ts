@@ -65,6 +65,7 @@ export const participantCards = pgTable("participant_cards", {
   summary: jsonb("summary").$type<SouvenirSummary>().notNull(),
   photo: text("photo"),
   photoRemovedAt: timestamp("photo_removed_at", { withTimezone: true }),
+  erasureRequestedAt: timestamp("erasure_requested_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 });
 

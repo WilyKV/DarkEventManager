@@ -1,4 +1,8 @@
 export const cardsPath = "/api/participant-cards";
+export const souvenirErasureRequestsPath = `${cardsPath}/erasure-requests`;
+export const souvenirErasureDeadline = (requestedAt: Date) => new Date(requestedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+export type SouvenirErasureRequest = { id: number; firstName: string; lastName: string; requestedAt: string };
+
 export const souvenirSettingsPath = `${cardsPath}/settings`;
 export type SouvenirAttendance = { zombies: number; survivors: number };
 export type SouvenirSettings = { zombies: number | null; survivors: number | null; photoUrl: string | null };
@@ -37,6 +41,7 @@ export type SouvenirSummary = {
 export type ParticipantSouvenir = SouvenirSummary & {
   expiresAt: string | null;
   photoAvailable: boolean;
+  erasureRequestedAt?: string | null;
 };
 
 export function souvenirExpiry(closedAt: Date) {
@@ -81,6 +86,8 @@ export const cardLayout = {
   namePanelY: 18.5,
   namePanelHeight: 13,
   mealBoxSize: 5.5,
+  makeupBoxY: 43.5,
+  makeupBoxHeight: 7,
   qrX: 55.5,
   qrY: 13.5,
   qrSize: 23,

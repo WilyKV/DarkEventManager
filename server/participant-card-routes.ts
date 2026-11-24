@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
-import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirExpiry, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
+import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
 import { checkInRoles } from "@shared/check-in";
 import { db } from "./db";
@@ -467,7 +467,7 @@ export function registerParticipantCardRoutes(app: Express) {
       const config = await storage.getSyncConfig();
       summary = { ...recap(player, config.eventDay), highlights: await db.transaction(tx => eventHighlights(tx, config)) };
     }
-    res.json({ ...summary, expiresAt: card.expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card.photo) });
+    res.json({ ...summary, expiresAt: card.expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card.photo), erasureRequestedAt: card.erasureRequestedAt?.toISOString() ?? null });
   });
 
   app.delete(`${cardsPath}/view/:token/photo`, async (req, res) => {
@@ -479,26 +479,44 @@ export function registerParticipantCardRoutes(app: Express) {
     return res.sendStatus(updated ? 204 : 410);
   });
 
-  app.delete(`${cardsPath}/view/:token`, async (req, res) => {
+  app.delete(`${cardsPath}/view/:token`, (req, res) => {
     if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    return res.status(405).json({ message: "Rechargez la page pour envoyer une demande d’effacement à l’administrateur." });
+  });
+
+  app.post(`${cardsPath}/view/:token/erasure-request`, async (req, res) => {
+    if (req.session.souvenirToken !== req.params.token) return res.sendStatus(401);
+    const [request] = await db.update(participantCards).set({
+      erasureRequestedAt: sql`coalesce(${participantCards.erasureRequestedAt}, now())`,
+    }).where(and(eq(participantCards.token, req.params.token), sql`${participantCards.expiresAt} > now()`))
+      .returning({ requestedAt: participantCards.erasureRequestedAt });
+    if (!request?.requestedAt) return res.status(409).json({ message: "La demande est disponible après la clôture et avant l’expiration de l’espace." });
+    return res.json({ requestedAt: request.requestedAt.toISOString() });
+  });
+
+  app.get(souvenirErasureRequestsPath, requireRole("admin"), async (_req, res) => {
+    const pending = await db.select({ id: participantCards.id, summary: participantCards.summary,
+      requestedAt: participantCards.erasureRequestedAt })
+      .from(participantCards).where(isNotNull(participantCards.erasureRequestedAt)).orderBy(participantCards.erasureRequestedAt);
+    return res.json(pending.map(({ id, summary, requestedAt }) => ({
+      id, firstName: summary.firstName, lastName: summary.lastName, requestedAt: requestedAt!.toISOString(),
+    })));
+  });
+
+  app.delete(`${souvenirErasureRequestsPath}/:id`, requireRole("admin"), checkSyncPermissions, async (req, res) => {
+    const cardId = z.coerce.number().int().positive().safeParse(req.params.id);
+    if (!cardId.success) return res.sendStatus(404);
     const { id } = await storage.getSyncConfig();
-    const status = await db.transaction(async tx => {
+    const deleted = await db.transaction(async tx => {
       await lockedConfig(tx, id);
       const [card] = await tx.select({ id: participantCards.id, token: participantCards.token,
-        identity: participantCards.identity, participantId: participantCards.participantId, expiresAt: participantCards.expiresAt })
-        .from(participantCards).where(eq(participantCards.token, req.params.token)).for("update");
-      if (!card) return 404;
-      if (!card.expiresAt) return 409;
+        identity: participantCards.identity, participantId: participantCards.participantId })
+        .from(participantCards).where(and(eq(participantCards.id, cardId.data), isNotNull(participantCards.erasureRequestedAt))).for("update");
+      if (!card) return false;
       await eraseParticipantCard(tx, card);
-      return 204;
+      return true;
     });
-    if (status === 409) return res.status(409).json({ message: "La suppression complète est disponible après la clôture de l’événement." });
-    if (status === 204) {
-      delete req.session.souvenirToken;
-      delete req.session.souvenirRemembered;
-      delete req.session.visitor;
-    }
-    return res.sendStatus(status);
+    return res.sendStatus(deleted ? 204 : 404);
   });
 
   app.delete(`${cardsPath}/open/:token`, (req, res) => {

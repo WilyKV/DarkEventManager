@@ -5,7 +5,7 @@ import express from "express";
 import session from "express-session";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cardsPath, souvenirExpiry, souvenirSettingsPath } from "@shared/participant-card";
+import { cardsPath, souvenirErasureRequestsPath, souvenirExpiry, souvenirSettingsPath } from "@shared/participant-card";
 
 const { readCard, savePhotoWithdrawal } = vi.hoisted(() => ({ readCard: vi.fn(), savePhotoWithdrawal: vi.fn() }));
 vi.mock("../../server/db", () => ({
@@ -91,6 +91,27 @@ describe("Espace souvenir", () => {
     expect((await agent.post(open).send({ code })).status).toBe(204);
     expect((await agent.delete(`${cardsPath}/view/${"B".repeat(27)}`)).status).toBe(401);
     expect((await agent.delete(`${cardsPath}/view/${"B".repeat(27)}/photo`)).status).toBe(401);
+  });
+
+  it("enregistre une demande sans effacer le profil ni fermer sa session", async () => {
+    const requestedAt = new Date("2027-01-03T12:00:00Z");
+    const agent = request.agent(makeApp());
+    expect((await agent.post(open).send({ code })).status).toBe(204);
+    readCard.mockResolvedValueOnce([{
+      participantId: 12, token, code, expiresAt: new Date(Date.now() + 86_400_000),
+      erasureRequestedAt: requestedAt,
+      summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: null, squad: null, eventDay: null,
+        gameStart: null, gameEnd: null, highlights: { zombies: 64, survivors: 80, photoUrl: null } },
+    }]);
+    savePhotoWithdrawal.mockReturnValueOnce({ where: () => ({ returning: async () => [{ requestedAt }] }) });
+    expect((await agent.post(`${view}/erasure-request`)).body).toEqual({ requestedAt: requestedAt.toISOString() });
+    expect((await agent.delete(view)).status).toBe(405);
+    const recap = await agent.get(view);
+    expect(recap.status).toBe(200);
+    expect(recap.body.erasureRequestedAt).toBe(requestedAt.toISOString());
+    expect((await request(makeApp()).post(`${view}/erasure-request`)).status).toBe(401);
+    expect((await request(makeApp("staff_zombie")).get(souvenirErasureRequestsPath)).status).toBe(403);
+    expect((await request(makeApp("staff_zombie")).delete(`${souvenirErasureRequestsPath}/3`)).status).toBe(403);
   });
 
   it("efface la photo authentifiée et mémorise le retrait pour les envois suivants", async () => {

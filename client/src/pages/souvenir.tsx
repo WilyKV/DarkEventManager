@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
-import { cardAssets, cardsPath, souvenirCodeHint, type ParticipantSouvenir } from "@shared/participant-card";
+import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, type ParticipantSouvenir } from "@shared/participant-card";
 import { StaffCardActions } from "@/components/staff-card-actions";
 import { useAuth } from "@/lib/auth";
 import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import "./souvenir.css";
 
 const eventDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "UTC" });
+const parisDay = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeZone: "Europe/Paris" });
 const parisDate = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" });
 
 function Detail({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
@@ -62,7 +63,6 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
   const [checkingSession, setCheckingSession] = useState(!adminId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [erased, setErased] = useState(false);
 
   useEffect(() => {
     if (adminId || checkingAccount) return;
@@ -121,18 +121,19 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
     }
   }
 
-  async function erase(scope: "photo" | "all") {
+  async function updatePersonalData(action: "photo" | "request") {
     if (busy || adminId) return;
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(scope === "photo" ? `${view}/photo` : view, { method: "DELETE" });
-      if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? "Impossible de supprimer les données.");
-      if (scope === "photo") {
+      const response = await fetch(action === "photo" ? `${view}/photo` : `${view}/erasure-request`,
+        { method: action === "photo" ? "DELETE" : "POST" });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.message ?? "Impossible d’enregistrer cette action.");
+      if (action === "photo") {
         setSummary(current => current && { ...current, photoAvailable: false });
       } else {
-        setSummary(undefined);
-        setErased(true);
+        const { requestedAt } = await response.json() as { requestedAt: string };
+        setSummary(current => current && { ...current, erasureRequestedAt: requestedAt });
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Connexion au serveur impossible.");
@@ -168,7 +169,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
             </time>}
           </div>
           <SouvenirPortrait summary={summary} src={`${view}/photo`} busy={busy}
-            onRemove={adminId ? undefined : () => void erase("photo")} />
+            onRemove={adminId ? undefined : () => void updatePersonalData("photo")} />
         </section>
         <section className="souvenir-recap souvenir-enter" aria-label="Récapitulatif de la participation">
           {summary.type !== "staff" && <div className="souvenir-squad">
@@ -212,16 +213,19 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
         </footer>
         {!adminId && <section className="souvenir-highlights" aria-labelledby="souvenir-data-title">
           <h2 id="souvenir-data-title">Mes données personnelles</h2>
-          <p className="my-3 text-sm text-[#e1cdd5]">{summary.expiresAt
-            ? "Vous pouvez demander leur effacement avant la date prévue."
-            : "La suppression complète est disponible après la clôture de l’événement."}</p>
-          <SouvenirDeleteAction label="Supprimer mes données" disabled={busy || !summary.expiresAt}
-            description="Votre fiche, son récapitulatif et votre photo seront supprimés de l’application. Le code de la carte cessera de fonctionner."
-            onConfirm={() => void erase("all")} />
+          {summary.erasureRequestedAt ? <p role="status" className="my-3 text-sm text-[#e1cdd5]">
+            Demande envoyée à l’administrateur. Échéance de réponse le {parisDay.format(souvenirErasureDeadline(new Date(summary.erasureRequestedAt)))}.
+          </p> : <>
+            <p className="my-3 text-sm text-[#e1cdd5]">{summary.expiresAt
+              ? "L’administrateur dispose de 30 jours pour traiter votre demande."
+              : "Vous pourrez demander l’effacement après la clôture de l’événement."}</p>
+            <SouvenirDeleteAction label="Demander l’effacement de mes données" confirmLabel="Envoyer la demande"
+              disabled={busy || !summary.expiresAt}
+              description="L’administrateur recevra votre demande et pourra la traiter sous 30 jours. L’envoi de la demande laisse votre espace accessible."
+              onConfirm={() => void updatePersonalData("request")} />
+          </>}
         </section>}
-      </> : erased ? <section className="souvenir-unlock">
-        <div><h1>Vos données ont été supprimées.</h1><p>Le code de cette carte ne permet plus d’ouvrir l’espace souvenir.</p></div>
-      </section> : adminId ? (
+      </> : adminId ? (
         <section className="souvenir-unlock">
           <div>
             <h1>Espace souvenir</h1>

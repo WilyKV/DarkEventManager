@@ -1,3 +1,4 @@
+import { useWelcomeChecklist } from "./welcome-checklist-editor";
 import { offlineCheckInPage } from "@shared/zombie-offline";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
@@ -25,9 +26,10 @@ export function OnlineWelcomeDialog({ onClose }: { onClose: () => void }) {
   const canOpenLocal = hasAnyRole(checkInRoles);
   const profileTypes = hasAnyRole(["admin"]) ? checkInTypes
     : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
+  const checklist = useWelcomeChecklist(profileTypes.includes("zombie"), query.data?.welcomeChecklist);
   const retry = () => { void query.refetch(); };
 
-  return <WelcomeDialog onClose={onClose} roster={query.data} profileTypes={profileTypes} onReload={async () => (await query.refetch({ throwOnError: true })).data}
+  return <WelcomeDialog onClose={onClose} roster={query.data} checklist={checklist} profileTypes={profileTypes} onReload={async () => (await query.refetch({ throwOnError: true })).data}
     unavailable={!online || query.isError ? (
       <div className="flex flex-wrap items-center gap-2">
         <p role="status" className="w-full text-sm text-muted-foreground">{online ? "Impossible de joindre le serveur." : "Vous êtes hors connexion."}</p>

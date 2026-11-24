@@ -12,7 +12,7 @@ export function makeupEstimates(
   artists = defaultMakeupArtists,
 ) {
   const estimates = new Map<number, number>();
-  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(briefing ?? "");
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(briefing?.trim() ?? "");
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || !wave.length || artists < 1) return estimates;
   const arrivals = wave.flatMap(player => {
     const time = player.arrivedAt ? Date.parse(player.arrivedAt) : NaN;
@@ -27,7 +27,10 @@ export function makeupEstimates(
   const seconds = (first % minute) / minute;
   const rawWindow = Number(match[1]) * 60 + Number(match[2]) - (hours * 60 + minutes + seconds);
   const windowMinutes = rawWindow < -12 * 60 ? rawWindow + 24 * 60 : rawWindow;
-  if (windowMinutes <= 0) return estimates;
+  if (windowMinutes <= 0) {
+    // Once the briefing has started, there is no remaining scheduling window.
+    return new Map(arrivals.map(({ id, time }) => [id, time]));
+  }
 
   // Stagger the calls at 60% of the nominal interval with four artists.
   // Fewer artists space the calls out, and more artists bring them closer.

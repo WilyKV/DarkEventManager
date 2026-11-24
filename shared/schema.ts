@@ -1,3 +1,4 @@
+import type { WelcomeChecklist } from "./welcome-checklist";
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb, bigint, index, check } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
@@ -48,6 +49,7 @@ export const participants = pgTable("participants", {
   briefingExplained: boolean("briefing_explained").default(false),
   makeupWaitExplained: boolean("makeup_wait_explained").default(false),
   mapGiven: boolean("map_given").default(false),
+  welcomeChecks: jsonb("welcome_checks").$type<Record<string, boolean>>(),
   checklistCompleted: boolean("checklist_completed").default(false),
   hasFreemeal: boolean("has_free_meal").default(false), // Zombies get 1 free meal
   freeMealClaimed: boolean("free_meal_claimed").default(false),
@@ -178,6 +180,7 @@ export const appConfig = pgTable("app_config", {
   eventDay: date("event_day", { mode: "string" }),
   eventClosedAt: timestamp("event_closed_at", { withTimezone: true }),
   makeupArtists: integer("makeup_artists"),
+  welcomeChecklist: jsonb("welcome_checklist").$type<WelcomeChecklist>(),
   souvenirSettings: jsonb("souvenir_settings").$type<SouvenirSettings & { closedCounts?: SouvenirAttendance }>(),
   analyticsStartedAt: timestamp("analytics_started_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at").defaultNow(),

@@ -1,3 +1,4 @@
+import { defaultWelcomeChecklist, mergeWelcomeChecks, welcomeChecklistPath, welcomeChecklistSchema } from "@shared/welcome-checklist";
 import { defaultMakeupArtists, makeupSettingsPath } from "@shared/makeup";
 import { storage } from "./storage";
 import { createHash } from "node:crypto";
@@ -22,6 +23,7 @@ export function allowedCheckInTypes(roles: unknown): CheckInType[] {
 
 function asCheckInPlayer(row: Participant, type: CheckInType): CheckInPlayer {
   const details: CheckInDetails = { squadId: row.squadId, checklist: {} };
+  if (type === "zombie" && row.welcomeChecks && Object.keys(row.welcomeChecks).length) details.welcomeChecks = row.welcomeChecks;
   for (const item of checkInProfiles[type].checklist) details.checklist[item] = Boolean(row[item]);
   const revision = createHash("sha256").update(JSON.stringify([
     row.id, row.createdAt, row.firstName, row.lastName, row.timeSlotId, type,
@@ -35,6 +37,19 @@ function asCheckInPlayer(row: Participant, type: CheckInType): CheckInPlayer {
 
 export function registerCheckInRoutes(app: Express) {
   const allowCheckIn = requireRole(...checkInRoles);
+
+  const editChecklist = requireRole("admin", "staff_zombie");
+  app.get(welcomeChecklistPath, editChecklist, async (_req, res) => {
+    const config = await storage.getSyncConfig();
+    res.json(config.welcomeChecklist ?? defaultWelcomeChecklist);
+  });
+
+  app.patch(welcomeChecklistPath, editChecklist, checkSyncPermissions, async (req, res) => {
+    const parsed = welcomeChecklistSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "La checklist est invalide." });
+    const config = await storage.updateSyncConfig({ welcomeChecklist: parsed.data });
+    return res.json(config.welcomeChecklist);
+  });
 
   app.get(makeupSettingsPath, requireRole("admin"), async (_req, res) => {
     const config = await storage.getSyncConfig();
@@ -51,7 +66,7 @@ export function registerCheckInRoutes(app: Express) {
   app.get(checkInRosterPath, allowCheckIn, async (req, res) => {
     const types = allowedCheckInTypes(req.session?.user?.roles);
     const roster = await db.transaction(async tx => {
-      const [config] = await tx.select({ eventDay: appConfig.eventDay, makeupArtists: appConfig.makeupArtists }).from(appConfig).orderBy(appConfig.id).limit(1);
+      const [config] = await tx.select({ eventDay: appConfig.eventDay, makeupArtists: appConfig.makeupArtists, welcomeChecklist: appConfig.welcomeChecklist }).from(appConfig).orderBy(appConfig.id).limit(1);
       const players = (await tx.select().from(participants).where(and(inArray(participants.type, types), isNull(participants.deletedAt))))
         .flatMap(row => isCheckInType(row.type) ? [asCheckInPlayer(row, row.type)] : []);
       const slots = await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
@@ -62,7 +77,7 @@ export function registerCheckInRoutes(app: Express) {
         timeSlotId: squads.timeSlotId, maxMembers: squads.maxMembers, briefing: squads.briefing, members: count(participants.id) })
         .from(squads).leftJoin(participants, eq(participants.squadId, squads.id))
         .where(inArray(squads.type, types)).groupBy(squads.id);
-      return { eventDay: config?.eventDay ?? null, makeupArtists: config?.makeupArtists ?? defaultMakeupArtists, players, slots, teams };
+      return { eventDay: config?.eventDay ?? null, makeupArtists: config?.makeupArtists ?? defaultMakeupArtists, welcomeChecklist: types.includes("zombie") ? config?.welcomeChecklist ?? defaultWelcomeChecklist : undefined, players, slots, teams };
     }, { isolationLevel: "repeatable read", accessMode: "read only" });
     res.json(roster);
   });
@@ -86,14 +101,22 @@ export function registerCheckInRoutes(app: Express) {
 
       const type = row.type;
       const current = asCheckInPlayer(row, type);
-      const details = { squadId: type === "staff" ? row.squadId : squadId, checklist: { ...current.details.checklist } };
+      const [config] = type === "zombie"
+        ? await tx.select({ welcomeChecklist: appConfig.welcomeChecklist }).from(appConfig).orderBy(appConfig.id).limit(1)
+        : [];
+      const settings = config?.welcomeChecklist ?? defaultWelcomeChecklist;
+      const details: CheckInDetails = { squadId: type === "staff" ? row.squadId : squadId, checklist: { ...current.details.checklist } };
       for (const item of checkInProfiles[type].checklist) {
         if (checklist[item] !== undefined) details.checklist[item] = checklist[item];
       }
+      if (form.data.welcomeChecks !== undefined) {
+        details.welcomeChecks = mergeWelcomeChecks(current.details.welcomeChecks, form.data.welcomeChecks, settings);
+      }
       const sameDetails = details.squadId === row.squadId &&
         checkInProfiles[type].checklist.every(item => details.checklist[item] === current.details.checklist[item]);
+      const sameWelcomeChecks = Object.entries(details.welcomeChecks ?? {}).every(([id, value]) => current.details.welcomeChecks?.[id] === value);
       if (revision !== current.revision) {
-        if (current.arrived && sameDetails) return { status: 200, body: current };
+        if (current.arrived && sameDetails && sameWelcomeChecks) return { status: 200, body: current };
         return { status: 409, body: { message: "La fiche a été modifiée. Rechargez-la avant de continuer." } };
       }
 
@@ -110,8 +133,9 @@ export function registerCheckInRoutes(app: Express) {
       }
 
       const [saved] = await tx.update(participants).set({
-        arrived: true, arrivedAt: row.arrivedAt ?? (row.arrived ? null : new Date()), squadId: details.squadId,
-        ...details.checklist, ...(type !== "staff" && { checklistCompleted: checkInChecklistComplete(type, details) }),
+        arrived: true, arrivedAt: row.arrivedAt ?? new Date(), squadId: details.squadId,
+        ...details.checklist, ...(type === "zombie" && details.welcomeChecks && { welcomeChecks: details.welcomeChecks }),
+        ...(type !== "staff" && { checklistCompleted: checkInChecklistComplete(type, details, settings) }),
       }).where(eq(participants.id, row.id)).returning();
       if (changedTeam) await tx.insert(squadAuditLog).values({
         participantId: row.id, previousSquadId: row.squadId, newSquadId: details.squadId,

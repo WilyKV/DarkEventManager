@@ -1,3 +1,4 @@
+import { useWelcomeChecklist } from "@/components/welcome-checklist-editor";
 import { ArrivalTime, ArrivalTimeOption } from "@/components/arrival-time";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "wouter";
@@ -181,6 +182,7 @@ export default function OfflineCheckInPage() {
           arrivedAt: local.state.arrived ? local.state.arrivedAt : now,
           squadId: details.squadId,
           checklist: { ...local.state.checklist, ...details.checklist },
+          welcomeChecks: details.welcomeChecks ?? local.state.welcomeChecks,
         } };
       });
       await saveLocalCheckIns(active, changes);
@@ -281,6 +283,8 @@ export default function OfflineCheckInPage() {
       await persist(active, {
         ...active.data,
         eventDay: snapshot.eventDay,
+        welcomeChecklist: snapshot.welcomeChecklist,
+        makeupArtists: snapshot.makeupArtists,
         timeSlots: snapshot.timeSlots,
         squads: snapshot.squads,
         pending: active.data.pending.filter(id => id !== player.id),
@@ -293,6 +297,7 @@ export default function OfflineCheckInPage() {
   }
 
   const data = unlocked?.data;
+  const checklist = useWelcomeChecklist(Boolean(data?.profileTypes.includes("zombie") && hasAnyRole(["admin", "staff_zombie"])), data?.welcomeChecklist);
   const archived = new Set(data?.archives);
   const participants = data?.participants.filter(player => !archived.has(player.id)) ?? [];
   const toDelete = participants.find(player => player.id === deleteId);
@@ -316,10 +321,11 @@ export default function OfflineCheckInPage() {
     players: participants.map(player => ({
       id: player.id, firstName: player.firstName, lastName: player.lastName, type: player.type,
       timeSlotId: player.timeSlotId, arrived: player.state.arrived, arrivedAt: player.state.arrivedAt, returned: player.returned,
-      details: { squadId: player.state.squadId, checklist: player.state.checklist }, revision: player.revision,
+      details: { squadId: player.state.squadId, checklist: player.state.checklist, welcomeChecks: player.state.welcomeChecks }, revision: player.revision,
     })),
     eventDay: data.eventDay,
     makeupArtists: data.makeupArtists,
+    welcomeChecklist: data.welcomeChecklist,
     slots: data.timeSlots,
     teams: welcomeTeams,
   } : undefined;
@@ -473,14 +479,14 @@ export default function OfflineCheckInPage() {
             </Dialog>
           )}
           {welcomeOpen && (
-            <WelcomeDialog roster={welcomeRoster} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)}
+            <WelcomeDialog roster={welcomeRoster} checklist={checklist} profileTypes={data.profileTypes} onClose={() => setWelcomeOpen(false)}
               onSaveOfflineGroup={arrivals => saveGroup(unlocked, arrivals)} />
           )}
           {photosOpen && <SouvenirPhotoDialog players={participants} pendingPhotos={data.pendingPhotos} busy={busy}
             onClose={() => setPhotosOpen(false)} onSave={(id, photo) => changePendingPhoto(unlocked, id, photo)}
             onCancel={id => changePendingPhoto(unlocked, id, undefined)} />}
           {selected && (
-            <CheckInDialog key={selected.id} player={selected} membersByTeam={membersByTeam}
+            <CheckInDialog key={selected.id} player={selected} checklist={checklist} membersByTeam={membersByTeam}
               pendingPhoto={data.pendingPhotos?.[selected.id]}
               onCancelPendingPhoto={() => changePendingPhoto(unlocked, selected.id, undefined)}
               onSavePhoto={photo => changePendingPhoto(unlocked, selected.id, photo)}
@@ -545,8 +551,9 @@ export default function OfflineCheckInPage() {
   );
 }
 
-function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, error, pendingPhoto, onSavePhoto, onCancelPendingPhoto, onClose, onSave, onRestore }: {
+function CheckInDialog({ player, checklist, slot, teams, membersByTeam, conflict, busy, error, pendingPhoto, onSavePhoto, onCancelPendingPhoto, onClose, onSave, onRestore }: {
   player: OfflineParticipant;
+  checklist: ReturnType<typeof useWelcomeChecklist>;
   slot?: CheckInRoster["slots"][number];
   teams: CheckInRoster["teams"];
   membersByTeam: ReadonlyMap<number, readonly PlacementMember[]>;
@@ -570,7 +577,7 @@ function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, err
           <DialogTitle>{player.firstName} {player.lastName}</DialogTitle>
           <DialogDescription>Modifications enregistrées sur cet appareil.</DialogDescription>
         </DialogHeader>
-        <WelcomeGuide type={player.type} initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist }}
+        <WelcomeGuide type={player.type} checklistSettings={checklist.settings} canEditChecklist={checklist.canEdit} initialDetails={{ squadId: player.state.squadId, checklist: player.state.checklist, welcomeChecks: player.state.welcomeChecks }}
           slot={slot} teams={teams} membersByTeam={membersByTeam} allowCapacityOverride review={player.state.arrived || Boolean(conflict)} saving={busy} error={error}
           saveLabel="Enregistrer sur cet appareil"
           onSave={(details, _, overflowConfirmed) => onSave({
@@ -578,6 +585,7 @@ function CheckInDialog({ player, slot, teams, membersByTeam, conflict, busy, err
             arrivedAt: !arrived ? null : player.state.arrived ? player.state.arrivedAt : new Date().toISOString(),
             squadId: details.squadId,
             checklist: { ...player.state.checklist, ...details.checklist },
+            welcomeChecks: details.welcomeChecks ?? player.state.welcomeChecks,
           }, overflowConfirmed)}
           summary={<>
             <SouvenirPhoto pendingPhoto={pendingPhoto} onCancelPendingPhoto={onCancelPendingPhoto} onSave={onSavePhoto} disabled={busy} />

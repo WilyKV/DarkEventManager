@@ -4,10 +4,11 @@ import { timeSlotHourFields, type TimeSlotPhase, type WelcomeTimeSlot } from "@s
 const labels = { meal: "Repas", briefing: "Briefing", game: "Début du jeu", exit: "Sortie" };
 const briefingPhases = ["briefing", "game", "exit"] as const;
 
-export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = false }: {
+export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = false, compact = false }: {
   slot?: WelcomeTimeSlot | null;
   phases?: readonly TimeSlotPhase[];
   notesOnly?: boolean;
+  compact?: boolean;
 }) {
   if (!slot) return null;
 
@@ -19,11 +20,11 @@ export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = fal
   if (rows.length === 0) return null;
 
   return (
-    <dl className="divide-y divide-border/75 rounded-lg bg-muted/60 px-3 text-sm">
+    <dl className={`divide-y divide-border/75 rounded-lg bg-muted/60 px-3 ${compact ? "text-xs" : "text-sm"}`}>
       {rows.map(({ phase, time, note }) => (
-        <div key={phase} className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 py-2.5">
+        <div key={phase} className={`grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 ${compact ? "py-1.5" : "py-2.5"}`}>
           <dt className="font-medium">{labels[phase]}</dt>
-          {time && <dd className="font-semibold tabular-nums text-right">{time}</dd>}
+          {time && <dd className="font-semibold tabular-nums text-right">{time.replace(/^(\d{1,2}:\d{2}):\d{2}$/, "$1")}</dd>}
           {note && <dd className="col-span-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-muted-foreground">{note}</dd>}
         </div>
       ))}

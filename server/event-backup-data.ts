@@ -83,10 +83,11 @@ export function inspectEventBackup(payload: unknown): { backup: EventBackup; sum
     }
     const columns = Object.values(getTableColumns(table)).map(column => column.name);
     const rows: unknown = JSON.parse(data.rows);
-    if ((table === appConfig || table === participantCards) && Array.isArray(rows)) {
+    if ((table === appConfig || table === participantCards || table === participants) && Array.isArray(rows)) {
       for (const row of rows) {
         if (row && typeof row === "object") {
-          const optionalColumns = table === appConfig ? ["event_closed_at", "souvenir_settings", "makeup_artists"] : ["photo_removed_at", "erasure_requested_at"];
+          const optionalColumns = table === appConfig ? ["event_closed_at", "souvenir_settings", "makeup_artists", "welcome_checklist"]
+            : table === participants ? ["welcome_checks"] : ["photo_removed_at", "erasure_requested_at"];
           for (const column of optionalColumns) if (!Object.hasOwn(row, column)) row[column] = null;
         }
       }
@@ -149,7 +150,7 @@ export async function resetEventData(): Promise<void> {
     await tx.execute(sql`LOCK TABLE ${sql.join([...eventTables, appConfig], sql`, `)} IN EXCLUSIVE MODE`);
     for (const table of eventTables) await tx.delete(table);
     await tx.update(appConfig).set({
-      eventDay: null, eventClosedAt: null, souvenirSettings: null, makeupArtists: null, analyticsStartedAt: null, serverLamportTs: 0, lastSyncAt: null, updatedAt: new Date(),
+      eventDay: null, eventClosedAt: null, souvenirSettings: null, makeupArtists: null, welcomeChecklist: null, analyticsStartedAt: null, serverLamportTs: 0, lastSyncAt: null, updatedAt: new Date(),
     });
   });
 }

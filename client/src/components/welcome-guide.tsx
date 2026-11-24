@@ -1,3 +1,5 @@
+import { defaultWelcomeChecklist, type WelcomeChecklist } from "@shared/welcome-checklist";
+import { WelcomeChecklistEditor } from "./welcome-checklist-editor";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Map, Paintbrush, Ticket, Users } from "lucide-react";
 import { checkInProfiles, type ChecklistItem, type CheckInDetails, type CheckInRoster, type CheckInType } from "@shared/check-in";
@@ -55,6 +57,8 @@ interface WelcomeGuideProps {
   allowCapacityOverride?: boolean;
   plannedTeamId?: number;
   review?: boolean;
+  checklistSettings?: WelcomeChecklist;
+  canEditChecklist?: boolean;
   summary?: ReactNode;
   saving: boolean;
   error: string;
@@ -68,9 +72,13 @@ interface WelcomeGuideProps {
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
+  const extra = type === "zombie" && !squadOnly ? checklistSettings.extra : [];
+  const visibleItems = items.filter(key => type !== "zombie" || !checklistSettings.hidden.includes(key));
+  const hasChecklist = visibleItems.length + extra.length > 0;
+  const [editingChecklist, setEditingChecklist] = useState(false);
   const [index, setIndex] = useState(review ? items.length : 0);
   const [editing, setEditing] = useState(false);
   const [details, setDetails] = useState(() => plannedTeamId === undefined ? initialDetails : {
@@ -142,8 +150,14 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   return (
     <form className="flex min-h-0 flex-col" onSubmit={event => {
       event.preventDefault();
-      if (!stage && !saving && !teamUnavailable && !groupUnavailable) {
-        onSave(details, keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
+      if (!stage && !editingChecklist && !saving && !teamUnavailable && !groupUnavailable) {
+        onSave({
+          ...details,
+          ...(details.welcomeChecks && { welcomeChecks: Object.fromEntries(extra.flatMap(({ id }) => {
+            const value = details.welcomeChecks?.[id];
+            return value === undefined ? [] : [[id, value]];
+          })) }),
+        }, keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
       }
     }}>
       {items.length > 0 && (
@@ -232,7 +246,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
           <>
             <div className="rounded-xl border border-border bg-card p-3.5 sm:p-5">
               <h3 ref={heading} tabIndex={-1} className="text-lg font-semibold outline-none">
-                {items.length ? "Vérifier avant d’enregistrer" : "Confirmer l’arrivée"}
+                {hasChecklist ? "Vérifier avant d’enregistrer" : "Confirmer l’arrivée"}
               </h3>
               <p className="mt-1 break-words text-sm text-muted-foreground">
                 {slot?.name ?? "Sans créneau"}{type !== "staff" && (selectedTeam ? ` · ${words.name} ${selectedTeam.number}` : ` · Sans ${words.noun}`)}
@@ -244,25 +258,57 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             {type === "staff" && <WelcomeSchedule slot={slot} phases={timeSlotPhases} notesOnly />}
             <OtherWelcomeNote slot={slot} />
             {summary}
-            {items.length > 0 && (
+            {type === "zombie" && (canEditChecklist || editingChecklist) && (
+              <Button type="button" variant="outline" aria-expanded={editingChecklist}
+                onClick={() => setEditingChecklist(open => !open)}>
+                {editingChecklist ? "Fermer l’éditeur" : "Modifier la checklist"}
+              </Button>
+            )}
+            {editingChecklist && <WelcomeChecklistEditor settings={checklistSettings} canEdit={Boolean(canEditChecklist)}
+              onClose={() => setEditingChecklist(false)} />}
+            {hasChecklist && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Cochez chaque point traité, en vidéo ou de vive voix.</p>
                 <ul aria-label="Étapes de l’accueil" className="divide-y divide-border rounded-lg border border-border bg-card">
-                  {items.map((key, position) => (
-                    <li key={key} className="flex flex-wrap items-center gap-x-2">
-                      <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 px-3 py-2 text-sm font-medium">
-                        <input type="checkbox" className="size-5 shrink-0 accent-primary"
-                          checked={Boolean(details.checklist[key])}
-                          disabled={saving || (key === "squadExplained" && details.squadId === null)}
-                          onChange={event => setChecklistItem(key, event.target.checked)} />
-                        <span>{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
+                  {visibleItems.map(key => (
+                    <li key={key} className="px-3 py-2">
+                      <div className="flex flex-wrap items-center gap-x-2">
+                        <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 text-sm font-medium">
+                          <input type="checkbox" className="size-5 shrink-0 accent-primary"
+                            checked={Boolean(details.checklist[key])}
+                            disabled={saving || (key === "squadExplained" && details.squadId === null)}
+                            onChange={event => setChecklistItem(key, event.target.checked)} />
+                          <span>{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
+                        </label>
+                        {key === "squadExplained" && (
+                          <Button type="button" variant="ghost" className="min-h-11 text-primary" disabled={saving}
+                            onClick={() => { setEditing(true); setIndex(items.indexOf(key)); }}>
+                            {details.squadId === null ? "Choisir" : "Modifier"}
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-2 pb-1 pl-8 text-xs leading-relaxed text-muted-foreground">
+                        <p>{key === "squadExplained" ? `${selectedTeam ? words.name + " " + selectedTeam.number + " · " : ""}Indiquez où retrouver ses coéquipiers après le briefing.` : instructions[key].text}</p>
+                        {key === "briefingExplained" && <>
+                          <WelcomeSchedule slot={slot} phases={type === "survivant" ? timeSlotPhases : undefined} compact />
+                          {!slot?.briefingTime && <p>Horaire du briefing à vérifier avec l’organisation.</p>}
+                          {selectedTeam?.briefing?.trim() && <p className="whitespace-pre-wrap break-words">{selectedTeam.briefing}</p>}
+                        </>}
+                        {key === "mealTicketGiven" && <WelcomeSchedule slot={slot} phases={["meal"]} compact />}
+                      </div>
+                    </li>
+                  ))}
+                  {extra.map(({ id, title, note }) => (
+                    <li key={id} className="px-3 py-2">
+                      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
+                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] === true}
+                          disabled={saving} onChange={event => {
+                            const checked = event.target.checked;
+                            setDetails(previous => ({ ...previous, welcomeChecks: { ...previous.welcomeChecks, [id]: checked } }));
+                          }} />
+                        <span className="min-w-0 break-words">{title}</span>
                       </label>
-                      {key === "squadExplained" && (
-                        <Button type="button" variant="ghost" className="mr-2 min-h-11 text-primary" disabled={saving}
-                          onClick={() => { setEditing(true); setIndex(position); }}>
-                          {details.squadId === null ? "Choisir" : "Modifier"}
-                        </Button>
-                      )}
+                      {note && <p className="whitespace-pre-wrap break-words pb-1 pl-8 text-xs text-muted-foreground">{note}</p>}
                     </li>
                   ))}
                 </ul>
@@ -326,7 +372,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             )}
           </>
         ) : (
-          <Button type="submit" className="w-full whitespace-normal" disabled={teamUnavailable || groupUnavailable} loading={saving}>
+          <Button type="submit" className="w-full whitespace-normal" disabled={editingChecklist || teamUnavailable || groupUnavailable} loading={saving}>
             {saving ? "Enregistrement…" : saveLabel}
           </Button>
         )}

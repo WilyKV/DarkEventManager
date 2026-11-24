@@ -1,3 +1,4 @@
+import { welcomeChecksSchema, type WelcomeChecklist } from "./welcome-checklist";
 import { z } from "zod";
 import type { WelcomeTimeSlot } from "./time-slot-notes";
 import type { CheckInType } from "./check-in";
@@ -29,6 +30,7 @@ export const checkInStateSchema = z.object({
   arrivedAt: z.string().datetime().nullable(),
   squadId: z.number().int().positive().nullable(),
   checklist: zombieChecklistSchema,
+  welcomeChecks: welcomeChecksSchema.optional(),
 }).strict().refine(state => state.arrived || state.arrivedAt === null, {
   message: "L’heure d’arrivée doit correspondre au statut de présence.",
 });
@@ -71,6 +73,7 @@ export type OfflineSnapshot = {
   profileTypes: CheckInType[];
   eventDay: string | null;
   makeupArtists?: number;
+  welcomeChecklist?: WelcomeChecklist;
   participants: OfflineParticipant[];
   timeSlots: (WelcomeTimeSlot & { type?: CheckInType })[];
   squads: { id: number; number: number; timeSlotId: number; type: CheckInType; maxMembers: number | null; briefing?: string | null }[];

@@ -1,3 +1,4 @@
+import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
 import { useId, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Footprints, Plus, Search, ShieldCheck, Skull, UserCheck } from "lucide-react";
@@ -13,6 +14,7 @@ type Step = "profile" | "count" | "select" | "welcome" | "done";
 
 type WelcomeDialogProps = {
   roster?: CheckInRoster;
+  checklist?: { settings: WelcomeChecklist; canEdit: boolean };
   profileTypes?: readonly CheckInType[];
   unavailable?: ReactNode;
   onClose: () => void;
@@ -58,12 +60,13 @@ export function WelcomeDialog(props: WelcomeDialogProps) {
   );
 }
 
-function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps & { roster: CheckInRoster }) {
+function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, checklist, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps & { roster: CheckInRoster }) {
   const countId = useId();
   const [step, setStep] = useState<Step>("profile");
   const [quantity, setQuantity] = useState("1");
   const [largeGroup, setLargeGroup] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
+  const [confirmedArrivals, setConfirmedArrivals] = useState<Record<number, string>>({});
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [savedSquadId, setSavedSquadId] = useState<number>();
   const [search, setSearch] = useState("");
@@ -107,6 +110,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
     setLargeGroup(false);
     setSelection([]);
     setSavedIds([]);
+    setConfirmedArrivals({});
     setSavedSquadId(undefined);
     setSearch("");
     setLetter("");
@@ -138,6 +142,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
           setSavedIds(previous => [...previous, player.id]);
         }
       }
+      const confirmedAt = new Date().toISOString();
+      setConfirmedArrivals(Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? confirmedAt])));
       setStep("done");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
@@ -146,8 +152,11 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
     }
   }
 
+  const makeupWave = roster.players.filter(player => player.type === "zombie" && String(player.timeSlotId ?? "none") === currentWave?.value)
+    .map(player => ({ id: player.id, arrivedAt: player.arrivedAt ?? confirmedArrivals[player.id] }));
+  const briefing = roster.slots.find(slot => String(slot.id) === currentWave?.value)?.briefingTime;
   const makeup = step === "done" && type === "zombie" && currentWave && roster
-    ? makeupEstimates(wavePlayers, roster.slots.find(slot => String(slot.id) === currentWave.value)?.briefingTime, roster.makeupArtists)
+    ? makeupEstimates(makeupWave, briefing, roster.makeupArtists)
     : undefined;
   const title = {
     profile: "Qui accueillez-vous ?",
@@ -292,7 +301,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
         )}
 
         {step === "welcome" && (
-          <OfflineGroupWelcome key={reviewVersion} roster={roster} ids={selection} saving={saving} error={error}
+          <OfflineGroupWelcome key={reviewVersion} roster={roster} checklist={checklist} ids={selection} saving={saving} error={error}
             savedIds={savedIds} savedSquadId={savedSquadId} onConfirm={confirm}
             onBack={() => setStep("select")}
             onReplan={async () => {
@@ -312,25 +321,28 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, onCl
         )}
 
         {step === "done" && (
-          <div className="min-h-0 space-y-4 overflow-y-auto">
-            <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 font-medium">
-              <UserCheck className="size-6" aria-hidden />
-              {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
-            </p>
-            {makeup && <section className="rounded-xl border border-border bg-card p-4" aria-label="Heures estimées de maquillage">
-              <h3 className="font-semibold">Maquillage · horaires estimés</h3>
-              {savedIds.some(id => makeup.has(id)) ? <>
-                <p className="mt-1 text-sm text-muted-foreground">Notez l’heure sur la carte de chaque participant.</p>
-                <ul className="mt-2 divide-y divide-border">
-                  {wavePlayers.filter(player => savedIds.includes(player.id)).map(player => <li key={player.id} className="flex justify-between gap-2 py-2 text-sm">
-                    <span>{player.firstName} {player.lastName}</span>
-                    <strong>{makeup.has(player.id) ? makeupClock.format(makeup.get(player.id)!) : "Horaire indisponible"}</strong>
-                  </li>)}
-                </ul>
-              </> : <p className="mt-1 text-sm text-muted-foreground">Vérifiez l’heure du briefing et les arrivées de la vague.</p>}
-            </section>}
-            <div className="flex flex-wrap gap-2">
+          <div className="flex min-h-0 flex-1 flex-col gap-4">
+            <div className="min-h-0 space-y-4 overflow-y-auto">
+              <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 font-medium">
+                <UserCheck className="size-6" aria-hidden />
+                {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
+              </p>
+              {makeup && <section className="rounded-xl border border-border bg-card p-4" aria-label="Heures estimées de maquillage">
+                <h3 className="font-semibold">Maquillage · horaires estimés</h3>
+                {savedIds.some(id => makeup.has(id)) ? <>
+                  <p className="mt-1 text-sm text-muted-foreground">Notez l’heure sur la carte de chaque participant. Si le briefing est déjà passé, vérifiez la disponibilité du stand.</p>
+                  <ul className="mt-2 divide-y divide-border">
+                    {wavePlayers.filter(player => savedIds.includes(player.id)).map(player => <li key={player.id} className="flex justify-between gap-2 py-2 text-sm">
+                      <span>{player.firstName} {player.lastName}</span>
+                      <strong>{makeup.has(player.id) ? makeupClock.format(makeup.get(player.id)!) : "Horaire indisponible"}</strong>
+                    </li>)}
+                  </ul>
+                </> : <p className="mt-1 text-sm text-muted-foreground">Renseignez une heure de briefing valide dans le créneau pour obtenir une estimation.</p>}
+              </section>}
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
               <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>
+              <Button type="button" variant="outline" className="min-h-12" onClick={onClose}>Quitter l’accueil</Button>
               {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
                 onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
             </div>

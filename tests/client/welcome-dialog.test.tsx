@@ -227,4 +227,37 @@ describe("Accueil tactile", () => {
       squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true },
     }, false);
   });
+  it("affiche les horaires et les consignes configurées, puis permet de quitter sans clôturer la vague", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    const point = { id: "7a574b88-840a-40ad-bd49-d1d328db6deb", title: "Montrer le point de rassemblement", note: "À côté du portail vert." };
+    render(<WelcomeDialog roster={{ ...roster, welcomeChecklist: { hidden: ["mapGiven"], extra: [point] } }}
+      onClose={onClose} onSave={onSave} />);
+    await begin(user);
+    await click(user, "M");
+    await click(user, /Martin Clara/);
+    await click(user, "Commencer l’accueil");
+    await click(user, /Squad 2.*Recommandée/);
+    await click(user, "Confirmer la squad");
+    await click(user, "Passer la présentation");
+
+    const list = within(screen.getByRole("list", { name: "Étapes de l’accueil" }));
+    expect(list.getByText("18:00")).toBeVisible();
+    expect(list.getByText("19:00")).toBeVisible();
+    expect(list.getByText("22:00")).toBeVisible();
+    expect(list.getByText("Rendez-vous sous le préau.")).toBeVisible();
+    expect(list.queryByRole("checkbox", { name: "Proposer une carte" })).toBeNull();
+    expect(list.getByText(point.note)).toBeVisible();
+    await user.click(list.getByRole("checkbox", { name: point.title }));
+    await click(user, "Vérifier les arrivées");
+    await click(user, "Valider l’arrivée");
+
+    expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true } }), false);
+    expect(within(screen.getByRole("region", { name: "Heures estimées de maquillage" })).getByText(/^\d{2}:\d{2}$/)).toBeVisible();
+    await click(user, "Quitter l’accueil");
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(sessionStorage.length).toBe(0);
+  });
+
 });

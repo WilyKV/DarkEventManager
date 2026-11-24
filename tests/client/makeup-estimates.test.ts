@@ -18,3 +18,8 @@ it("ne propose pas un rendez-vous avant l’arrivée d’un joueur", () => {
   ], "19:00");
   expect(estimates.get(2)).toBe(Date.parse("2026-11-21T17:45:00Z"));
 });
+
+it("donne l’heure d’arrivée quand il ne reste plus de créneau avant le briefing", () => {
+  const arrivedAt = "2026-11-21T18:20:00Z";
+  expect(makeupEstimates([{ id: 1, arrivedAt }], " 19:00:00 ").get(1)).toBe(Date.parse(arrivedAt));
+});

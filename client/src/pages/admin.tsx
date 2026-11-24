@@ -1,3 +1,4 @@
+import { WelcomeChecklistSettings } from "@/components/welcome-checklist-editor";
 import { useLayoutEffect, useRef, useState } from "react";
 import { ManagementLayout } from "@/components/management-layout";
 import { Button } from "@/components/ui/button";
@@ -46,7 +47,7 @@ const adminSections = [
   {
     label: "Événement et accès",
     items: [
-      { id: "config", label: "Réglages de l’événement", description: "Date, maquillage et synchronisation", icon: Settings, tone: "slate" },
+      { id: "config", label: "Réglages de l’événement", description: "Date, maquillage, checklist et synchronisation", icon: Settings, tone: "slate" },
       { id: "souvenir", label: "Espaces souvenir", description: "Galerie, statistiques et demandes d’effacement", icon: Images, tone: "violet" },
       { id: "users", label: "Comptes et permissions", description: "Accès à l’application et rôles du staff", icon: Shield, tone: "blue" },
       { id: "historique", label: "Historique", description: "Activité et actions enregistrées", icon: History, tone: "slate" },
@@ -251,6 +252,7 @@ export default function AdminPage() {
           {activeTab === "config" && <div className="space-y-4">
             <EventDaySettings />
             <MakeupSettings />
+            <WelcomeChecklistSettings />
             <SyncModeManager />
           </div>}
           {activeTab === "souvenir" && <div className="space-y-4">

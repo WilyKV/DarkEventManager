@@ -1,3 +1,4 @@
+import { defaultWelcomeChecklist, mergeWelcomeChecks } from "@shared/welcome-checklist";
 import { defaultMakeupArtists } from "@shared/makeup";
 import { createHash } from "node:crypto";
 import type { Express } from "express";
@@ -29,7 +30,8 @@ function hash(value: unknown): string {
 function stateHash(state: OfflineCheckIn): string {
   const { arrived, arrivedAt, squadId, checklist } = state;
   return hash([arrived, arrivedAt, squadId, checklist.squadExplained, checklist.briefingExplained,
-    checklist.mealTicketGiven, checklist.waterBottleGiven, checklist.makeupWaitExplained, checklist.mapGiven]);
+    checklist.mealTicketGiven, checklist.waterBottleGiven, checklist.makeupWaitExplained, checklist.mapGiven,
+    ...(state.welcomeChecks && Object.keys(state.welcomeChecks).length ? [Object.entries(state.welcomeChecks).sort()] : [])]);
 }
 
 export function offlinePlayerIdentity(p: Pick<Participant, "id" | "createdAt" | "firstName" | "lastName" | "type">) {
@@ -46,6 +48,7 @@ function offlineParticipant(p: Participant, type: CheckInType): OfflineParticipa
     arrived: Boolean(p.arrived),
     arrivedAt: p.arrived ? p.arrivedAt?.toISOString() ?? null : null,
     squadId: p.squadId,
+    ...(type === "zombie" && p.welcomeChecks && Object.keys(p.welcomeChecks).length ? { welcomeChecks: p.welcomeChecks } : {}),
     checklist: {
       squadExplained: Boolean(p.squadExplained),
       briefingExplained: Boolean(p.briefingExplained),
@@ -72,7 +75,7 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
     const profileTypes = legacyTypes ?? allowedCheckInTypes(req.session.user!.roles);
     try {
       const snapshot: OfflineSnapshot = await db.transaction(async tx => {
-        const [config] = await tx.select({ day: appConfig.eventDay, makeupArtists: appConfig.makeupArtists }).from(appConfig).orderBy(appConfig.id).limit(1);
+        const [config] = await tx.select({ day: appConfig.eventDay, makeupArtists: appConfig.makeupArtists, welcomeChecklist: appConfig.welcomeChecklist }).from(appConfig).orderBy(appConfig.id).limit(1);
         const rows = await tx.select().from(participants)
           .where(and(inArray(participants.type, profileTypes), isNull(participants.deletedAt)));
         const teams = await tx.select({ id: squads.id, number: squads.number, timeSlotId: squads.timeSlotId,
@@ -83,6 +86,7 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
           canDeleteParticipants: !legacyTypes && hasSessionRole(req.session.user!.roles, ["admin"]),
           profileTypes,
           eventDay: config?.day ?? null,
+          ...(profileTypes.includes("zombie") && config?.welcomeChecklist ? { welcomeChecklist: config.welcomeChecklist } : {}),
           makeupArtists: config?.makeupArtists ?? defaultMakeupArtists,
           participants: rows.flatMap(row => isCheckInType(row.type) ? [offlineParticipant(row, row.type)] : []),
           timeSlots: (await tx.select({ id: timeSlots.id, name: timeSlots.name, type: timeSlots.type,
@@ -119,6 +123,9 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
         for (const { squadId } of rows) {
           if (squadId != null) teamCounts.set(squadId, (teamCounts.get(squadId) ?? 0) + 1);
         }
+        const [config] = profileTypes.includes("zombie")
+          ? await tx.select({ welcomeChecklist: appConfig.welcomeChecklist }).from(appConfig).orderBy(appConfig.id).limit(1) : [];
+        const settings = config?.welcomeChecklist ?? defaultWelcomeChecklist;
         const results: OfflineSyncResult[] = [];
         for (const update of batch.data.updates) {
           const row = byId.get(update.id);
@@ -177,9 +184,12 @@ function registerOfflineProfileRoutes(app: Express, path: string, legacyTypes?: 
             results.push({ id: update.id, error: "L’heure d’arrivée est dans le futur. Vérifiez l’heure de l’appareil." });
             continue;
           }
+          const welcomeChecks = type === "zombie" && state.welcomeChecks
+            ? mergeWelcomeChecks(row.welcomeChecks, state.welcomeChecks, settings) : row.welcomeChecks;
           const [saved] = await tx.update(participants).set({
             arrived, arrivedAt: arrivalDate, squadId, ...checklist,
-            ...(type !== "staff" && { checklistCompleted: checkInChecklistComplete(type, { squadId, checklist }) }),
+            ...(welcomeChecks && { welcomeChecks }),
+            ...(type !== "staff" && { checklistCompleted: checkInChecklistComplete(type, { squadId, checklist, welcomeChecks: welcomeChecks ?? undefined }, settings) }),
           }).where(eq(participants.id, row.id)).returning();
           if (squadId !== row.squadId) {
             await tx.insert(squadAuditLog).values({ participantId: row.id, previousSquadId: row.squadId, newSquadId: squadId });

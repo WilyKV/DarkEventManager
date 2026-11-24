@@ -1,3 +1,4 @@
+import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { checkInProfiles, type CheckInDetails, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
@@ -11,8 +12,9 @@ export type OfflineArrival = {
   overflowConfirmed: boolean;
 };
 
-export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, savedSquadId, onConfirm, onBack, onReplan }: {
+export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, savedIds, savedSquadId, onConfirm, onBack, onReplan }: {
   roster: CheckInRoster;
+  checklist?: { settings: WelcomeChecklist; canEdit: boolean };
   ids: number[];
   saving: boolean;
   error: string;
@@ -99,7 +101,14 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
     for (const item of checkInProfiles[player.type].checklist) {
       if (assignment.every(arrival => arrival.details.checklist[item])) initialDetails.checklist[item] = true;
     }
+    const settings = checklist?.settings ?? roster.welcomeChecklist;
+    for (const { id } of settings?.extra ?? []) {
+      if (assignment.every(arrival => arrival.details.welcomeChecks?.[id] === true)) {
+        initialDetails.welcomeChecks = { ...initialDetails.welcomeChecks, [id]: true };
+      }
+    }
     return <WelcomeGuide key={player.id} type={player.type} initialDetails={initialDetails} slot={slot} teams={roster.teams}
+      checklistSettings={settings} canEditChecklist={checklist?.canEdit}
       lockSquad review saving={false} error=""
       summary={<p className="break-words text-sm text-muted-foreground">{groupNames}</p>}
       saveLabel="Vérifier les arrivées"
@@ -108,8 +117,13 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
         for (const item of checkInProfiles[player.type].checklist) {
           if (next.checklist[item] !== initialDetails.checklist[item]) changes[item] = next.checklist[item];
         }
+        const customChanges = Object.fromEntries(Object.entries(next.welcomeChecks ?? {})
+          .filter(([id, value]) => initialDetails.welcomeChecks?.[id] !== value));
+        const hasCustomChanges = Object.keys(customChanges).length > 0;
         setCompleted(assignment.map(arrival => ({
-          ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...changes } },
+          ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...changes },
+            ...(hasCustomChanges && { welcomeChecks: { ...arrival.details.welcomeChecks, ...customChanges } }),
+          },
         })));
       }} />;
   }

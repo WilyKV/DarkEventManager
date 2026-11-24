@@ -1,3 +1,4 @@
+import { defaultWelcomeChecklist, welcomeChecksSchema, type WelcomeChecklist } from "./welcome-checklist";
 import { z } from "zod";
 import { zombieChecklist, zombieChecklistSchema } from "./zombie-offline";
 import type { WelcomeTimeSlot } from "./time-slot-notes";
@@ -30,6 +31,7 @@ export const checkInRoles = ["admin", "staff_zombie", "staff_survivant"];
 export const checkInDetailsSchema = z.object({
   squadId: z.number().int().positive().nullable(),
   checklist: zombieChecklistSchema.partial(),
+  welcomeChecks: welcomeChecksSchema.optional(),
 }).strict();
 
 export type CheckInDetails = z.infer<typeof checkInDetailsSchema>;
@@ -50,12 +52,15 @@ export type CheckInPlayer = {
 export type CheckInRoster = {
   eventDay?: string | null;
   makeupArtists?: number;
+  welcomeChecklist?: WelcomeChecklist;
   players: CheckInPlayer[];
   slots: (WelcomeTimeSlot & { type?: CheckInType })[];
   teams: { id: number; number: number; timeSlotId: number; type?: string; maxMembers: number | null; members: number; briefing?: string | null }[];
 };
 
-export function checkInChecklistComplete(type: CheckInType, details: CheckInDetails) {
-  const required = checkInProfiles[type].checklist.filter(key => key !== "mapGiven");
-  return required.length > 0 && required.every(key => details.checklist[key]);
+export function checkInChecklistComplete(type: CheckInType, details: CheckInDetails, settings = defaultWelcomeChecklist) {
+  const required = checkInProfiles[type].checklist.filter(key => key !== "mapGiven" && (type !== "zombie" || !settings.hidden.includes(key)));
+  const extra = type === "zombie" ? settings.extra : [];
+  return required.length + extra.length > 0 && required.every(key => details.checklist[key]) &&
+    extra.every(({ id }) => details.welcomeChecks?.[id] === true);
 }

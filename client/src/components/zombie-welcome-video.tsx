@@ -1,3 +1,4 @@
+import { Maximize, Minimize, RotateCcw, SkipForward } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { briefingChoices, displayWelcomeTime, shuffle, squadChoices, zombieBriefingLocation, zombieOverlays, zombieQuestions, zombieQuizStart } from "./zombie-welcome-timeline";
 import cues from "./zombie-voice-cues.json";
@@ -37,15 +38,18 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
   const [quiz, setQuiz] = useState<Quiz>();
   const [wrong, setWrong] = useState<string[]>([]);
   const [correct, setCorrect] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [resumeNeeded, setResumeNeeded] = useState(false);
   const main = useRef<HTMLVideoElement>(null);
   const voice = useRef<HTMLAudioElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
+  const stage = useRef<HTMLElement>(null);
   const quizStarted = useRef(false);
   const stopVoice = useRef<() => void>(() => {});
   const feedbackTimer = useRef<number>();
   const disposed = useRef(false);
   const answerLocked = useRef(false);
+  const playback = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -80,6 +84,49 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     };
   }, []);
 
+  useEffect(() => {
+    const update = () => setFullscreen(document.fullscreenElement === stage.current);
+    document.addEventListener("fullscreenchange", update);
+    return () => document.removeEventListener("fullscreenchange", update);
+  }, []);
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement === stage.current && document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    // Expand immediately, including on browsers that delay or refuse native fullscreen.
+    setExpanded(true);
+    const element = stage.current;
+    if (element?.requestFullscreen) {
+      try {
+        await element.requestFullscreen();
+        if (document.fullscreenElement === element) setExpanded(false);
+      } catch {
+        // The viewport-sized player remains available.
+      }
+    }
+  }
+
+  function restart() {
+    playback.current++;
+    window.clearTimeout(feedbackTimer.current);
+    stopVoice.current();
+    quizStarted.current = false;
+    answerLocked.current = false;
+    setQuiz(undefined);
+    setWrong([]);
+    setCorrect(false);
+    setOverlay(undefined);
+    if (main.current) main.current.currentTime = 0;
+    setPhase("main");
+    resume();
+  }
+
   function resume() {
     if (disposed.current) return;
     setResumeNeeded(false);
@@ -97,7 +144,6 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     }
     setPhase("main");
     resume();
-    void stage.current?.requestFullscreen?.()?.catch(() => {});
   }
 
   function playVoice(key: string): Promise<void> {
@@ -178,10 +224,11 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
       return;
     }
     answerLocked.current = true;
+    const attempt = playback.current;
     setCorrect(true);
     const feedback = new Promise<void>(resolve => { feedbackTimer.current = window.setTimeout(resolve, 1300); });
     void Promise.all([feedback, playVoice(feedbackClip("correct"))]).then(() => {
-      if (disposed.current) return;
+      if (disposed.current || attempt !== playback.current) return;
       if (quiz.index + 1 < zombieQuestions.length) askQuestion(quiz.index + 1);
       else {
         setQuiz(undefined);
@@ -206,8 +253,8 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
   const visible = (key: keyof typeof zombieOverlays) => phase === "main" && overlay === key;
 
   return (
-    <section className="zombie-show" aria-label="Présentation vidéo Zombies">
-      <div ref={stage} className="zombie-show-stage">
+    <section ref={stage} className="zombie-show" data-expanded={expanded || undefined} aria-label="Présentation vidéo Zombies">
+      <div className="zombie-show-stage">
         <div className="zombie-show-frame">
           <video ref={main} hidden={phase !== "main"} playsInline preload="auto" src={sources[0]}
             onTimeUpdate={updateTimeline} onEnded={() => { if (phase === "main") setPhase("ended"); }}
@@ -235,14 +282,22 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
             <p role="status">{correct ? "Bien joué !" : wrong.length ? "Essayez encore." : ""}</p>
           </div>}
           {phase === "main" && resumeNeeded && !quiz && <div className="zombie-show-center"><button type="button" onClick={resume}>Reprendre la vidéo</button></div>}
-          {phase === "main" && <button type="button" className="zombie-show-skip" onClick={() => onContinue(false)}>Passer la présentation</button>}
           {phase === "ended" && <div className="zombie-show-center"><button type="button" onClick={() => onContinue(true)}>Groupe suivant</button></div>}
         </div>
       </div>
-      {phase !== "ended" && <div className="zombie-show-controls">
-        <button type="button" onClick={onBack}>Squads</button>
-        <button type="button" onClick={() => onContinue(false)}>Passer la présentation</button>
-      </div>}
+      <div className="zombie-show-controls" role="group" aria-label="Commandes de la présentation">
+        {phase !== "ended" && <button type="button" onClick={onBack}>Squads</button>}
+        {phase !== "ended" && <button type="button" onClick={() => onContinue(false)}>
+          <SkipForward aria-hidden="true" /> Passer la présentation
+        </button>}
+        {(phase === "main" || phase === "ended") && <button type="button" onClick={restart} aria-label="Recommencer la vidéo" title="Recommencer la vidéo">
+          <RotateCcw aria-hidden="true" />
+        </button>}
+        <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen || expanded ? "Quitter le plein écran" : "Plein écran"}
+          title={fullscreen || expanded ? "Quitter le plein écran" : "Plein écran"} aria-pressed={fullscreen || expanded}>
+          {fullscreen || expanded ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
+        </button>
+      </div>
     </section>
   );
 }

@@ -15,7 +15,7 @@
   flex: 1;
   min-height: 0;
   flex-direction: column;
-  gap: .75rem;
+  gap: .5rem;
 }
 
 .zombie-show-stage {
@@ -27,9 +27,18 @@
   background: #050203;
 }
 
-.zombie-show-stage:fullscreen {
-  width: 100%;
-  height: 100%;
+.zombie-show:fullscreen,
+.zombie-show[data-expanded] {
+  gap: 0;
+  background: #050203;
+  color: #fff1e2;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.zombie-show[data-expanded] {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
 }
 
 .zombie-show-frame {
@@ -53,7 +62,6 @@
 
 .zombie-show-card,
 .zombie-show-center,
-.zombie-show-skip,
 .zombie-show-message {
   --u: calc(100cqw / 1920);
   position: absolute;
@@ -93,8 +101,7 @@
   font-size: calc(54 * var(--u));
 }
 
-.zombie-show-center button,
-.zombie-show-skip {
+.zombie-show-center button {
   min-height: 44px;
   border: .35cqw solid #12060a;
   border-radius: 1.5cqw;
@@ -102,13 +109,6 @@
   background: #ffb23f;
   color: #241019;
   font-family: "Zombie Luckiest", system-ui, sans-serif;
-}
-
-.zombie-show-skip {
-  right: 2%;
-  bottom: 2%;
-  font-family: "Zombie Fredoka", sans-serif;
-  font-size: max(12px, calc(36 * var(--u)));
 }
 
 .zombie-show-quiz {
@@ -124,8 +124,35 @@
 .zombie-show-choices [data-answer="wrong"] { background: #ff83ae; animation: zombie-wrong .32s ease-out; }
 .zombie-show-choices [data-answer="correct"] { background: #5bd27a; }
 .zombie-show-quiz p { min-height: 1.3em; }
-.zombie-show-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
-.zombie-show-controls button { min-height: 44px; padding: .4rem .8rem; border: 1px solid hsl(var(--border)); border-radius: .5rem; background: hsl(var(--card)); }
+.zombie-show-controls {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .375rem;
+}
+
+.zombie-show-controls button {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: .375rem;
+  padding: .25rem .65rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: .5rem;
+  background: hsl(var(--card));
+  font-size: .875rem;
+}
+
+.zombie-show-controls svg { width: 1rem; height: 1rem; flex: none; }
+.zombie-show:fullscreen .zombie-show-controls,
+.zombie-show[data-expanded] .zombie-show-controls { padding: .25rem .5rem; }
+.zombie-show:fullscreen .zombie-show-controls button,
+.zombie-show[data-expanded] .zombie-show-controls button { background: #241019; border-color: #795260; }
+
 
 @keyframes zombie-wrong {
   25%, 75% { transform: translateX(-1cqw); }
@@ -134,4 +161,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .zombie-show-choices [data-answer="wrong"] { animation: none; }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .welcome-session { gap: .5rem; padding: .5rem 1rem; }
+  .welcome-session h2 { font-size: 1.25rem; line-height: 1.4; }
+  .welcome-people {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: .5rem;
+  }
+  .welcome-people-filters { overflow-y: auto; }
+  .welcome-people-list { grid-area: 1 / 2; }
+  .welcome-people-actions { grid-column: 1 / -1; padding-top: .375rem; }
 }

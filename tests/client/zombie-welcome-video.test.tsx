@@ -41,6 +41,14 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
     const video = view.container.querySelector("video")!;
     expect(video.paused).toBe(false);
     expect(view.container.querySelectorAll("video")).toHaveLength(1);
+    const stage = screen.getByRole("region", { name: "Présentation vidéo Zombies" });
+    await user.click(screen.getByRole("button", { name: "Plein écran", exact: true }));
+    expect(stage).toHaveAttribute("data-expanded", "true");
+    const frame = video.parentElement!;
+    expect(frame.contains(screen.getByRole("button", { name: "Passer la présentation" }))).toBe(false);
+    expect(frame.contains(screen.getByRole("button", { name: "Recommencer la vidéo" }))).toBe(false);
+    await user.click(screen.getByRole("button", { name: "Quitter le plein écran" }));
+    expect(stage).not.toHaveAttribute("data-expanded");
     const reach = (seconds: number) => {
       video.currentTime = seconds;
       fireEvent.timeUpdate(video);
@@ -55,6 +63,12 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
 
     reach(113.84);
     expect(video.currentTime).toBe(113.83);
+    expect(video.paused).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Recommencer la vidéo" }));
+    expect(video.currentTime).toBe(0);
+    expect(video.paused).toBe(false);
+    expect(screen.queryByRole("heading", { name: "À quelle heure est votre briefing ?" })).toBeNull();
+    reach(113.84);
     expect(video.paused).toBe(true);
     const wrong = screen.getByRole("button", { name: /17\s+h\s+45/ });
     await user.click(wrong);

@@ -169,7 +169,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
 
   return (
     <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}>
-      <DialogContent className="flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-8 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:grid [&>button]:place-items-center"
+      <DialogContent className="welcome-session flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-8 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:grid [&>button]:place-items-center"
         onInteractOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (saving) event.preventDefault(); }}>
         <DialogHeader className="shrink-0 pr-12 text-left">
@@ -249,8 +249,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
         )}
 
         {step === "select" && (
-          <>
-            <div className="shrink-0 space-y-2">
+          <div className="welcome-people flex min-h-0 flex-1 flex-col gap-3">
+            <div className="welcome-people-filters shrink-0 space-y-2">
               <div className="relative">
                 <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden />
                 <Input type="search" aria-label="Rechercher une personne" placeholder="Nom ou prénom"
@@ -270,7 +270,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                 </Button>
               </div>
             </div>
-            <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain" aria-label="Personnes à accueillir">
+            <ul className="welcome-people-list min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain" aria-label="Personnes à accueillir">
               {matches.length === 0 && <li className="p-3 text-sm text-muted-foreground">{selectedOnly ? "Aucune personne sélectionnée." : letter || terms.length ? "Aucun résultat." : "Choisissez une lettre ou recherchez un nom."}</li>}
               {matches.map(player => {
                 const active = selected.includes(player.id);
@@ -290,14 +290,14 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                 );
               })}
             </ul>
-            <div className="flex shrink-0 gap-2 border-t pt-3">
+            <div className="welcome-people-actions flex shrink-0 gap-2 border-t pt-3">
               <Button type="button" variant="outline" onClick={() => setStep("count")}><ArrowLeft /> Retour</Button>
               <Button type="button" className="min-h-12 flex-1" disabled={!validCount || selected.length !== total} onClick={() => {
                 setSelection(selected);
                 setStep("welcome");
               }}>Commencer l’accueil <ArrowRight /></Button>
             </div>
-          </>
+          </div>
         )}
 
         {step === "welcome" && (

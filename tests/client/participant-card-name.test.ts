@@ -23,6 +23,7 @@ it("aligne chaque verso en miroir sur le recto A4, même quand la feuille n’es
     expect(front.y).toBe(back.y);
     expect(front.y + cardLayout.height).toBeLessThan(cardSheet.height);
   }
+  expect(cardSheetPosition(1, "front").x - cardSheetPosition(0, "front").x - cardLayout.width).toBe(7);
   expect(cardSheetPosition(2, "front").y - cardSheetPosition(0, "front").y - cardLayout.height).toBe(4);
   expect(cardSheetPosition(0, "back")).toEqual(cardSheetPosition(1, "front"));
 });

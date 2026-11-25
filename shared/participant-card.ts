@@ -113,8 +113,11 @@ export const cardLayout = {
   scheduleY: 33,
   scheduleHeight: 8,
   mealBoxSize: 5.5,
+  mealBoxY: 44.25,
+  staffMealBoxY: 38,
   makeupBoxY: 43.5,
   makeupBoxHeight: 7,
+  makeupBoxWidth: 16,
   qrX: 55.5,
   qrY: 13.5,
   qrSize: 23,
@@ -134,18 +137,18 @@ export function cardTheme(type: string) {
 export const cardPrintLayouts = ["a4", "card"] as const;
 export type CardPrintLayout = typeof cardPrintLayouts[number];
 
-export const a4CardBleed = 1.5;
+export const a4CardBleed = { x: 2.5, y: 1.5 } as const;
 export const a4CardColumns = 2;
 const a4CardRows = 5;
-export const a4CardGap = 4;
+const a4CardGap = { x: 7, y: 4 } as const;
 export const cardSheet = { width: 210, height: 297, capacity: a4CardColumns * a4CardRows } as const;
 
 export function cardSheetPosition(index: number, side: "front" | "back") {
   const column = index % a4CardColumns;
   const row = Math.floor(index / a4CardColumns);
-  const gridWidth = a4CardColumns * cardLayout.width + (a4CardColumns - 1) * a4CardGap;
-  const gridHeight = a4CardRows * cardLayout.height + (a4CardRows - 1) * a4CardGap;
-  const frontX = (cardSheet.width - gridWidth) / 2 + column * (cardLayout.width + a4CardGap);
-  const y = (cardSheet.height - gridHeight) / 2 + row * (cardLayout.height + a4CardGap);
+  const gridWidth = a4CardColumns * cardLayout.width + (a4CardColumns - 1) * a4CardGap.x;
+  const gridHeight = a4CardRows * cardLayout.height + (a4CardRows - 1) * a4CardGap.y;
+  const frontX = (cardSheet.width - gridWidth) / 2 + column * (cardLayout.width + a4CardGap.x);
+  const y = (cardSheet.height - gridHeight) / 2 + row * (cardLayout.height + a4CardGap.y);
   return { x: side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width, y };
 }

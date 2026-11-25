@@ -7,7 +7,7 @@ import { a4CardBleed, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -23,22 +23,22 @@ async function findCardAsset(file: string) {
   throw new Error(`Ressource de carte introuvable : ${file}`);
 }
 
-function backdrop(doc: PDFKit.PDFDocument, theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
+function backdrop(doc: PDFKit.PDFDocument, theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, artwork?: string) {
   const gradient = doc.linearGradient(0, 0, pt(width), pt(height))
     .stop(0, "#0d0b11").stop(0.58, theme.dark).stop(1, "#100b12");
-  const background = () => doc.rect(pt(-bleed), pt(-bleed), pt(width + 2 * bleed), pt(height + 2 * bleed));
+  const background = () => doc.rect(pt(-bleed.x), pt(-bleed.y), pt(width + 2 * bleed.x), pt(height + 2 * bleed.y));
   background().fill(gradient);
   if (artwork) {
     doc.save();
     background().clip();
-    doc.image(artwork, pt(-bleed), pt(-bleed), {
-      cover: [pt(width + 2 * bleed), pt(height + 2 * bleed)], align: "center", valign: "center",
+    doc.image(artwork, pt(-bleed.x), pt(-bleed.y), {
+      cover: [pt(width + 2 * bleed.x), pt(height + 2 * bleed.y)], align: "center", valign: "center",
     });
     doc.restore();
   }
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, hasQr: boolean, type: string, artwork?: string) {
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, hasQr: boolean, type: string, artwork?: string) {
   backdrop(doc, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
@@ -59,12 +59,13 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
         .text(cardScheduleLabel(field, type), pt(field.x), pt(scheduleY + 0.5), { width: pt(field.width), align: "center", lineBreak: false });
     }
     if (cardHasMealBox(type)) {
-      doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
-      doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
+      const mealY = type === "staff" ? staffMealBoxY : mealBoxY;
+      doc.roundedRect(pt(6), pt(mealY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
+      doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(mealY + 1.25), { lineBreak: false });
     }
     if (theme.zombie) {
       doc.fillColor("#ffffff").font("CardRegular").text("Maquillage", pt(28), pt(45.5), { lineBreak: false });
-      doc.roundedRect(pt(49), pt(makeupBoxY), pt(14), pt(makeupBoxHeight), pt(0.45)).fill("#ffffff");
+      doc.roundedRect(pt(49), pt(makeupBoxY), pt(makeupBoxWidth), pt(makeupBoxHeight), pt(0.45)).fill("#ffffff");
     }
     return;
   }
@@ -92,16 +93,18 @@ function printName(doc: PDFKit.PDFDocument, name: string) {
 }
 
 function trimMarks(doc: PDFKit.PDFDocument) {
-  const start = a4CardBleed + 0.15;
-  const end = 1.95;
+  const horizontalStart = a4CardBleed.x + 0.15;
+  const horizontalEnd = a4CardBleed.x + 0.9;
+  const verticalStart = a4CardBleed.y + 0.15;
+  const verticalEnd = a4CardBleed.y + 0.45;
   doc.lineWidth(0.35).strokeColor("#222222");
   for (const x of [0, width]) {
     const dx = x === 0 ? -1 : 1;
     for (const y of [0, height]) {
-      doc.moveTo(pt(x + dx * start), pt(y)).lineTo(pt(x + dx * end), pt(y));
+      doc.moveTo(pt(x + dx * horizontalStart), pt(y)).lineTo(pt(x + dx * horizontalEnd), pt(y));
     }
-    doc.moveTo(pt(x), pt(-start)).lineTo(pt(x), pt(-end));
-    doc.moveTo(pt(x), pt(height + start)).lineTo(pt(x), pt(height + end));
+    doc.moveTo(pt(x), pt(-verticalStart)).lineTo(pt(x), pt(-verticalEnd));
+    doc.moveTo(pt(x), pt(height + verticalStart)).lineTo(pt(x), pt(height + verticalEnd));
   }
   doc.stroke();
 }
@@ -145,7 +148,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
           if (mode === "complete" || !card) {
             const type = card?.type ?? "zombie";
             const theme = cardTheme(type);
-            template(doc, side, theme, a4 ? a4CardBleed : 0, Boolean(card), type,
+            template(doc, side, theme, a4 ? a4CardBleed : { x: 0, y: 0 }, Boolean(card), type,
               theme.artwork ? artworkByName.get(theme.artwork) : undefined);
             if (a4) trimMarks(doc);
           }

@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -31,6 +31,7 @@ function at(x: number, y: number, w?: number, h?: number): CSSProperties {
 
 export function ParticipantCard({ card }: { card: PrintableCard }) {
   const theme = cardTheme(card.type);
+  const mealY = card.type === "staff" ? staffMealBoxY : mealBoxY;
   const url = new URL(`${souvenirPath}/${card.token}`, window.location.origin).href;
   const face = "participant-card-face isolate relative aspect-[85/55] w-full max-w-[425px] overflow-hidden rounded-xl bg-[#100b12] text-white shadow-lg [container-type:inline-size]";
   const cream = "absolute rounded-[2.35cqw] bg-white text-[#101828]";
@@ -62,12 +63,12 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
         </div>
       ))}
       {cardHasMealBox(card.type) && <>
-        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 44.25, mealBoxSize, mealBoxSize)} />
-        <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, 45.5)}>Repas</span>
+        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, mealY, mealBoxSize, mealBoxSize)} />
+        <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, mealY + 1.25)}>Repas</span>
       </>}
       {theme.zombie && <>
         <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>Maquillage</span>
-        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, makeupBoxY, 14, makeupBoxHeight)} />
+        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, makeupBoxY, makeupBoxWidth, makeupBoxHeight)} />
       </>}
     </section>
     <section aria-label="Verso" className={face}>

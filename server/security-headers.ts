@@ -8,6 +8,8 @@ export function applySecurityHeaders(app: Express): void {
   app.use(helmet({
     contentSecurityPolicy: isProduction ? {
       directives: {
+        // The welcome player reads cached audio and video through local Blob URLs.
+        mediaSrc: ["'self'", "blob:"],
         // Explicitly allow the same-host WebSocket in browsers that do not include it in 'self'.
         connectSrc: ["'self'", (req: IncomingMessage) => {
           const host = req.headers.host;

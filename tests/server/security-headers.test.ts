@@ -50,6 +50,15 @@ describe("applySecurityHeaders — CSP conditionnel", () => {
     expect(response.headers["content-security-policy"]).toBeDefined();
   });
 
+  it("autorise les médias locaux et les Blob du lecteur vidéo en production", async () => {
+    process.env["NODE_ENV"] = "production";
+    const app = buildApp(await importFresh());
+    const response = await request(app).get("/health");
+    const directives = response.headers["content-security-policy"].split(";");
+    expect(directives).toContain("media-src 'self' blob:");
+    expect(directives).toContain("default-src 'self'");
+  });
+
   it("permet le WebSocket TLS sur le domaine et le port de l’application", async () => {
     process.env["NODE_ENV"] = "production";
     const app = buildApp(await importFresh());

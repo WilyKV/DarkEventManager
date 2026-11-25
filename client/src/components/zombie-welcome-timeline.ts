@@ -1,15 +1,16 @@
 export const zombieOverlays = {
-  briefing: [69.50, 77.23],
-  squad: [81.00, 83.51],
-  game: [86.49, 91.27],
+  briefing: [86.41, 94.19],
+  squad: [97.88, 101.48],
+  game: [104.44, 106.44],
 } as const;
 
 export const zombieTimeline = [
-  { time: 74.37, kind: "briefing" },
-  { time: 83.22, kind: "squad" },
-  { time: 85.95, kind: "quizBriefing" },
-  { time: 90.98, kind: "game" },
-  { time: 94.92, kind: "quizSquad" },
+  { time: 91.27, kind: "briefing" },
+  { time: 101.19, kind: "squad" },
+  { time: 106.15, kind: "game" },
+  // Both quizzes follow the narrator's memory-test announcement.
+  { time: 113.83, kind: "quizBriefing" },
+  { time: 113.89, kind: "quizSquad" },
 ] as const;
 
 export function normalizeWelcomeTime(value?: string) {

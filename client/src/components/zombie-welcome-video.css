@@ -24,7 +24,7 @@
   min-height: 0;
   place-items: center;
   container-type: size;
-  background: #10081b;
+  background: #050203;
 }
 
 .zombie-show-stage:fullscreen {
@@ -38,8 +38,8 @@
   aspect-ratio: 16 / 9;
   container-type: inline-size;
   overflow: hidden;
-  background: #211033;
-  color: #fff5dc;
+  background: #241019;
+  color: #fff1e2;
   font-family: "Zombie Fredoka", system-ui, sans-serif;
 }
 
@@ -71,7 +71,7 @@
   text-align: center;
   line-height: 1;
   font-family: "Zombie Luckiest", system-ui, sans-serif;
-  text-shadow: 0 .5cqw #180826, 0 0 1cqw #180826;
+  text-shadow: 0 .5cqw #12060a, 0 0 1cqw #12060a;
 }
 
 .zombie-show-name span { color: #ffad63; font-size: calc(68 * var(--u)); }
@@ -82,10 +82,12 @@
   top: 46.3%;
   width: 30%;
   padding: calc(30 * var(--u));
-  border: .4cqw solid #1d102e;
+  border: .4cqw solid #12060a;
   border-radius: 1.8cqw;
-  background: #47246b;
-  box-shadow: 0 .55cqw #1d102e;
+  background: #fff1e2;
+  color: #12060a;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  box-shadow: 0 .55cqw #12060a;
   text-align: center;
   font-family: "Zombie Luckiest", system-ui, sans-serif;
   font-size: calc(52 * var(--u));
@@ -93,9 +95,9 @@
 }
 
 .zombie-show-card > * { display: block; }
-.zombie-show-card strong { color: #ffbd79; font-size: calc(122 * var(--u)); }
+.zombie-show-card strong { color: #a91629; font-size: calc(122 * var(--u)); }
 .zombie-show-card small { font: 600 calc(35 * var(--u)) "Zombie Fredoka", sans-serif; }
-.zombie-show-game { left: 28%; width: 38%; }
+.zombie-show-game { width: 38%; }
 .zombie-show-game div { display: flex; justify-content: space-between; gap: .7cqw; }
 .zombie-show-game strong { font-size: calc(76 * var(--u)); }
 
@@ -105,18 +107,18 @@
   inset: 0;
   place-content: center;
   text-align: center;
-  background: #211033d9;
+  background: #241019d9;
   font-size: calc(54 * var(--u));
 }
 
 .zombie-show-center button,
 .zombie-show-skip {
   min-height: 44px;
-  border: .35cqw solid #1d102e;
+  border: .35cqw solid #12060a;
   border-radius: 1.5cqw;
   padding: .5cqw 1.75cqw;
-  background: #c8ee6e;
-  color: #211033;
+  background: #ffb23f;
+  color: #241019;
   font-family: "Zombie Luckiest", system-ui, sans-serif;
 }
 
@@ -135,9 +137,9 @@
 
 .zombie-show-quiz h3 { font: calc(74 * var(--u)) "Zombie Luckiest", system-ui, sans-serif; }
 .zombie-show-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5cqw; }
-.zombie-show-choices button { min-height: max(44px, 7.5cqw); background: #fff5dc; font-size: calc(84 * var(--u)); }
+.zombie-show-choices button { min-height: max(44px, 7.5cqw); background: #fff1e2; font-size: calc(84 * var(--u)); }
 .zombie-show-choices [data-answer="wrong"] { background: #ff83ae; animation: zombie-wrong .32s ease-out; }
-.zombie-show-choices [data-answer="correct"] { background: #c8ee6e; }
+.zombie-show-choices [data-answer="correct"] { background: #5bd27a; }
 .zombie-show-quiz p { min-height: 1.3em; }
 .zombie-show-controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 .zombie-show-controls button { min-height: 44px; padding: .4rem .8rem; border: 1px solid hsl(var(--border)); border-radius: .5rem; background: hsl(var(--card)); }

@@ -45,16 +45,21 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
       video.currentTime = seconds;
       fireEvent.timeUpdate(video);
     };
-    reach(74.40);
-    expect(video.currentTime).toBe(74.37);
+    reach(91.30);
+    expect(video.currentTime).toBe(91.27);
     expect(await screen.findByText("Votre briefing")).toBeVisible();
     await waitFor(() => expect(video.paused).toBe(false));
-    reach(83.25);
-    expect(video.currentTime).toBe(83.22);
+    reach(101.22);
+    expect(video.currentTime).toBe(101.19);
     await waitFor(() => expect(video.paused).toBe(false));
 
-    reach(86);
-    expect(video.currentTime).toBe(85.95);
+    reach(106.20);
+    expect(video.currentTime).toBe(106.15);
+    expect(screen.getByText("Le jeu")).toBeVisible();
+    await waitFor(() => expect(video.paused).toBe(false));
+
+    reach(113.84);
+    expect(video.currentTime).toBe(113.83);
     expect(video.paused).toBe(true);
     const wrong = screen.getByRole("button", { name: /17\s+h\s+45/ });
     await user.click(wrong);
@@ -64,11 +69,8 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
     await user.click(screen.getByRole("button", { name: /18\s+h\s+00/ }));
     await waitFor(() => expect(video.paused).toBe(false), { timeout: 2500 });
 
-    reach(91);
-    expect(video.currentTime).toBe(90.98);
-    await waitFor(() => expect(video.paused).toBe(false));
-    reach(95);
-    expect(video.currentTime).toBe(94.92);
+    reach(113.91);
+    expect(video.currentTime).toBe(113.89);
     expect(video.paused).toBe(true);
     await user.click(screen.getByRole("button", { name: "7" }));
     await waitFor(() => expect(video.paused).toBe(false), { timeout: 2500 });

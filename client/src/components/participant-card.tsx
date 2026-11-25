@@ -5,11 +5,11 @@ import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardArtwork, cardAssets, cardLayout, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardArtwork, cardAssets, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
-    queryKey: [cardsPath, "print", id], enabled: id !== undefined, staleTime: 10 * 60_000, gcTime: 0,
+    queryKey: [cardsPath, "print", id], enabled: id !== undefined, gcTime: 0,
     queryFn: async () => {
       const response = await apiRequest("POST", `${cardsPath}/print`, { ids: [id] });
       const [card] = await response.json() as PrintableCard[];
@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -57,6 +57,13 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
       <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
+      {cardScheduleFields.map(field => (
+        <div key={field.key} className="absolute flex flex-col items-center gap-[0.6cqw] rounded-[0.95cqw] bg-white pt-[0.6cqw] leading-none text-[#101828]"
+          style={at(field.x, scheduleY, field.width, scheduleHeight)}>
+          <span className="text-[2.3cqw] font-bold text-slate-700">{cardScheduleLabel(field, card.type)}</span>
+          <strong className="text-[3.75cqw]">{cardScheduleValue(card, field.key)}</strong>
+        </div>
+      ))}
       <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, 44.25, mealBoxSize, mealBoxSize)} />
       <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, 45.5)}>Repas</span>
       {theme.zombie && <>

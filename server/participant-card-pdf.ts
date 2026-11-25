@@ -2,12 +2,12 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, makeupBoxY, makeupBoxHeight, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -38,7 +38,7 @@ function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   doc.rect(pt(-bleed), pt(54), pt(width + 2 * bleed), pt(height - 54 + bleed)).fill(theme.accent);
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, hasQr: boolean, artwork?: string) {
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, hasQr: boolean, type: string, artwork?: string) {
   backdrop(doc, side, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
@@ -52,6 +52,11 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
       doc.fillColor("#ffffff").font("CardBold").fontSize(7)
         .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
+    }
+    for (const field of cardScheduleFields) {
+      doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
+      doc.fillColor("#334155").font("CardBold").fontSize(5.5)
+        .text(cardScheduleLabel(field, type), pt(field.x), pt(scheduleY + 0.5), { width: pt(field.width), align: "center", lineBreak: false });
     }
     doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
     doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
@@ -134,11 +139,18 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {
-            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, Boolean(card), artwork);
+            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, Boolean(card), card?.type ?? "zombie", artwork);
             if (a4) trimMarks(doc, index < a4CardColumns, index + a4CardColumns >= sheet.length);
           }
           if (card && side === "front") {
             printName(doc, printedCardName(card));
+            if (mode === "complete") {
+              for (const field of cardScheduleFields) {
+                const value = cardScheduleValue(card, field.key);
+                if (value) doc.fillColor("#101828").font("CardBold").fontSize(9)
+                  .text(value, pt(field.x), pt(scheduleY + 3), { width: pt(field.width), align: "center", lineBreak: false });
+              }
+            }
             const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
             const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
             doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });

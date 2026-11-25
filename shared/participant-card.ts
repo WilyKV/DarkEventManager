@@ -21,6 +21,8 @@ export type PrintableCard = {
   type: string;
   token: string;
   code: string;
+  squad?: number | null;
+  briefingTime?: string | null;
 };
 
 export type SouvenirSummary = {
@@ -75,6 +77,21 @@ export function printedCardName({ firstName, surnamePrefix }: Pick<PrintableCard
   return surnamePrefix ? `${firstName} ${surnamePrefix}.` : firstName;
 }
 
+export const cardScheduleFields = [
+  { key: "squad", label: "Squad", x: 4.5, width: 19 },
+  { key: "briefingTime", label: "Briefing", x: 25.5, width: 24 },
+] as const;
+
+export function cardScheduleLabel(field: typeof cardScheduleFields[number], type: string) {
+  return field.key === "squad" && type !== "zombie" ? "Équipe" : field.label;
+}
+
+export function cardScheduleValue(card: PrintableCard, field: typeof cardScheduleFields[number]["key"]) {
+  if (field === "squad") return card.squad == null ? "" : `N° ${card.squad}`;
+  const time = /^(\d{1,2}):([0-5]\d)(?::[0-5]\d)?$/.exec(card.briefingTime?.trim() ?? "");
+  return time && Number(time[1]) < 24 ? `${time[1].padStart(2, "0")}:${time[2]}` : "";
+}
+
 // Millimetres on the finished card. Keep the personalization positions aligned
 // with previously printed stock and with the browser preview.
 export const cardLayout = {
@@ -85,6 +102,8 @@ export const cardLayout = {
   nameCenterY: 25,
   namePanelY: 18.5,
   namePanelHeight: 13,
+  scheduleY: 33,
+  scheduleHeight: 8,
   mealBoxSize: 5.5,
   makeupBoxY: 43.5,
   makeupBoxHeight: 7,

@@ -152,9 +152,11 @@ export default function OfflineCheckInPage() {
       if (overflowConfirmed && state.squadId !== null) capacityOverrides[player.id] = state.squadId;
       else if (state.squadId !== player.state.squadId) delete capacityOverrides[player.id];
     }
-    if (!updates.size) return;
+    const welcomeChecklist = checklist.canEdit ? checklist.settings : data.welcomeChecklist;
+    if (!updates.size && welcomeChecklist === data.welcomeChecklist) return;
     await persist(active, {
       ...data,
+      welcomeChecklist,
       capacityOverrides,
       pending: Array.from(new Set([...data.pending, ...Array.from(updates.keys())])),
       participants: data.participants.map(player => {

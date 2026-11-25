@@ -1,4 +1,4 @@
-import { defaultWelcomeChecklist, type WelcomeChecklist } from "@shared/welcome-checklist";
+import { defaultWelcomeChecklist, welcomeOffers, type WelcomeChecklist } from "@shared/welcome-checklist";
 import { WelcomeChecklistEditor } from "./welcome-checklist-editor";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Map, Paintbrush, Ticket, Users } from "lucide-react";
@@ -76,7 +76,14 @@ interface WelcomeGuideProps {
 export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, defaultChecked = false, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
-  const extra = type === "zombie" && !squadOnly ? checklistSettings.extra : [];
+  const extra = type === "zombie" && !squadOnly ? [
+    ...checklistSettings.extra.map(point => ({ ...point, prefilled: defaultChecked })),
+    ...welcomeOffers.map(point => ({
+      ...point,
+      prefilled: defaultChecked && slot !== undefined &&
+        Boolean(checklistSettings.prefilledOffersByWave?.[slot.id]?.includes(point.id)),
+    })),
+  ] : [];
   const visibleItems = items.filter(key => type !== "zombie" || !checklistSettings.hidden.includes(key));
   const hasChecklist = visibleItems.length + extra.length > 0;
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -156,8 +163,8 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
           ...details,
           ...(defaultChecked && { checklist: Object.fromEntries(visibleItems.map(key =>
             [key, details.checklist[key] ?? true])) }),
-          ...((defaultChecked && extra.length > 0 || details.welcomeChecks) && { welcomeChecks: Object.fromEntries(extra.flatMap(({ id }) => {
-            const value = details.welcomeChecks?.[id] ?? (defaultChecked ? true : undefined);
+          ...((defaultChecked && extra.length > 0 || details.welcomeChecks) && { welcomeChecks: Object.fromEntries(extra.flatMap(({ id, prefilled }) => {
+            const value = details.welcomeChecks?.[id] ?? (defaultChecked ? prefilled : undefined);
             return value === undefined ? [] : [[id, value]];
           })) }),
         }, keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
@@ -267,7 +274,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 {editingChecklist ? "Fermer l’éditeur" : "Modifier la checklist"}
               </Button>
             )}
-            {editingChecklist && <WelcomeChecklistEditor settings={checklistSettings} canEdit={Boolean(canEditChecklist)}
+            {editingChecklist && <WelcomeChecklistEditor settings={checklistSettings} wave={slot} canEdit={Boolean(canEditChecklist)}
               onClose={() => setEditingChecklist(false)} />}
             {hasChecklist && (
               <div className="space-y-2">
@@ -301,10 +308,10 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                       </div>
                     </li>
                   ))}
-                  {extra.map(({ id, title, note }) => (
+                  {extra.map(({ id, title, note, prefilled }) => (
                     <li key={id} className="px-3 py-2">
                       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] ?? defaultChecked}
+                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] ?? prefilled}
                           disabled={saving} onChange={event => {
                             const checked = event.target.checked;
                             setDetails(previous => ({ ...previous, welcomeChecks: { ...previous.welcomeChecks, [id]: checked } }));

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ListChecks, Plus, Trash2 } from "lucide-react";
 import { checkInProfiles, checkInRosterPath, type ChecklistItem } from "@shared/check-in";
-import { defaultWelcomeChecklist, welcomeChecklistLimit, welcomeChecklistPath, type WelcomeChecklist } from "@shared/welcome-checklist";
+import { defaultWelcomeChecklist, welcomeChecklistLimit, welcomeChecklistPath, welcomeOffers, type WelcomeChecklist } from "@shared/welcome-checklist";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
@@ -28,10 +28,11 @@ export function useWelcomeChecklist(enabled: boolean, cached?: WelcomeChecklist)
   return { settings: query.data ?? cached ?? defaultWelcomeChecklist, canEdit: online && query.isSuccess };
 }
 
-export function WelcomeChecklistEditor({ settings, canEdit, onClose }: {
+export function WelcomeChecklistEditor({ settings, canEdit, onClose, wave }: {
   settings: WelcomeChecklist;
   canEdit: boolean;
   onClose?: () => void;
+  wave?: { id: number; name: string };
 }) {
   const [draft, setDraft] = useState(settings);
   const [title, setTitle] = useState("");
@@ -53,6 +54,8 @@ export function WelcomeChecklistEditor({ settings, canEdit, onClose }: {
   });
   const disabled = !canEdit || mutation.isPending;
   const canAdd = Boolean(title.trim()) && draft.extra.length < welcomeChecklistLimit;
+  const waveOffers = wave ? draft.prefilledOffersByWave?.[wave.id] ?? [] : [];
+
   function withNewPoint(): WelcomeChecklist {
     return {
       ...draft,
@@ -63,7 +66,7 @@ export function WelcomeChecklistEditor({ settings, canEdit, onClose }: {
   return (
     <fieldset disabled={disabled} className="space-y-3 rounded-xl border border-border bg-card p-4">
       <legend className="px-1 font-semibold">Checklist Zombies de l’événement</legend>
-      <p className="text-sm text-muted-foreground">Les changements s’appliquent à toutes les vagues de l’événement.</p>
+      <p className="text-sm text-muted-foreground">Les consignes générales s’appliquent à toutes les vagues de l’événement.</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {checkInProfiles.zombie.checklist.map(key => (
           <label key={key} className="flex min-h-10 items-center gap-2 text-sm">
@@ -75,6 +78,23 @@ export function WelcomeChecklistEditor({ settings, canEdit, onClose }: {
           </label>
         ))}
       </div>
+      {wave && <fieldset className="space-y-2 rounded-lg border border-border p-3">
+        <legend className="px-1 text-sm font-semibold">Offres des intervenants · {wave.name}</legend>
+        <p className="text-sm text-muted-foreground">Précocher ces points pour chaque nouveau groupe de cette vague.</p>
+        {welcomeOffers.map(({ id, title }) => (
+          <label key={id} className="flex min-h-10 items-center gap-2 text-sm">
+            <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={waveOffers.includes(id)}
+              onChange={event => setDraft({
+                ...draft,
+                prefilledOffersByWave: {
+                  ...draft.prefilledOffersByWave,
+                  [wave.id]: event.target.checked ? [...waveOffers, id] : waveOffers.filter(offer => offer !== id),
+                },
+              })} />
+            {title}
+          </label>
+        ))}
+      </fieldset>}
       {draft.extra.length > 0 && <ul className="divide-y divide-border">
         {draft.extra.map(item => (
           <li key={item.id} className="flex items-center justify-between gap-2 py-1 text-sm">

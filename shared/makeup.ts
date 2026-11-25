@@ -32,9 +32,9 @@ export function makeupEstimates(
   const cadence = windowMinutes > 0 ? (windowMinutes / wave.length) * 0.6 : 6;
   const interval = Math.max(1, cadence) * minute;
   let slot = first - interval;
-  for (const [index, { id, time }] of arrivals.entries()) {
+  arrivals.forEach(({ id, time }, index) => {
     if (index % artists === 0) slot = Math.max(time, slot + interval);
     estimates.set(id, Math.round(slot));
-  }
+  });
   return estimates;
 }

@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WelcomeDialog } from "@/components/welcome-dialog";
+import { defaultWelcomeChecklist, welcomeOffers } from "@shared/welcome-checklist";
 import type { CheckInPlayer, CheckInRoster } from "@shared/check-in";
 
 function player(id: number, firstName: string, lastName: string, overrides: Partial<CheckInPlayer> = {}): CheckInPlayer {
@@ -206,7 +207,9 @@ describe("Accueil tactile", () => {
     const onSave = vi.fn();
     const previous = { ...clara, arrived: true, details: { squadId: 1,
       checklist: { squadExplained: true, mealTicketGiven: true, briefingExplained: true } } };
-    render(<WelcomeDialog roster={{ ...roster, players: [previous] }} onClose={vi.fn()} onSave={onSave} />);
+    render(<WelcomeDialog roster={{ ...roster, players: [previous],
+      welcomeChecklist: { ...defaultWelcomeChecklist, prefilledOffersByWave: { 1: [welcomeOffers[0].id] } },
+    }} onClose={vi.fn()} onSave={onSave} />);
     await begin(user);
     await click(user, "M");
     await click(user, /Martin Clara/);
@@ -217,6 +220,8 @@ describe("Accueil tactile", () => {
     const water = screen.getByRole("checkbox", { name: "Donner la bouteille d’eau" });
     expect(card).toBeChecked();
     expect(water).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: welcomeOffers[0].title })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: welcomeOffers[1].title })).not.toBeChecked();
     await user.click(card);
     expect(card).not.toBeChecked();
     expect(water).toBeChecked();
@@ -224,6 +229,7 @@ describe("Accueil tactile", () => {
     await click(user, "Valider l’arrivée");
     expect(onSave).toHaveBeenCalledWith(previous, {
       squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true, makeupWaitExplained: true, mapGiven: true },
+      welcomeChecks: { [welcomeOffers[0].id]: true, [welcomeOffers[1].id]: false },
     }, false);
   });
   it("affiche les horaires et les consignes configurées, puis permet de quitter sans clôturer la vague", async () => {
@@ -249,10 +255,13 @@ describe("Accueil tactile", () => {
     expect(list.queryByRole("checkbox", { name: "Proposer une carte" })).toBeNull();
     expect(list.getByText(point.note)).toBeVisible();
     expect(list.getByRole("checkbox", { name: point.title })).toBeChecked();
+    expect(list.getByRole("checkbox", { name: welcomeOffers[0].title })).not.toBeChecked();
+    expect(list.getByRole("checkbox", { name: welcomeOffers[1].title })).not.toBeChecked();
+    await user.click(list.getByRole("checkbox", { name: welcomeOffers[0].title }));
     await click(user, "Vérifier les arrivées");
     await click(user, "Valider l’arrivée");
 
-    expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true } }), false);
+    expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true, [welcomeOffers[0].id]: true, [welcomeOffers[1].id]: false } }), false);
     expect(within(screen.getByRole("region", { name: "Heures estimées de maquillage" })).getByText(/^\d{2}:\d{2}$/)).toBeVisible();
     await click(user, "Quitter l’accueil");
     expect(onClose).toHaveBeenCalledOnce();

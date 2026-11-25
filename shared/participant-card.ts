@@ -10,6 +10,8 @@ export type SouvenirSettingsResponse = SouvenirSettings & { automatic: SouvenirA
 export type SouvenirHighlights = SouvenirAttendance & { photoUrl: string | null };
 
 export const souvenirPath = "/souvenir";
+export const souvenirRecoveryPath = `${souvenirPath}/recuperation`;
+export const souvenirRecoveryApi = `${cardsPath}/recover`;
 export const adminSouvenirPath = "/souvenir/admin";
 export const souvenirCodeHint = "Majuscules, minuscules et espaces acceptés";
 export const photoMaxBytes = 64_000;
@@ -122,6 +124,7 @@ export const cardLayout = {
   qrY: 13.5,
   qrSize: 23,
   codeY: 27,
+  linkY: 51.5,
 } as const;
 
 export const cardAssets = "card-assets";

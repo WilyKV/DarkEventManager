@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
 import { cardsPath, type CardPrintLayout } from "@shared/participant-card";
-import { checkInTypes } from "@shared/check-in";
+import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
 import { DataSyncButton } from "@/components/data-sync-button";
@@ -23,6 +23,7 @@ export default function BadgesPage() {
   const [focused, setFocused] = useState<number>();
   const [checked, setChecked] = useState<number[]>([]);
   const [search, setSearch] = useState("");
+  const [blankProfile, setBlankProfile] = useState<string>();
   const [layout, setLayout] = useState<CardPrintLayout>("a4");
   const [mode, setMode] = useState<PrintMode>("complete");
   const [busy, setBusy] = useState(false);
@@ -30,6 +31,9 @@ export default function BadgesPage() {
   const roster = useQuery<ParticipantWithRelations[]>({ queryKey: ["/api/participants"] });
   const allowed = hasAnyRole(["admin"]) ? checkInTypes
     : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
+  const templateProfile = allowed.find(type => type === blankProfile) ?? allowed[0];
+  const templateQuery = new URLSearchParams({ layout, origin: window.location.origin });
+  if (templateProfile) templateQuery.set("type", templateProfile);
   const people = (roster.data ?? []).filter(person => allowed.some(type => type === person.type))
     .sort((a, b) => a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr"));
   const filtered = people.filter(person =>
@@ -74,7 +78,12 @@ export default function BadgesPage() {
                 <option value="card">85 × 55 mm · carte individuelle</option>
               </select>
             </label>
-            <Button asChild variant="outline" className="min-h-11"><a href={`${cardsPath}/template?layout=${layout}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
+            <label className="grid gap-1 text-sm font-medium">Profil du modèle vierge
+              <select value={templateProfile ?? ""} onChange={event => setBlankProfile(event.target.value)} className="min-h-11 rounded-md border border-input bg-background px-2">
+                {allowed.map(type => <option key={type} value={type}>{checkInProfileLabels[type]}</option>)}
+              </select>
+            </label>
+            <Button asChild variant="outline" className="min-h-11"><a href={`${cardsPath}/template?${templateQuery}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
             <label className="grid gap-1 text-sm font-medium">Faces à imprimer
               <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-11 rounded-md border border-input bg-background px-2">
                 <option value="complete">Carte complète recto verso</option>

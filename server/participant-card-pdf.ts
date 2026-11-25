@@ -2,12 +2,12 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -38,7 +38,7 @@ function backdrop(doc: PDFKit.PDFDocument, theme: ReturnType<typeof cardTheme>, 
   }
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, hasQr: boolean, type: string, artwork?: string) {
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, recovery: boolean, type: string, artwork?: string) {
   backdrop(doc, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
@@ -48,11 +48,9 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   if (side === "front") {
     doc.roundedRect(pt(4.5), pt(namePanelY), pt(48.5), pt(namePanelHeight), pt(2)).fill("#ffffff");
     doc.rect(pt(4.5), pt(namePanelY + 2), pt(0.6), pt(namePanelHeight - 4)).fill(theme.accent);
-    if (hasQr) {
-      doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
-      doc.fillColor("#ffffff").font("CardBold").fontSize(7)
-        .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
-    }
+    doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
+    doc.fillColor("#ffffff").font("CardBold").fontSize(7)
+      .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
     for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
       doc.fillColor("#334155").font("CardBold").fontSize(5.5)
@@ -75,11 +73,21 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   doc.roundedRect(pt(13), pt(24), pt(59), pt(11), pt(2)).fill("#ffffff");
   doc.fillColor("#334155").font("CardRegular").fontSize(6.25)
     .text(souvenirCodeHint, pt(13), pt(24.45), { width: pt(59), align: "center" });
-  if (hasQr) {
-    doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
-      "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
-      pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
-  }
+  doc.fillColor("#ffffff").font("CardRegular").fontSize(8).text(
+    recovery
+      ? "Scannez le QR au recto, puis indiquez ce code,\nvos nom et prénom et votre profil."
+      : "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
+    pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
+}
+
+function printCardLink(doc: PDFKit.PDFDocument, url: string) {
+  doc.font("CardRegular").fontSize(6.5);
+  const maxWidth = pt(74);
+  const size = Math.min(6.5, 6.5 * maxWidth / doc.widthOfString(url));
+  doc.roundedRect(pt(5), pt(linkY - 0.45), pt(75), pt(3.15), pt(0.5)).fill("#100b12");
+  doc.fillColor("#ffffff").fontSize(size).text(url, pt(5), pt(linkY), {
+    width: pt(75), align: "center", lineBreak: false, link: url,
+  });
 }
 
 function printName(doc: PDFKit.PDFDocument, name: string) {
@@ -109,7 +117,7 @@ function trimMarks(doc: PDFKit.PDFDocument) {
   doc.stroke();
 }
 
-export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode, layout: CardPrintLayout = "card") {
+export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode, layout: CardPrintLayout = "card", templateType = "zombie") {
   const a4 = layout === "a4";
   const page = a4 ? cardSheet : cardLayout;
   const doc = new PDFDocument({ size: [pt(page.width), pt(page.height)], margin: 0, autoFirstPage: false });
@@ -122,9 +130,12 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
   const sides = mode === "complete" ? ["front", "back"] as const : [mode];
   const capacity = a4 ? cardSheet.capacity : 1;
   const entries = cards.length ? cards : Array.from({ length: capacity }, () => undefined);
+  const recoveryUrl = new URL(souvenirRecoveryPath, origin).href;
+  const qrOptions = { width: 360, margin: 4, errorCorrectionLevel: "M" } as const;
+  const recoveryQr = cards.length ? undefined : await QRCode.toBuffer(recoveryUrl, qrOptions);
   try {
     const artworkNames = mode === "complete" || !cards.length
-      ? new Set(entries.flatMap(card => cardTheme(card?.type ?? "zombie").artwork ?? []))
+      ? new Set(entries.flatMap(card => cardTheme(card?.type ?? templateType).artwork ?? []))
       : new Set<string>();
     const [regular, bold, resolvedArtwork] = await Promise.all([
       findCardAsset("OpenSans-Regular.ttf"),
@@ -146,23 +157,24 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {
-            const type = card?.type ?? "zombie";
+            const type = card?.type ?? templateType;
             const theme = cardTheme(type);
-            template(doc, side, theme, a4 ? a4CardBleed : { x: 0, y: 0 }, Boolean(card), type,
+            template(doc, side, theme, a4 ? a4CardBleed : { x: 0, y: 0 }, !card, type,
               theme.artwork ? artworkByName.get(theme.artwork) : undefined);
             if (a4) trimMarks(doc);
           }
-          if (card && side === "front") {
-            printName(doc, printedCardName(card));
-            if (mode === "complete") {
+          if (side === "front") {
+            if (card) printName(doc, printedCardName(card));
+            if (mode === "complete" && card) {
               for (const field of cardScheduleFields(card.type)) {
                 const value = cardScheduleValue(card, field.key);
                 if (value) doc.fillColor("#101828").font("CardBold").fontSize(9)
                   .text(value, pt(field.x), pt(scheduleY + 3), { width: pt(field.width), align: "center", lineBreak: false });
               }
             }
-            const url = new URL(`${souvenirPath}/${card.token}`, origin).href;
-            const qr = await QRCode.toBuffer(url, { width: 360, margin: 4, errorCorrectionLevel: "M" });
+            const url = card ? new URL(`${souvenirPath}/${card.token}`, origin).href : recoveryUrl;
+            const qr = recoveryQr ?? await QRCode.toBuffer(url, qrOptions);
+            if (mode === "complete" || !card) printCardLink(doc, url);
             doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });
           } else if (card) {
             const code = `${card.code.slice(0, 5)} ${card.code.slice(5)}`;

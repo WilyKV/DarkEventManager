@@ -9,10 +9,12 @@ import { PwaProvider } from "@/components/install-prompt";
 import { LiveUpdatesProvider } from "@/lib/live-updates";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { getOfflineCopy } from "@/db/zombie-offline";
+import { souvenirRecoveryPath } from "@shared/participant-card";
 import { legacyOfflineCheckInPage, offlineCheckInPage } from "@shared/zombie-offline";
 
 const LoginPage = React.lazy(() => import("@/pages/login"));
 const SouvenirPage = React.lazy(() => import("@/pages/souvenir"));
+const SouvenirRecoveryPage = React.lazy(() => import("@/pages/souvenir").then(module => ({ default: module.SouvenirRecoveryPage })));
 const VisitorPage = React.lazy(() => import("@/pages/visitor"));
 const OverviewPage = React.lazy(() => import("@/pages/overview"));
 const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
@@ -92,6 +94,7 @@ function Router() {
       <Route path="/souvenir/admin/:id">
         {params => <RequireAuth roles={["admin"]}><SouvenirPage params={params} /></RequireAuth>}
       </Route>
+      <Route path={souvenirRecoveryPath} component={SouvenirRecoveryPage} />
       <Route path="/souvenir/:token" component={SouvenirPage} />
       <Route path="/visitor">
         <VisitorPage />

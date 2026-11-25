@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
-import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, type ParticipantSouvenir } from "@shared/participant-card";
+import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, souvenirRecoveryApi, type ParticipantSouvenir } from "@shared/participant-card";
+import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
 import { StaffCardActions } from "@/components/staff-card-actions";
 import { useAuth } from "@/lib/auth";
 import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
@@ -42,7 +43,65 @@ export default function SouvenirPage({ params }: { params: { token?: string; id?
   return <SouvenirSession key={params.id ? `admin:${params.id}` : params.token} token={params.token} adminId={params.id} />;
 }
 
-function SouvenirSession({ token, adminId }: { token?: string; adminId?: string }) {
+export function SouvenirRecoveryPage() {
+  const [token, setToken] = useState<string>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function recover(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const form = new FormData(event.currentTarget);
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(souvenirRecoveryApi, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(form)),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "La récupération est indisponible.");
+      setToken(result.token);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "La récupération est indisponible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (token) return <SouvenirSession token={token} onRecoveryClose={() => setToken(undefined)} />;
+  return <main className="souvenir">
+    <div className="souvenir-backdrop" aria-hidden />
+    <div className="souvenir-wrap">
+      <header className="souvenir-masthead"><span className="souvenir-brand">ZOMB’IN<span> THE DARK</span></span></header>
+      <section className="souvenir-unlock souvenir-enter">
+        <div>
+          <h1>Retrouver mon <span>espace souvenir.</span></h1>
+          <p>Utilisez le code au verso de votre carte de remplacement et les informations de votre inscription.</p>
+        </div>
+        <form onSubmit={recover}>
+          <label htmlFor="recover-code">Code au verso</label>
+          <Input id="recover-code" name="code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={64} required />
+          <label htmlFor="recover-last-name">Nom de famille complet</label>
+          <Input id="recover-last-name" name="lastName" autoComplete="family-name" maxLength={120} required />
+          <label htmlFor="recover-first-name">Prénom</label>
+          <Input id="recover-first-name" name="firstName" autoComplete="given-name" maxLength={120} required />
+          <label htmlFor="recover-type">Votre profil pendant l’événement</label>
+          <select id="recover-type" name="type" required defaultValue="" className="min-h-11 rounded-md border border-input bg-[#0d0a10] px-3 text-white">
+            <option value="" disabled>Choisir mon profil</option>
+            {checkInTypes.map(type => <option key={type} value={type}>{checkInProfileLabels[type]}</option>)}
+          </select>
+          <p className="text-sm text-[#e1cdd5]">Les majuscules, accents, espaces et signes de ponctuation sont ignorés dans les noms.</p>
+          {error && <p role="alert" className="souvenir-error">{error}</p>}
+          <Button type="submit" loading={busy}>Ouvrir mon espace <ArrowRight /></Button>
+        </form>
+      </section>
+    </div>
+  </main>;
+}
+
+function SouvenirSession({ token, adminId, onRecoveryClose }: { token?: string; adminId?: string; onRecoveryClose?: () => void }) {
+  const recovered = Boolean(onRecoveryClose);
   const { user, isLoading: checkingAccount } = useAuth();
   const open = `${cardsPath}/open/${encodeURIComponent(token ?? "")}`;
   const view = adminId ? `${cardsPath}/admin/${encodeURIComponent(adminId)}` : `${cardsPath}/view/${encodeURIComponent(token ?? "")}`;
@@ -66,11 +125,11 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
 
   useEffect(() => {
     if (adminId || checkingAccount) return;
-    if (user) { setCheckingSession(false); return; }
+    if (user && !recovered) { setCheckingSession(false); return; }
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(`${view}?resume=1`, { cache: "no-store", signal: controller.signal });
+        const response = await fetch(recovered ? view : `${view}?resume=1`, { cache: "no-store", signal: controller.signal });
         if (response.ok) {
           const data = await response.json() as ParticipantSouvenir;
           if (!controller.signal.aborted) setSummary(data);
@@ -84,7 +143,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
       }
     })();
     return () => controller.abort();
-  }, [adminId, checkingAccount, user, view]);
+  }, [adminId, checkingAccount, user, view, recovered]);
 
   async function unlock(event: FormEvent) {
     event.preventDefault();
@@ -113,6 +172,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
       const response = await fetch(open, { method: "DELETE" });
       if (!response.ok) throw new Error();
       setRemember(false);
+      onRecoveryClose?.();
     } catch {
       setError("Impossible de fermer la session sur le serveur. Réessayez.");
       setSummary(summary);
@@ -155,7 +215,7 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
           <LogOut /> Fermer mon espace
         </Button>}
       </header>
-      {user && token && !adminId && !summary && <StaffCardActions token={token} accountId={user.id} />}
+      {user && token && !adminId && !summary && !recovered && <StaffCardActions token={token} accountId={user.id} />}
       {summary ? <>
         {error && <p role="alert" className="souvenir-error">{error}</p>}
         <section className="souvenir-hero souvenir-enter" aria-labelledby="souvenir-title">
@@ -231,6 +291,16 @@ function SouvenirSession({ token, adminId }: { token?: string; adminId?: string 
             <h1>Espace souvenir</h1>
             {adminPreview.isPending && <p role="status">Chargement…</p>}
             {adminPreview.isError && <p role="alert" className="souvenir-error">{adminPreview.error.message}</p>}
+          </div>
+        </section>
+      ) : recovered ? (
+        <section className="souvenir-unlock">
+          <div>
+            <h1>Espace souvenir</h1>
+            {checkingSession ? <p role="status">Vérification…</p> : <>
+              <p role="alert">{error || "Impossible d’afficher cet espace souvenir."}</p>
+              <Button type="button" onClick={onRecoveryClose}>Retour au formulaire</Button>
+            </>}
           </div>
         </section>
       ) : <section className="souvenir-unlock souvenir-enter">

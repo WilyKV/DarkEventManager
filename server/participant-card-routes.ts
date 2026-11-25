@@ -1,12 +1,12 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
-import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
+import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
-import { checkInRoles } from "@shared/check-in";
+import { checkInRoles, checkInTypes } from "@shared/check-in";
 import { db } from "./db";
 import { storage } from "./storage";
 import { hasSessionRole, requireRole } from "./auth-middleware";
@@ -25,15 +25,44 @@ function codeProof(card: Pick<typeof participantCards.$inferSelect, "token" | "c
   return createHash("sha256").update(JSON.stringify([card.token, card.code])).digest("hex");
 }
 
+const originSchema = z.url().max(240).refine(url => {
+  const parsed = new URL(url);
+  return parsed.origin === url && ["https:", "http:"].includes(parsed.protocol);
+});
 const issueSchema = z.object({
   ids: z.array(z.number().int().positive()).min(1).max(500),
   pdf: z.enum(printModes).optional(),
   layout: z.enum(cardPrintLayouts).optional(),
-  origin: z.url().max(240).refine(url => {
-    const parsed = new URL(url);
-    return parsed.origin === url && ["https:", "http:"].includes(parsed.protocol);
-  }).optional(),
+  origin: originSchema.optional(),
 }).strict();
+
+const recoverySchema = z.object({
+  firstName: z.string().min(1).max(120),
+  lastName: z.string().min(1).max(120),
+  type: z.enum(checkInTypes),
+  code: z.string().min(1).max(64),
+}).strict();
+
+const recoverySeparators = new RegExp("[^\\p{L}\\p{N}]", "gu");
+
+function recoveryName(value: string) {
+  return value.normalize("NFKD").toLocaleLowerCase("fr").replace(recoverySeparators, "");
+}
+
+async function unlockSouvenirSession(req: Request, card: Pick<typeof participantCards.$inferSelect, "token" | "code" | "expiresAt">, remember: boolean) {
+  // Create a fresh visitor session. A signed-in volunteer keeps their staff session.
+  if (!req.session.user) await new Promise<void>((resolve, reject) =>
+    req.session.regenerate(err => err ? reject(err) : resolve()));
+  req.session.souvenirToken = card.token;
+  req.session.souvenirCodeProof = codeProof(card);
+  req.session.souvenirRemembered = remember;
+  if (remember && !req.session.user) {
+    const thirtyDays = 30 * 24 * 60 * 60 * 1000;
+    req.session.cookie.maxAge = card.expiresAt ? Math.min(thirtyDays, card.expiresAt.getTime() - Date.now()) : thirtyDays;
+  }
+  await new Promise<void>((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
+}
+
 const photoSchema = z.object({
   photo: z.string().max(Math.ceil(photoMaxBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/).nullable(),
   ownerId: z.number().int().positive().optional(),
@@ -348,8 +377,13 @@ export function registerParticipantCardRoutes(app: Express) {
 
   app.get(`${cardsPath}/template`, staff, async (req, res) => {
     const layout = z.enum(cardPrintLayouts).safeParse(req.query.layout ?? "card");
-    if (!layout.success) return res.status(400).json({ message: "Format de carte invalide." });
-    const pdf = await renderParticipantCards([], "https://example.invalid", "complete", layout.data);
+    const origin = originSchema.safeParse(req.query.origin ?? `${req.protocol}://${req.get("host")}`);
+    const allowed = allowedCheckInTypes(req.session.user!.roles);
+    const type = z.enum(checkInTypes).safeParse(req.query.type ?? allowed[0]);
+    if (!layout.success || !origin.success || !type.success || !allowed.includes(type.data)) {
+      return res.status(400).json({ message: "Modèle de carte invalide." });
+    }
+    const pdf = await renderParticipantCards([], origin.data, "complete", layout.data, type.data);
     res.attachment(layout.data === "a4" ? "modele-cartes-a4.pdf" : "modele-carte-85x55.pdf").type("application/pdf").send(pdf);
   });
 
@@ -437,6 +471,41 @@ export function registerParticipantCardRoutes(app: Express) {
     return result.code ? res.json({ code: result.code }) : res.sendStatus(result.status);
   });
 
+  app.post(souvenirRecoveryApi, unlockLimit, async (req, res) => {
+    const rejected = () => res.status(401).json({ message: "Les informations saisies ne permettent pas d’ouvrir un espace souvenir." });
+    const form = recoverySchema.safeParse(req.body);
+    if (!form.success) return rejected();
+    const { type } = form.data;
+    const firstName = recoveryName(form.data.firstName);
+    const lastName = recoveryName(form.data.lastName);
+    const code = form.data.code.replace(/[\s-]/g, "").toUpperCase();
+    if (!firstName || !lastName || !/^[A-Z2-9]{10}$/.test(code)) return rejected();
+
+    const candidates = await db.select().from(participantCards).where(and(
+      eq(participantCards.code, code),
+      or(isNull(participantCards.expiresAt), sql`${participantCards.expiresAt} > now()`),
+    ));
+    const matches = [];
+    for (const card of candidates) {
+      if (card.code !== code || (card.expiresAt && card.expiresAt <= new Date())) continue;
+      let identity = card.summary;
+      if (!card.expiresAt) {
+        const [player] = await db.select().from(participants).where(and(
+          eq(participants.id, card.participantId), isNull(participants.deletedAt),
+        ));
+        if (!player || identityOf(player) !== card.identity) continue;
+        identity = { ...identity, firstName: player.firstName, lastName: player.lastName, type: player.type };
+      }
+      if (identity.type === type && recoveryName(identity.firstName) === firstName && recoveryName(identity.lastName) === lastName) {
+        matches.push(card);
+      }
+    }
+    if (matches.length !== 1) return rejected();
+    const [card] = matches;
+    await unlockSouvenirSession(req, card, false);
+    return res.json({ token: card.token });
+  });
+
   app.post(`${cardsPath}/open/:token`, unlockLimit, async (req, res) => {
     const code = typeof req.body?.code === "string" ? req.body.code.replace(/[\s-]/g, "").toUpperCase() : "";
     const card = await getCard(req.params.token);
@@ -444,17 +513,7 @@ export function registerParticipantCardRoutes(app: Express) {
       return res.status(401).json({ message: "Code d’accès ou carte incorrect." });
     }
     if (card.expiresAt && card.expiresAt <= new Date()) return res.status(410).json({ message: "Cet espace souvenir a expiré." });
-    // Create a fresh visitor session. A signed-in volunteer keeps their staff session.
-    if (!req.session.user) await new Promise<void>((resolve, reject) =>
-      req.session.regenerate(err => err ? reject(err) : resolve()));
-    req.session.souvenirToken = card.token;
-    req.session.souvenirCodeProof = codeProof(card);
-    req.session.souvenirRemembered = req.body?.remember === true;
-    if (req.session.souvenirRemembered && !req.session.user) {
-      const thirtyDays = 30 * 24 * 60 * 60 * 1000;
-      req.session.cookie.maxAge = card.expiresAt ? Math.min(thirtyDays, card.expiresAt.getTime() - Date.now()) : thirtyDays;
-    }
-    await new Promise<void>((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
+    await unlockSouvenirSession(req, card, req.body?.remember === true);
     res.sendStatus(204);
   });
 

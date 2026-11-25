@@ -5,7 +5,7 @@ import express from "express";
 import session from "express-session";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cardsPath, souvenirErasureRequestsPath, souvenirExpiry, souvenirSettingsPath } from "@shared/participant-card";
+import { cardsPath, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath } from "@shared/participant-card";
 
 const { readCard, savePhotoWithdrawal } = vi.hoisted(() => ({ readCard: vi.fn(), savePhotoWithdrawal: vi.fn() }));
 vi.mock("../../server/db", () => ({
@@ -69,6 +69,33 @@ describe("Espace souvenir", () => {
       expect((await request(makeApp()).post(open).send({ code: input })).status).toBe(204);
     },
   );
+
+  it("récupère une carte avec le code, les noms normalisés et le bon profil", async () => {
+    const [card] = await readCard();
+    readCard.mockResolvedValue([{ ...card, summary: { ...card.summary, firstName: "Élodie", lastName: "D’Argent-Müller", type: "staff" } }]);
+    const agent = request.agent(makeApp());
+    const form = { code: "abcd2 34567", firstName: " ELO die ", lastName: "d argent muller!", type: "staff" };
+    for (const mismatch of [{ code: "ZZZZZ45678" }, { firstName: "Clara" }, { lastName: "D’Argent" }, { type: "zombie" }]) {
+      await agent.post(souvenirRecoveryApi).send({ ...form, ...mismatch }).expect(401, {
+        message: "Les informations saisies ne permettent pas d’ouvrir un espace souvenir.",
+      });
+    }
+    const response = await agent.post(souvenirRecoveryApi).send(form).expect(200, { token });
+    expect(response.headers["cache-control"]).toContain("no-store");
+    await agent.get(view).expect(200);
+    await agent.get(`${view}?resume=1`).expect(401);
+    await agent.delete(open).expect(204);
+    await agent.get(view).expect(401);
+  });
+
+  it("refuse une carte expirée et une récupération ambiguë", async () => {
+    const [card] = await readCard();
+    const form = { code, firstName: "Clara", lastName: "Martin", type: "zombie" };
+    readCard.mockResolvedValueOnce([{ ...card, expiresAt: new Date(0) }]);
+    await request(makeApp()).post(souvenirRecoveryApi).send(form).expect(401);
+    readCard.mockResolvedValueOnce([card, { ...card, token: "B".repeat(27) }]);
+    await request(makeApp()).post(souvenirRecoveryApi).send(form).expect(401);
+  });
 
   it("réserve l’aperçu et sa photo aux administrateurs", async () => {
     for (const path of [`${cardsPath}/admin/12`, `${cardsPath}/admin/12/photo`]) {

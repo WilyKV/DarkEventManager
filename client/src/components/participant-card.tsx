@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -70,6 +70,9 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
         <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>Maquillage</span>
         <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, makeupBoxY, makeupBoxWidth, makeupBoxHeight)} />
       </>}
+      <p className="absolute whitespace-nowrap rounded-sm bg-black/65 px-0.5 text-center leading-tight" style={{
+        ...at(5, linkY, 75), fontSize: `${Math.min(2.7, 156 / url.length)}cqw`,
+      }}>{url}</p>
     </section>
     <section aria-label="Verso" className={face}>
       {background}

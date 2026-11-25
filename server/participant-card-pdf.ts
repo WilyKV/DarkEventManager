@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -53,13 +53,15 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       doc.fillColor("#ffffff").font("CardBold").fontSize(7)
         .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
     }
-    for (const field of cardScheduleFields) {
+    for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
       doc.fillColor("#334155").font("CardBold").fontSize(5.5)
         .text(cardScheduleLabel(field, type), pt(field.x), pt(scheduleY + 0.5), { width: pt(field.width), align: "center", lineBreak: false });
     }
-    doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
-    doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
+    if (cardHasMealBox(type)) {
+      doc.roundedRect(pt(6), pt(44.25), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
+      doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(45.5), { lineBreak: false });
+    }
     if (theme.zombie) {
       doc.fillColor("#ffffff").font("CardRegular").text("Maquillage", pt(28), pt(45.5), { lineBreak: false });
       doc.roundedRect(pt(49), pt(makeupBoxY), pt(14), pt(makeupBoxHeight), pt(0.45)).fill("#ffffff");
@@ -145,7 +147,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
           if (card && side === "front") {
             printName(doc, printedCardName(card));
             if (mode === "complete") {
-              for (const field of cardScheduleFields) {
+              for (const field of cardScheduleFields(card.type)) {
                 const value = cardScheduleValue(card, field.key);
                 if (value) doc.fillColor("#101828").font("CardBold").fontSize(9)
                   .text(value, pt(field.x), pt(scheduleY + 3), { width: pt(field.width), align: "center", lineBreak: false });

@@ -77,16 +77,24 @@ export function printedCardName({ firstName, surnamePrefix }: Pick<PrintableCard
   return surnamePrefix ? `${firstName} ${surnamePrefix}.` : firstName;
 }
 
-export const cardScheduleFields = [
+const scheduleFields = [
   { key: "squad", label: "Squad", x: 4.5, width: 19 },
   { key: "briefingTime", label: "Briefing", x: 25.5, width: 24 },
 ] as const;
 
-export function cardScheduleLabel(field: typeof cardScheduleFields[number], type: string) {
+export function cardScheduleFields(type: string) {
+  return scheduleFields.filter(field => type !== "staff" || field.key !== "briefingTime");
+}
+
+export function cardHasMealBox(type: string) {
+  return type !== "survivant";
+}
+
+export function cardScheduleLabel(field: typeof scheduleFields[number], type: string) {
   return field.key === "squad" && type !== "zombie" ? "Équipe" : field.label;
 }
 
-export function cardScheduleValue(card: PrintableCard, field: typeof cardScheduleFields[number]["key"]) {
+export function cardScheduleValue(card: PrintableCard, field: typeof scheduleFields[number]["key"]) {
   if (field === "squad") return card.squad == null ? "" : `N° ${card.squad}`;
   const time = /^(\d{1,2}):([0-5]\d)(?::[0-5]\d)?$/.exec(card.briefingTime?.trim() ?? "");
   return time && Number(time[1]) < 24 ? `${time[1].padStart(2, "0")}:${time[2]}` : "";

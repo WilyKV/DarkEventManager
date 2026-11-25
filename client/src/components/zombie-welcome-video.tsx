@@ -4,8 +4,18 @@ import cues from "./zombie-voice-cues.json";
 import "./zombie-welcome-video.css";
 
 const assetRoot = "/accueil-zombies/";
-const files = ["zombies_video_principale_1080p.mp4", "voix_repliques.m4a"] as const;
+const files = ["zombies_video_principale_1080p.mp4", "voix_quiz.m4a"] as const;
 const voiceCues: Record<string, number[]> = cues;
+const feedbackClips = {
+  correct: ["ok_1", "ok_2", "ok_3"],
+  incorrect: ["ko_1", "ko_2", "ko_3", "ko_4", "ko_5", "ko_6"],
+} as const;
+
+function feedbackClip(result: keyof typeof feedbackClips) {
+  const clips = feedbackClips[result];
+  return clips[Math.floor(Math.random() * clips.length)];
+}
+
 type Phase = "loading" | "ready" | "main" | "ended" | "error";
 type Quiz = { index: number; choices: string[]; correct: string };
 
@@ -164,13 +174,13 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     if (!quiz || answerLocked.current || wrong.includes(value)) return;
     if (value !== quiz.correct) {
       setWrong(previous => [...previous, value]);
-      void playVoice("ko_1");
+      void playVoice(feedbackClip("incorrect"));
       return;
     }
     answerLocked.current = true;
     setCorrect(true);
     const feedback = new Promise<void>(resolve => { feedbackTimer.current = window.setTimeout(resolve, 1300); });
-    void Promise.all([feedback, playVoice("ok_1")]).then(() => {
+    void Promise.all([feedback, playVoice(feedbackClip("correct"))]).then(() => {
       if (disposed.current) return;
       if (quiz.index + 1 < zombieQuestions.length) askQuestion(quiz.index + 1);
       else {

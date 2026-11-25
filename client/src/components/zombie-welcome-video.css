@@ -176,3 +176,15 @@
   .welcome-people-list { grid-area: 1 / 2; }
   .welcome-people-actions { grid-column: 1 / -1; padding-top: .375rem; }
 }
+
+.zombie-show-progress {
+  display: flex;
+  flex: 1 0 100%;
+  align-items: center;
+  gap: .5rem;
+  font-size: .75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.zombie-show-progress input { flex: 1; min-width: 0; accent-color: #ffb23f; }
+.zombie-show-controls button:disabled { opacity: .45; }

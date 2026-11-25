@@ -1,4 +1,4 @@
-import { Maximize, Minimize, RotateCcw, SkipForward } from "lucide-react";
+import { Maximize, Minimize, Pause, Play, RotateCcw, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { briefingChoices, displayWelcomeTime, shuffle, squadChoices, zombieBriefingLocation, zombieOverlays, zombieQuestions, zombieQuizStart } from "./zombie-welcome-timeline";
 import cues from "./zombie-voice-cues.json";
@@ -31,6 +31,11 @@ interface Props {
   onContinue: (completed: boolean) => void;
 }
 
+function playbackTime(seconds: number) {
+  const whole = Math.floor(seconds);
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
 export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, squadCount, onBack, onContinue }: Props) {
   const [sources, setSources] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
@@ -41,6 +46,12 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
   const [fullscreen, setFullscreen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [resumeNeeded, setResumeNeeded] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const [paused, setPaused] = useState(true);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const mutedRef = useRef(false);
+  const quizComplete = useRef(false);
   const main = useRef<HTMLVideoElement>(null);
   const voice = useRef<HTMLAudioElement>(null);
   const stage = useRef<HTMLElement>(null);
@@ -117,6 +128,8 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     window.clearTimeout(feedbackTimer.current);
     stopVoice.current();
     quizStarted.current = false;
+    quizComplete.current = false;
+    setPosition(0);
     answerLocked.current = false;
     setQuiz(undefined);
     setWrong([]);
@@ -130,17 +143,54 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
   function resume() {
     if (disposed.current) return;
     setResumeNeeded(false);
-    if (main.current) main.current.muted = false;
+    if (main.current) main.current.muted = mutedRef.current;
     void main.current?.play()?.catch(() => {
       if (!disposed.current) setResumeNeeded(true);
     });
+  }
+
+  function toggleMute() {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setMuted(next);
+    if (main.current) main.current.muted = next;
+    if (voice.current) voice.current.muted = next;
+  }
+
+  function togglePlayback() {
+    const video = main.current;
+    if (!video || quiz) return;
+    if (video.paused) resume();
+    else video.pause();
+  }
+
+  function seek(seconds: number) {
+    const video = main.current;
+    if (!video || !Number.isFinite(seconds)) return;
+    const limit = quizComplete.current ? duration : Math.min(duration, zombieQuizStart);
+    const target = Math.min(Math.max(0, seconds), limit);
+    if (quiz && target >= zombieQuizStart) return;
+    if (quiz) {
+      playback.current++;
+      window.clearTimeout(feedbackTimer.current);
+      stopVoice.current();
+      quizStarted.current = false;
+      setQuiz(undefined);
+    }
+    video.currentTime = target;
+    setPosition(target);
+    if (quiz) resume();
   }
 
   function begin() {
     const audio = voice.current;
     if (audio) {
       audio.muted = true;
-      void audio.play()?.then(() => audio.pause()).catch(() => {});
+      void audio.play()?.then(() => {
+        audio.pause();
+        audio.muted = mutedRef.current;
+      }).catch(() => {});
+
     }
     setPhase("main");
     resume();
@@ -171,7 +221,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
       const play = () => {
         try {
           audio.currentTime = startAt;
-          audio.muted = false;
+          audio.muted = mutedRef.current;
           void audio.play()?.catch(finish);
           frame = window.requestAnimationFrame(track);
         } catch {
@@ -197,6 +247,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     quizStarted.current = true;
     video.pause();
     video.currentTime = zombieQuizStart;
+    setPosition(zombieQuizStart);
     askQuestion(0);
   }
 
@@ -231,6 +282,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
       if (disposed.current || attempt !== playback.current) return;
       if (quiz.index + 1 < zombieQuestions.length) askQuestion(quiz.index + 1);
       else {
+        quizComplete.current = true;
         setQuiz(undefined);
         resume();
       }
@@ -257,7 +309,9 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
       <div className="zombie-show-stage">
         <div className="zombie-show-frame">
           <video ref={main} hidden={phase !== "main"} playsInline preload="auto" src={sources[0]}
-            onTimeUpdate={updateTimeline} onEnded={() => { if (phase === "main") setPhase("ended"); }}
+            onLoadedMetadata={event => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+            onPlay={() => setPaused(false)} onPause={() => setPaused(true)}
+            onTimeUpdate={event => { setPosition(event.currentTarget.currentTime); updateTimeline(); }} onEnded={() => { if (phase === "main") setPhase("ended"); }}
             onError={() => setPhase("error")} />
           <audio ref={voice} preload="auto" src={sources[1]} />
           {phase === "loading" && <p className="zombie-show-message" role="status">Chargement de la vidéo…</p>}
@@ -286,6 +340,27 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
         </div>
       </div>
       <div className="zombie-show-controls" role="group" aria-label="Commandes de la présentation">
+        {phase === "main" && <>
+          <label className="zombie-show-progress">
+            <span className="sr-only">Position de lecture</span>
+            <input type="range" min={0} max={quizComplete.current ? duration : Math.min(duration, zombieQuizStart)}
+              step="any" value={Math.min(position, quizComplete.current ? duration : Math.min(duration, zombieQuizStart))} disabled={!duration}
+              aria-valuetext={playbackTime(position)} onChange={event => seek(event.target.valueAsNumber)} />
+            <span aria-hidden="true">{playbackTime(position)} / {playbackTime(duration)}</span>
+          </label>
+          <button type="button" onClick={togglePlayback} disabled={Boolean(quiz)} aria-label={paused ? "Lire la vidéo" : "Mettre en pause"}
+            title={paused ? "Lire la vidéo" : "Mettre en pause"}>
+            {paused ? <Play aria-hidden="true" /> : <Pause aria-hidden="true" />}
+          </button>
+          <button type="button" onClick={() => seek((main.current?.currentTime ?? position) - 10)}
+            aria-label="Reculer de 10 secondes" title="Reculer de 10 secondes">
+            <SkipBack aria-hidden="true" />
+          </button>
+          <button type="button" onClick={toggleMute} aria-label={muted ? "Rétablir le son" : "Couper le son"}
+            title={muted ? "Rétablir le son" : "Couper le son"} aria-pressed={muted}>
+            {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
+          </button>
+        </>}
         {phase !== "ended" && <button type="button" onClick={onBack}>Squads</button>}
         {phase !== "ended" && <button type="button" onClick={() => onContinue(false)}>
           <SkipForward aria-hidden="true" /> Passer la présentation

@@ -1,11 +1,11 @@
 export const zombieOverlays = {
-  briefing: [93.91, 101.69],
-  squad: [105.38, 108.98],
-  game: [111.94, 113.94],
+  briefing: [85.14, 91.55],
+  squad: [92.02, 98.10],
+  game: [100.63, 102.90],
 } as const;
 
 // Pause once, after the narrator announces the memory test.
-export const zombieQuizStart = 121.33;
+export const zombieQuizStart = 109.60;
 export const zombieBriefingLocation = "À côté du stand maquillage";
 export const zombieQuestions = [
   { kind: "briefing", label: "À quelle heure est votre briefing ?", audio: "q_briefing" },

@@ -57,6 +57,7 @@ interface WelcomeGuideProps {
   allowCapacityOverride?: boolean;
   plannedTeamId?: number;
   review?: boolean;
+  defaultChecked?: boolean;
   checklistSettings?: WelcomeChecklist;
   canEditChecklist?: boolean;
   summary?: ReactNode;
@@ -72,7 +73,7 @@ interface WelcomeGuideProps {
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, defaultChecked = false, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
   const extra = type === "zombie" && !squadOnly ? checklistSettings.extra : [];
@@ -153,8 +154,10 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
       if (!stage && !editingChecklist && !saving && !teamUnavailable && !groupUnavailable) {
         onSave({
           ...details,
-          ...(details.welcomeChecks && { welcomeChecks: Object.fromEntries(extra.flatMap(({ id }) => {
-            const value = details.welcomeChecks?.[id];
+          ...(defaultChecked && { checklist: Object.fromEntries(visibleItems.map(key =>
+            [key, details.checklist[key] ?? true])) }),
+          ...((defaultChecked && extra.length > 0 || details.welcomeChecks) && { welcomeChecks: Object.fromEntries(extra.flatMap(({ id }) => {
+            const value = details.welcomeChecks?.[id] ?? (defaultChecked ? true : undefined);
             return value === undefined ? [] : [[id, value]];
           })) }),
         }, keepTeamForGroup && fitsGroup, needsOverride && overflowConfirmed);
@@ -275,7 +278,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                       <div className="flex flex-wrap items-center gap-x-2">
                         <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 text-sm font-medium">
                           <input type="checkbox" className="size-5 shrink-0 accent-primary"
-                            checked={Boolean(details.checklist[key])}
+                            checked={details.checklist[key] ?? defaultChecked}
                             disabled={saving || (key === "squadExplained" && details.squadId === null)}
                             onChange={event => setChecklistItem(key, event.target.checked)} />
                           <span>{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
@@ -301,7 +304,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                   {extra.map(({ id, title, note }) => (
                     <li key={id} className="px-3 py-2">
                       <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] === true}
+                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] ?? defaultChecked}
                           disabled={saving} onChange={event => {
                             const checked = event.target.checked;
                             setDetails(previous => ({ ...previous, welcomeChecks: { ...previous.welcomeChecks, [id]: checked } }));

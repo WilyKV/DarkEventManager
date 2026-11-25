@@ -3,7 +3,7 @@ import { normalizeWelcomeTime } from "./zombie-welcome-timeline";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { checkInProfiles, type CheckInDetails, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
+import { type CheckInDetails, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
 import { WelcomeGuide } from "./welcome-guide";
 import { placementLabels, placementMembers } from "./squad-placement";
 import { WelcomeBriefing } from "./welcome-briefing";
@@ -84,17 +84,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
       else if (savedIds.length) void onReplan();
       else onBack();
     };
-    const continueWelcome = (completed: boolean) => {
-      if (completed && first.type !== "staff") {
-        setAssignment(assignment.map(arrival => ({
-          ...arrival, details: { ...arrival.details, checklist: {
-            ...arrival.details.checklist, briefingExplained: true,
-            ...(first.type === "zombie" && { makeupWaitExplained: true }),
-          } },
-        })));
-      }
-      setBriefed(true);
-    };
+    const continueWelcome = () => setBriefed(true);
     const team = roster.teams.find(item => item.id === assignment[0]?.details.squadId);
     const briefing = normalizeWelcomeTime(slot?.briefingTime);
     const start = normalizeWelcomeTime(slot?.gameTime);
@@ -115,31 +105,16 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
   if (!completed) {
     const { player, details } = assignment[0];
     const initialDetails: CheckInDetails = { squadId: details.squadId, checklist: {} };
-    for (const item of checkInProfiles[player.type].checklist) {
-      if (assignment.every(arrival => arrival.details.checklist[item])) initialDetails.checklist[item] = true;
-    }
     const settings = checklist?.settings ?? roster.welcomeChecklist;
-    for (const { id } of settings?.extra ?? []) {
-      if (assignment.every(arrival => arrival.details.welcomeChecks?.[id] === true)) {
-        initialDetails.welcomeChecks = { ...initialDetails.welcomeChecks, [id]: true };
-      }
-    }
     return <WelcomeGuide key={player.id} type={player.type} initialDetails={initialDetails} slot={slot} teams={roster.teams}
       checklistSettings={settings} canEditChecklist={checklist?.canEdit}
-      lockSquad review saving={false} error=""
+      lockSquad review defaultChecked saving={false} error=""
       summary={<p className="break-words text-sm text-muted-foreground">{groupNames}</p>}
       saveLabel="Vérifier les arrivées"
       onSave={next => {
-        const changes: CheckInDetails["checklist"] = {};
-        for (const item of checkInProfiles[player.type].checklist) {
-          if (next.checklist[item] !== initialDetails.checklist[item]) changes[item] = next.checklist[item];
-        }
-        const customChanges = Object.fromEntries(Object.entries(next.welcomeChecks ?? {})
-          .filter(([id, value]) => initialDetails.welcomeChecks?.[id] !== value));
-        const hasCustomChanges = Object.keys(customChanges).length > 0;
         setCompleted(assignment.map(arrival => ({
-          ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...changes },
-            ...(hasCustomChanges && { welcomeChecks: { ...arrival.details.welcomeChecks, ...customChanges } }),
+          ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...next.checklist },
+            ...(next.welcomeChecks && { welcomeChecks: { ...arrival.details.welcomeChecks, ...next.welcomeChecks } }),
           },
         })));
       }} />;

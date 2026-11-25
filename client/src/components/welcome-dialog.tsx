@@ -110,7 +110,6 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     setLargeGroup(false);
     setSelection([]);
     setSavedIds([]);
-    setConfirmedArrivals({});
     setSavedSquadId(undefined);
     setSearch("");
     setLetter("");
@@ -143,7 +142,9 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
         }
       }
       const confirmedAt = new Date().toISOString();
-      setConfirmedArrivals(Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? confirmedAt])));
+      setConfirmedArrivals(previous => ({
+        ...previous, ...Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? previous[player.id] ?? confirmedAt])),
+      }));
       setStep("done");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");

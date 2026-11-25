@@ -27,14 +27,11 @@ export function makeupEstimates(
   const seconds = (first % minute) / minute;
   const rawWindow = Number(match[1]) * 60 + Number(match[2]) - (hours * 60 + minutes + seconds);
   const windowMinutes = rawWindow < -12 * 60 ? rawWindow + 24 * 60 : rawWindow;
-  if (windowMinutes <= 0) {
-    // Once the briefing has started, there is no remaining scheduling window.
-    return new Map(arrivals.map(({ id, time }) => [id, time]));
-  }
-
-  // Stagger the calls at 60% of the nominal interval with four artists.
-  // Fewer artists space the calls out, and more artists bring them closer.
-  const interval = (windowMinutes / wave.length) * 0.6 * (defaultMakeupArtists / artists) * minute;
+  // At four artists, use 60% of the nominal interval. With no time left
+  // before the briefing, keep an indicative cadence of six minutes.
+  const cadence = windowMinutes > 0 ? (windowMinutes / wave.length) * 0.6 : 6;
+  // The card displays whole minutes, so consecutive calls must differ by at least one.
+  const interval = Math.max(1, cadence * (defaultMakeupArtists / artists)) * minute;
   let previous = first - interval;
   for (const { id, time } of arrivals) {
     previous = Math.max(time, previous + interval);

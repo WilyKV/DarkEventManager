@@ -201,7 +201,7 @@ describe("Accueil tactile", () => {
     expect(onSave.mock.calls.map(([person]) => person.id)).toEqual([1, 3, 3]);
   });
 
-  it("conserve les confirmations existantes et permet de les corriger", async () => {
+  it("coche le récapitulatif par défaut et enregistre les exceptions", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     const previous = { ...clara, arrived: true, details: { squadId: 1,
@@ -216,15 +216,14 @@ describe("Accueil tactile", () => {
     const card = screen.getByRole("checkbox", { name: "Remettre la carte participant" });
     const water = screen.getByRole("checkbox", { name: "Donner la bouteille d’eau" });
     expect(card).toBeChecked();
-    expect(water).not.toBeChecked();
+    expect(water).toBeChecked();
     await user.click(card);
-    await user.click(water);
     expect(card).not.toBeChecked();
     expect(water).toBeChecked();
     await click(user, "Vérifier les arrivées");
     await click(user, "Valider l’arrivée");
     expect(onSave).toHaveBeenCalledWith(previous, {
-      squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true },
+      squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true, makeupWaitExplained: true, mapGiven: true },
     }, false);
   });
   it("affiche les horaires et les consignes configurées, puis permet de quitter sans clôturer la vague", async () => {
@@ -249,7 +248,7 @@ describe("Accueil tactile", () => {
     expect(list.getByText("Rendez-vous sous le préau.")).toBeVisible();
     expect(list.queryByRole("checkbox", { name: "Proposer une carte" })).toBeNull();
     expect(list.getByText(point.note)).toBeVisible();
-    await user.click(list.getByRole("checkbox", { name: point.title }));
+    expect(list.getByRole("checkbox", { name: point.title })).toBeChecked();
     await click(user, "Vérifier les arrivées");
     await click(user, "Valider l’arrivée");
 

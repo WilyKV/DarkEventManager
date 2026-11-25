@@ -125,7 +125,7 @@ export const cardAssets = "card-assets";
 
 
 export function cardTheme(type: string) {
-  if (type === "staff") return { label: "STAFF", accent: "#177b62", dark: "#0b241d", light: "#afefdc", zombie: false, artwork: undefined };
+  if (type === "staff") return { label: "STAFF", accent: "#177b62", dark: "#0b241d", light: "#afefdc", zombie: false, artwork: "staff-card-art.jpg" };
   if (type === "survivant") return { label: "SURVIVANT", accent: "#2563aa", dark: "#101e35", light: "#c5e0ff", zombie: false, artwork: "survivor-card-art.jpg" };
   return { label: "ZOMBIE", accent: "#dc273e", dark: "#360a14", light: "#ffc3cb", zombie: true, artwork: "zombie-card-art.png" };
 }

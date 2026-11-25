@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, a4CardColumns, cardArtwork, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -28,7 +28,7 @@ function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     .stop(0, "#0d0b11").stop(0.58, theme.dark).stop(1, "#100b12");
   const background = () => doc.rect(pt(-bleed), pt(-bleed), pt(width + 2 * bleed), pt(height + 2 * bleed));
   background().fill(gradient);
-  if (theme.zombie && artwork) {
+  if (artwork) {
     doc.save();
     background().clip();
     doc.image(artwork, pt(-bleed), pt((side === "front" ? -9 : 0) - bleed), { width: pt(width + 2 * bleed) });
@@ -91,7 +91,7 @@ function printName(doc: PDFKit.PDFDocument, name: string) {
   });
 }
 
-function trimMarks(doc: PDFKit.PDFDocument, firstRow: boolean, lastRowInColumn: boolean) {
+function trimMarks(doc: PDFKit.PDFDocument) {
   const start = a4CardBleed + 0.15;
   const end = a4CardBleed + 0.9;
   doc.lineWidth(0.35).strokeColor("#222222");
@@ -100,9 +100,8 @@ function trimMarks(doc: PDFKit.PDFDocument, firstRow: boolean, lastRowInColumn: 
     for (const y of [0, height]) {
       doc.moveTo(pt(x + dx * start), pt(y)).lineTo(pt(x + dx * end), pt(y));
     }
-    // The vertical gutters are filled by the neighboring cards' bleed.
-    if (firstRow) doc.moveTo(pt(x), pt(-start)).lineTo(pt(x), pt(-end));
-    if (lastRowInColumn) doc.moveTo(pt(x), pt(height + start)).lineTo(pt(x), pt(height + end));
+    doc.moveTo(pt(x), pt(-start)).lineTo(pt(x), pt(-end));
+    doc.moveTo(pt(x), pt(height + start)).lineTo(pt(x), pt(height + end));
   }
   doc.stroke();
 }
@@ -121,12 +120,15 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
   const capacity = a4 ? cardSheet.capacity : 1;
   const entries = cards.length ? cards : Array.from({ length: capacity }, () => undefined);
   try {
-    const [regular, bold, artwork] = await Promise.all([
+    const artworkNames = mode === "complete" || !cards.length
+      ? new Set(entries.flatMap(card => cardTheme(card?.type ?? "zombie").artwork ?? []))
+      : new Set<string>();
+    const [regular, bold, resolvedArtwork] = await Promise.all([
       findCardAsset("OpenSans-Regular.ttf"),
       findCardAsset("OpenSans-Bold.ttf"),
-      (mode === "complete" || !cards.length) && (!cards.length || cards.some(card => cardTheme(card.type).zombie))
-        ? findCardAsset(cardArtwork) : undefined,
+      Promise.all(Array.from(artworkNames, async name => [name, await findCardAsset(name)] as const)),
     ]);
+    const artworkByName = new Map<string, string>(resolvedArtwork);
     doc.registerFont("CardRegular", regular);
     doc.registerFont("CardBold", bold);
     for (let start = 0; start < entries.length; start += capacity) {
@@ -141,8 +143,11 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {
-            template(doc, side, cardTheme(card?.type ?? "zombie"), a4 ? a4CardBleed : 0, Boolean(card), card?.type ?? "zombie", artwork);
-            if (a4) trimMarks(doc, index < a4CardColumns, index + a4CardColumns >= sheet.length);
+            const type = card?.type ?? "zombie";
+            const theme = cardTheme(type);
+            template(doc, side, theme, a4 ? a4CardBleed : 0, Boolean(card), type,
+              theme.artwork ? artworkByName.get(theme.artwork) : undefined);
+            if (a4) trimMarks(doc);
           }
           if (card && side === "front") {
             printName(doc, printedCardName(card));

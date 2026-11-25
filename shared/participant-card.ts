@@ -122,12 +122,12 @@ export const cardLayout = {
 } as const;
 
 export const cardAssets = "card-assets";
-export const cardArtwork = "zombie-card-art.png";
+
 
 export function cardTheme(type: string) {
-  if (type === "staff") return { label: "STAFF", accent: "#177b62", dark: "#0b241d", light: "#afefdc", zombie: false };
-  if (type === "survivant") return { label: "SURVIVANT", accent: "#2563aa", dark: "#101e35", light: "#c5e0ff", zombie: false };
-  return { label: "ZOMBIE", accent: "#dc273e", dark: "#360a14", light: "#ffc3cb", zombie: true };
+  if (type === "staff") return { label: "STAFF", accent: "#177b62", dark: "#0b241d", light: "#afefdc", zombie: false, artwork: undefined };
+  if (type === "survivant") return { label: "SURVIVANT", accent: "#2563aa", dark: "#101e35", light: "#c5e0ff", zombie: false, artwork: "survivor-card-art.jpg" };
+  return { label: "ZOMBIE", accent: "#dc273e", dark: "#360a14", light: "#ffc3cb", zombie: true, artwork: "zombie-card-art.png" };
 }
 
 
@@ -136,12 +136,16 @@ export type CardPrintLayout = typeof cardPrintLayouts[number];
 
 export const a4CardBleed = 1;
 export const a4CardColumns = 2;
-export const cardSheet = { width: 210, height: 297, capacity: a4CardColumns * 5 } as const;
+const a4CardRows = 5;
+export const a4CardGap = 4;
+export const cardSheet = { width: 210, height: 297, capacity: a4CardColumns * a4CardRows } as const;
 
 export function cardSheetPosition(index: number, side: "front" | "back") {
   const column = index % a4CardColumns;
   const row = Math.floor(index / a4CardColumns);
-  const frontX = (cardSheet.width - 2 * cardLayout.width - 4) / 2 + column * (cardLayout.width + 4);
-  const y = (cardSheet.height - 5 * cardLayout.height - 8) / 2 + row * (cardLayout.height + 2);
+  const gridWidth = a4CardColumns * cardLayout.width + (a4CardColumns - 1) * a4CardGap;
+  const gridHeight = a4CardRows * cardLayout.height + (a4CardRows - 1) * a4CardGap;
+  const frontX = (cardSheet.width - gridWidth) / 2 + column * (cardLayout.width + a4CardGap);
+  const y = (cardSheet.height - gridHeight) / 2 + row * (cardLayout.height + a4CardGap);
   return { x: side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width, y };
 }

@@ -5,7 +5,7 @@ import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardArtwork, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -37,7 +37,7 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
   const printedName = printedCardName(card);
   const background = (side: "front" | "back") => <>
     <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(120deg,#0d0b11,${theme.dark} 58%,#100b12)` }} />
-    {theme.zombie && <img alt="" src={`/${cardAssets}/${cardArtwork}`} className="pointer-events-none absolute left-0 w-full max-w-none"
+    {theme.artwork && <img alt="" src={`/${cardAssets}/${theme.artwork}`} className="pointer-events-none absolute left-0 w-full max-w-none"
       style={{ top: side === "front" ? `${-9 / height * 100}%` : 0 }} />}
     <div aria-hidden className="absolute inset-x-0 bottom-0 top-[76%] bg-[#100b12] [clip-path:polygon(0_8%,100%_0,100%_100%,0_100%)]" />
     <span aria-hidden className="absolute inset-x-0 bottom-0 h-[1.82%]" style={{ background: theme.accent }} />

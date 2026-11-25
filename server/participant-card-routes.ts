@@ -46,7 +46,7 @@ const recoverySchema = z.object({
 const recoverySeparators = new RegExp("[^\\p{L}\\p{N}]", "gu");
 
 function recoveryName(value: string) {
-  return value.normalize("NFKD").toLocaleLowerCase("fr").replace(recoverySeparators, "");
+  return value.normalize("NFKD").toLocaleLowerCase("fr").replace(/œ/g, "oe").replace(/æ/g, "ae").replace(recoverySeparators, "");
 }
 
 async function unlockSouvenirSession(req: Request, card: Pick<typeof participantCards.$inferSelect, "token" | "code" | "expiresAt">, remember: boolean) {

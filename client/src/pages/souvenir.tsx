@@ -77,13 +77,14 @@ export function SouvenirRecoveryPage() {
       <section className="souvenir-unlock souvenir-enter">
         <div>
           <h1>Retrouver mon <span>espace souvenir.</span></h1>
-          <p>Utilisez le code au verso de votre carte de remplacement et les informations de votre inscription.</p>
+          <p>Cette page sert au QR commun des cartes de remplacement. Si vous avez votre carte personnalisée, utilisez son QR ou le lien personnel imprimé en bas du recto, puis saisissez le code au verso.</p>
         </div>
         <form onSubmit={recover}>
           <label htmlFor="recover-code">Code au verso</label>
           <Input id="recover-code" name="code" type="password" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={64} required />
           <label htmlFor="recover-last-name">Nom de famille complet</label>
-          <Input id="recover-last-name" name="lastName" autoComplete="family-name" maxLength={120} required />
+          <Input id="recover-last-name" name="lastName" autoComplete="family-name" maxLength={120} aria-describedby="recover-name-hint" required />
+          <p id="recover-name-hint" className="text-sm text-[#e1cdd5]">Saisissez le nom donné à l’inscription, par exemple Martin si la carte affiche Clara M.</p>
           <label htmlFor="recover-first-name">Prénom</label>
           <Input id="recover-first-name" name="firstName" autoComplete="given-name" maxLength={120} required />
           <label htmlFor="recover-type">Votre profil pendant l’événement</label>
@@ -92,7 +93,7 @@ export function SouvenirRecoveryPage() {
             {checkInTypes.map(type => <option key={type} value={type}>{checkInProfileLabels[type]}</option>)}
           </select>
           <p className="text-sm text-[#e1cdd5]">Les majuscules, accents, espaces et signes de ponctuation sont ignorés dans les noms.</p>
-          {error && <p role="alert" className="souvenir-error">{error}</p>}
+          {error && <p role="alert" className="souvenir-error">{error} Vérifiez le code actuel, les noms complets et le profil de votre inscription.</p>}
           <Button type="submit" loading={busy}>Ouvrir mon espace <ArrowRight /></Button>
         </form>
       </section>

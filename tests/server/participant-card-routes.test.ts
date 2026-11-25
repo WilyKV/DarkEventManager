@@ -72,10 +72,10 @@ describe("Espace souvenir", () => {
 
   it("récupère une carte avec le code, les noms normalisés et le bon profil", async () => {
     const [card] = await readCard();
-    readCard.mockResolvedValue([{ ...card, summary: { ...card.summary, firstName: "Élodie", lastName: "D’Argent-Müller", type: "staff" } }]);
+    readCard.mockResolvedValue([{ ...card, summary: { ...card.summary, firstName: "Élodie", lastName: "D’Argent-Müller Cœur", type: "staff" } }]);
     const agent = request.agent(makeApp());
-    const form = { code: "abcd2 34567", firstName: " ELO die ", lastName: "d argent muller!", type: "staff" };
-    for (const mismatch of [{ code: "ZZZZZ45678" }, { firstName: "Clara" }, { lastName: "D’Argent" }, { type: "zombie" }]) {
+    const form = { code: "abcd2 34567", firstName: " ELO die ", lastName: "d argent muller coeur!", type: "staff" };
+    for (const mismatch of [{ code: "ZZZZZ45678" }, { firstName: "Clara" }, { lastName: "DA." }, { type: "zombie" }]) {
       await agent.post(souvenirRecoveryApi).send({ ...form, ...mismatch }).expect(401, {
         message: "Les informations saisies ne permettent pas d’ouvrir un espace souvenir.",
       });

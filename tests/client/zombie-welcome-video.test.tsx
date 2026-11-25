@@ -34,29 +34,24 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
   });
   vi.spyOn(HTMLMediaElement.prototype, "readyState", "get").mockReturnValue(1);
   const onContinue = vi.fn();
-  const view = render(<ZombieWelcomeVideo names={["Clara", "Paul"]} briefing="18:00" start="18:30" end="20:00"
+  const view = render(<ZombieWelcomeVideo briefing="18:00" start="18:30" end="20:00"
     squad={7} otherTimes={["17:45", "18:15", "19:00"]} squadCount={12} onBack={vi.fn()} onContinue={onContinue} />);
   try {
     await user.click(await screen.findByRole("button", { name: "Lancer la présentation" }));
-    expect(screen.getByText("Clara")).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Passer", exact: true }));
-    const video = view.container.querySelectorAll("video")[1];
+    const video = view.container.querySelector("video")!;
+    expect(video.paused).toBe(false);
+    expect(view.container.querySelectorAll("video")).toHaveLength(1);
     const reach = (seconds: number) => {
       video.currentTime = seconds;
       fireEvent.timeUpdate(video);
     };
     reach(91.30);
-    expect(video.currentTime).toBe(91.27);
-    expect(await screen.findByText("Votre briefing")).toBeVisible();
-    await waitFor(() => expect(video.paused).toBe(false));
+    expect(screen.getByText("Votre briefing")).toBeVisible();
+    expect(video.currentTime).toBe(91.30);
+    expect(video.paused).toBe(false);
     reach(101.22);
-    expect(video.currentTime).toBe(101.19);
-    await waitFor(() => expect(video.paused).toBe(false));
-
-    reach(106.20);
-    expect(video.currentTime).toBe(106.15);
-    expect(screen.getByText("Le jeu")).toBeVisible();
-    await waitFor(() => expect(video.paused).toBe(false));
+    expect(screen.getByText("Votre squad")).toBeVisible();
+    expect(video.paused).toBe(false);
 
     reach(113.84);
     expect(video.currentTime).toBe(113.83);
@@ -67,11 +62,13 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
     expect(wrong).toHaveAttribute("data-answer", "wrong");
     expect(video.paused).toBe(true);
     await user.click(screen.getByRole("button", { name: /18\s+h\s+00/ }));
-    await waitFor(() => expect(video.paused).toBe(false), { timeout: 2500 });
-
-    reach(113.91);
-    expect(video.currentTime).toBe(113.89);
+    const location = await screen.findByRole("button", { name: "À côté du stand maquillage" }, { timeout: 2500 });
     expect(video.paused).toBe(true);
+    expect(video.currentTime).toBe(113.83);
+    await user.click(location);
+    expect(await screen.findByRole("heading", { name: "Quel est le numéro de votre squad ?" }, { timeout: 2500 })).toBeVisible();
+    expect(video.paused).toBe(true);
+    expect(video.currentTime).toBe(113.83);
     await user.click(screen.getByRole("button", { name: "7" }));
     await waitFor(() => expect(video.paused).toBe(false), { timeout: 2500 });
 
@@ -82,4 +79,4 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
     view.unmount();
     vi.unstubAllGlobals();
   }
-});
+}, 12_000);

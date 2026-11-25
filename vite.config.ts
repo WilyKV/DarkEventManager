@@ -50,7 +50,7 @@ export default defineConfig({
         clientsClaim: true,
         maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
         importScripts: ["/legacy-pwa-upgrade.js"],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}", "accueil-zombies/*.{mp4,m4a,ttf}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}", "accueil-zombies/zombies_video_principale_1080p.mp4", "accueil-zombies/*.{m4a,ttf}"],
         directoryIndex: null,
         navigateFallback: null,
         runtimeCaching: [{

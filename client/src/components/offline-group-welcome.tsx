@@ -106,7 +106,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
         return zombieWave && item.id !== slot?.id && time ? [time] : [];
       });
       const squadCount = roster.teams.filter(item => item.timeSlotId === team.timeSlotId && (!item.type || item.type === "zombie")).length;
-      return <ZombieWelcomeVideo names={assignment.map(({ player }) => player.firstName)} briefing={briefing}
+      return <ZombieWelcomeVideo briefing={briefing}
         start={start} end={end} squad={team.number} otherTimes={otherTimes} squadCount={squadCount} onBack={back} onContinue={continueWelcome} />;
     }
     return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={continueWelcome} />;

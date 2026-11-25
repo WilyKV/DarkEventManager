@@ -4,13 +4,13 @@ export const zombieOverlays = {
   game: [104.44, 106.44],
 } as const;
 
-export const zombieTimeline = [
-  { time: 91.27, kind: "briefing" },
-  { time: 101.19, kind: "squad" },
-  { time: 106.15, kind: "game" },
-  // Both quizzes follow the narrator's memory-test announcement.
-  { time: 113.83, kind: "quizBriefing" },
-  { time: 113.89, kind: "quizSquad" },
+// Pause once, after the narrator announces the memory test.
+export const zombieQuizStart = 113.83;
+export const zombieBriefingLocation = "À côté du stand maquillage";
+export const zombieQuestions = [
+  { kind: "briefing", label: "À quelle heure est votre briefing ?", audio: "q_briefing" },
+  { kind: "location", label: "Où se trouve le briefing ?", audio: "q_lieu_briefing" },
+  { kind: "squad", label: "Quel est le numéro de votre squad ?", audio: "q_squad" },
 ] as const;
 
 export function normalizeWelcomeTime(value?: string) {

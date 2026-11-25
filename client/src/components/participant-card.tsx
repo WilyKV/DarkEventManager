@@ -35,18 +35,15 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
   const face = "participant-card-face isolate relative aspect-[85/55] w-full max-w-[425px] overflow-hidden rounded-xl bg-[#100b12] text-white shadow-lg [container-type:inline-size]";
   const cream = "absolute rounded-[2.35cqw] bg-white text-[#101828]";
   const printedName = printedCardName(card);
-  const background = (side: "front" | "back") => <>
+  const background = <>
     <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(120deg,#0d0b11,${theme.dark} 58%,#100b12)` }} />
-    {theme.artwork && <img alt="" src={`/${cardAssets}/${theme.artwork}`} className="pointer-events-none absolute left-0 w-full max-w-none"
-      style={{ top: side === "front" ? `${-9 / height * 100}%` : 0 }} />}
-    <div aria-hidden className="absolute inset-x-0 bottom-0 top-[76%] bg-[#100b12] [clip-path:polygon(0_8%,100%_0,100%_100%,0_100%)]" />
-    <span aria-hidden className="absolute inset-x-0 bottom-0 h-[1.82%]" style={{ background: theme.accent }} />
+    {theme.artwork && <img alt="" src={`/${cardAssets}/${theme.artwork}`} className="pointer-events-none absolute inset-0 size-full object-cover" />}
     <p className="absolute whitespace-nowrap text-[5cqw] font-black leading-none" style={at(6, 5)}>ZOMB’IN THE DARK</p>
     <p className="absolute text-[2.9cqw] font-bold leading-none tracking-[0.19em]" style={{ ...at(6, 11), color: theme.light }}>{theme.label}</p>
   </>;
   return <div className="grid w-full gap-3">
     <section aria-label="Recto" className={face}>
-      {background("front")}
+      {background}
       <div aria-hidden className={cream} style={at(4.5, namePanelY, 48.5, namePanelHeight)} />
       <span aria-hidden className="absolute rounded-full" style={{ ...at(4.5, namePanelY + 2, 0.6, namePanelHeight - 4), background: theme.accent }} />
       <p className="absolute -translate-y-1/2 truncate font-extrabold leading-tight text-[#101828]"
@@ -74,7 +71,7 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       </>}
     </section>
     <section aria-label="Verso" className={face}>
-      {background("back")}
+      {background}
       <p className="absolute text-center text-[4.15cqw] font-bold leading-none" style={at(13, 19, 59)}>CODE D’ACCÈS</p>
       <div className={cream} style={at(13, 24, 59, 11)} />
       <p className="absolute text-center text-[2.6cqw] leading-none text-[#334155]" style={at(13, 24.75, 59)}>

@@ -23,7 +23,7 @@ async function findCardAsset(file: string) {
   throw new Error(`Ressource de carte introuvable : ${file}`);
 }
 
-function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
+function backdrop(doc: PDFKit.PDFDocument, theme: ReturnType<typeof cardTheme>, bleed: number, artwork?: string) {
   const gradient = doc.linearGradient(0, 0, pt(width), pt(height))
     .stop(0, "#0d0b11").stop(0.58, theme.dark).stop(1, "#100b12");
   const background = () => doc.rect(pt(-bleed), pt(-bleed), pt(width + 2 * bleed), pt(height + 2 * bleed));
@@ -31,15 +31,15 @@ function backdrop(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   if (artwork) {
     doc.save();
     background().clip();
-    doc.image(artwork, pt(-bleed), pt((side === "front" ? -9 : 0) - bleed), { width: pt(width + 2 * bleed) });
+    doc.image(artwork, pt(-bleed), pt(-bleed), {
+      cover: [pt(width + 2 * bleed), pt(height + 2 * bleed)], align: "center", valign: "center",
+    });
     doc.restore();
   }
-  doc.polygon([pt(-bleed), pt(43)], [pt(width + bleed), pt(42)], [pt(width + bleed), pt(height + bleed)], [pt(-bleed), pt(height + bleed)]).fill("#100b12");
-  doc.rect(pt(-bleed), pt(54), pt(width + 2 * bleed), pt(height - 54 + bleed)).fill(theme.accent);
 }
 
 function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: number, hasQr: boolean, type: string, artwork?: string) {
-  backdrop(doc, side, theme, bleed, artwork);
+  backdrop(doc, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
   doc.fillColor(theme.light).fontSize(7)
@@ -93,7 +93,7 @@ function printName(doc: PDFKit.PDFDocument, name: string) {
 
 function trimMarks(doc: PDFKit.PDFDocument) {
   const start = a4CardBleed + 0.15;
-  const end = a4CardBleed + 0.9;
+  const end = 1.95;
   doc.lineWidth(0.35).strokeColor("#222222");
   for (const x of [0, width]) {
     const dx = x === 0 ? -1 : 1;

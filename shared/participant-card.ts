@@ -83,7 +83,7 @@ const scheduleFields = [
 ] as const;
 
 export function cardScheduleFields(type: string) {
-  return scheduleFields.filter(field => type !== "staff" || field.key !== "briefingTime");
+  return type === "staff" ? [] : scheduleFields;
 }
 
 export function cardHasMealBox(type: string) {
@@ -134,7 +134,7 @@ export function cardTheme(type: string) {
 export const cardPrintLayouts = ["a4", "card"] as const;
 export type CardPrintLayout = typeof cardPrintLayouts[number];
 
-export const a4CardBleed = 1;
+export const a4CardBleed = 1.5;
 export const a4CardColumns = 2;
 const a4CardRows = 5;
 export const a4CardGap = 4;

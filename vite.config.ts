@@ -51,8 +51,17 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
         importScripts: ["/legacy-pwa-upgrade.js"],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}", "accueil-zombies/*.{mp4,m4a,ttf}"],
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
+        directoryIndex: null,
+        navigateFallback: null,
+        runtimeCaching: [{
+          // Online navigation needs the current response headers, even for server-only releases.
+          urlPattern: ({ request, url, sameOrigin }) => sameOrigin && request.mode === "navigate"
+            && !/^\/(?:api|ws)(?:\/|$)/.test(url.pathname),
+          handler: "NetworkOnly",
+          options: {
+            precacheFallback: { fallbackURL: "/index.html" },
+          },
+        }],
       },
     }),
   ],

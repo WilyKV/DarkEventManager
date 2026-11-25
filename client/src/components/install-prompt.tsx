@@ -53,11 +53,15 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     };
     document.addEventListener("visibilitychange", checkForUpdate);
     window.addEventListener("pageshow", checkForUpdate);
+    window.addEventListener("focus", checkForUpdate);
     window.addEventListener("online", checkForUpdate);
+    const updateInterval = window.setInterval(checkForUpdate, 60_000);
     return () => {
       document.removeEventListener("visibilitychange", checkForUpdate);
       window.removeEventListener("pageshow", checkForUpdate);
+      window.removeEventListener("focus", checkForUpdate);
       window.removeEventListener("online", checkForUpdate);
+      window.clearInterval(updateInterval);
     };
   }, []);
 

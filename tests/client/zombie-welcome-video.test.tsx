@@ -53,22 +53,22 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
       video.currentTime = seconds;
       fireEvent.timeUpdate(video);
     };
-    reach(91.30);
+    reach(98.80);
     expect(screen.getByText("Votre briefing")).toBeVisible();
-    expect(video.currentTime).toBe(91.30);
+    expect(video.currentTime).toBe(98.80);
     expect(video.paused).toBe(false);
-    reach(101.22);
+    reach(108.72);
     expect(screen.getByText("Votre squad")).toBeVisible();
     expect(video.paused).toBe(false);
 
-    reach(113.84);
-    expect(video.currentTime).toBe(113.83);
+    reach(121.34);
+    expect(video.currentTime).toBe(121.33);
     expect(video.paused).toBe(true);
     await user.click(screen.getByRole("button", { name: "Recommencer la vidéo" }));
     expect(video.currentTime).toBe(0);
     expect(video.paused).toBe(false);
     expect(screen.queryByRole("heading", { name: "À quelle heure est votre briefing ?" })).toBeNull();
-    reach(113.84);
+    reach(121.34);
     expect(video.paused).toBe(true);
     const wrong = screen.getByRole("button", { name: /17\s+h\s+45/ });
     await user.click(wrong);
@@ -78,11 +78,11 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
     await user.click(screen.getByRole("button", { name: /18\s+h\s+00/ }));
     const location = await screen.findByRole("button", { name: "À côté du stand maquillage" }, { timeout: 2500 });
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBe(113.83);
+    expect(video.currentTime).toBe(121.33);
     await user.click(location);
     expect(await screen.findByRole("heading", { name: "Quel est le numéro de votre squad ?" }, { timeout: 2500 })).toBeVisible();
     expect(video.paused).toBe(true);
-    expect(video.currentTime).toBe(113.83);
+    expect(video.currentTime).toBe(121.33);
     await user.click(screen.getByRole("button", { name: "7" }));
     await waitFor(() => expect(video.paused).toBe(false), { timeout: 2500 });
 

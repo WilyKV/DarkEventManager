@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
-import { Button } from './ui/button';
-import { Camera, X, Upload } from 'lucide-react';
-import { Input } from './ui/input';
-import jsQR from 'jsqr';
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { Camera, Upload, X } from "lucide-react";
+import jsQR from "jsqr";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 
 interface QRCodeScannerProps {
   onScan: (data: string) => void;
@@ -10,215 +10,152 @@ interface QRCodeScannerProps {
 }
 
 export function QRCodeScanner({ onScan, onError }: QRCodeScannerProps) {
-  const [scanning, setScanning] = useState(false);
-  const [hasCamera, setHasCamera] = useState(true);
+  const [mode, setMode] = useState<"idle" | "camera" | "file">("idle");
+  const [error, setError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scanIntervalRef = useRef<number | null>(null);
+  const timerRef = useRef<number>();
+  const session = useRef(0);
+  const active = useRef(false);
+  const callbacks = useRef({ onScan, onError });
+  callbacks.current = { onScan, onError };
+  const hasCamera = typeof navigator.mediaDevices?.getUserMedia === "function";
+
+  function stop() {
+    session.current++;
+    active.current = false;
+    window.clearInterval(timerRef.current);
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
 
   useEffect(() => {
-    // Check if camera is available
-    if (navigator.mediaDevices && 'getUserMedia' in navigator.mediaDevices) {
-      setHasCamera(true);
-    } else {
-      setHasCamera(false);
-    }
+    const release = () => stop();
+    return release;
   }, []);
 
-  const startCamera = async () => {
+  function finish(attempt: number) {
+    if (attempt !== session.current) return false;
+    stop();
+    setMode("idle");
+    return true;
+  }
+
+  function reject(attempt: number, message: string) {
+    if (!finish(attempt)) return;
+    setError(message);
+    callbacks.current.onError?.(new Error(message));
+  }
+
+  function decode(source: CanvasImageSource, width: number, height: number) {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d", { willReadFrequently: true });
+    if (!canvas || !context) return;
+    const scale = Math.min(1, 1280 / Math.max(width, height));
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    context.drawImage(source, 0, 0, w, h);
+    const { data } = context.getImageData(0, 0, w, h);
+    return jsQR(data, w, h, { inversionAttempts: "attemptBoth" })?.data;
+  }
+
+  async function startCamera() {
+    if (active.current || !hasCamera) return;
+    active.current = true;
+    const attempt = ++session.current;
+    setMode("camera");
+    setError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
       });
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-        setScanning(true);
-
-        // Start scanning for QR codes (if BarcodeDetector is available)
-        if ('BarcodeDetector' in window) {
-          scanIntervalRef.current = window.setInterval(() => {
-            scanQRCode();
-          }, 500);
-        }
+      const video = videoRef.current;
+      if (attempt !== session.current || !video) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
       }
-    } catch (error) {
-      console.error('Camera error:', error);
-      if (onError) {
-        onError(error as Error);
-      }
-      setHasCamera(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-    setScanning(false);
-  };
-
-  const scanQRCode = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-
-    if (!context || video.readyState !== video.HAVE_ENOUGH_DATA) return;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-    try {
-      // Use jsQR library (works on all browsers)
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "dontInvert",
-      });
-
-      if (code) {
-        onScan(code.data);
-        stopCamera();
-      }
-    } catch (error) {
-      console.log('QR detection error:', error);
-    }
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const img = new Image();
-      img.onload = async () => {
-        if (!canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
-        if (!context) return;
-
-        canvas.width = img.width;
-        canvas.height = img.height;
-        context.drawImage(img, 0, 0);
-
+      streamRef.current = stream;
+      video.srcObject = stream;
+      await video.play();
+      if (attempt !== session.current) return;
+      timerRef.current = window.setInterval(() => {
+        if (attempt !== session.current || video.readyState < video.HAVE_CURRENT_DATA ||
+          !video.videoWidth || !video.videoHeight) return;
+        let data: string | undefined;
         try {
-          // Use jsQR library (works on all browsers)
-          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-          const code = jsQR(imageData.data, imageData.width, imageData.height, {
-            inversionAttempts: "dontInvert",
-          });
-
-          if (code) {
-            onScan(code.data);
-          } else {
-            if (onError) {
-              onError(new Error('Aucun QR Code détecté dans l\'image'));
-            }
-          }
-        } catch (error) {
-          if (onError) {
-            onError(error as Error);
-          }
+          data = decode(video, video.videoWidth, video.videoHeight);
+        } catch {
+          reject(attempt, "Impossible de lire l’image de la caméra. Réessayez ou choisissez une photo.");
+          return;
         }
-      };
-      img.src = e.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-  };
+        // Invalidate this attempt and release the camera before notifying the caller.
+        if (data && finish(attempt)) callbacks.current.onScan(data);
+      }, 200);
+    } catch (error) {
+      reject(attempt, error instanceof Error && error.name === "NotAllowedError"
+        ? "Accès à la caméra refusé. Autorisez-la dans les réglages de l’appareil ou choisissez une photo."
+        : "Impossible d’ouvrir la caméra. Réessayez ou choisissez une photo.");
+    }
+  }
 
-  useEffect(() => {
-    return () => {
-      stopCamera();
-    };
-  }, []);
+  async function readPhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || active.current) return;
+    active.current = true;
+    const attempt = ++session.current;
+    setError("");
+    setMode("file");
+    const url = URL.createObjectURL(file);
+    let data: string | undefined;
+    try {
+      const image = new Image();
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = reject;
+        image.src = url;
+      });
+      if (attempt !== session.current) return;
+      data = decode(image, image.naturalWidth, image.naturalHeight);
+    } catch {
+      reject(attempt, "Impossible de lire cette photo.");
+      return;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    if (!data) reject(attempt, "Aucun QR code détecté dans cette photo.");
+    else if (finish(attempt)) callbacks.current.onScan(data);
+  }
 
   return (
-    <div className="space-y-4">
-      {scanning ? (
-        <div className="relative">
-          <div className="border-2 border-primary rounded-lg overflow-hidden bg-black">
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              className="w-full h-auto"
-            />
-          </div>
-          <canvas ref={canvasRef} className="hidden" />
-          <Button
-            variant="destructive"
-            className="mt-4 w-full gap-2"
-            onClick={stopCamera}
-          >
-            <X className="w-4 h-4" />
-            Annuler le scan
+    <div className="space-y-3">
+      <div className="overflow-hidden rounded-lg border border-primary bg-black" hidden={mode !== "camera"}>
+        <video ref={videoRef} muted autoPlay playsInline className="h-auto max-h-[55dvh] w-full object-contain" />
+      </div>
+      <canvas ref={canvasRef} hidden />
+      {mode === "camera" ? <>
+        <p className="text-center text-sm text-muted-foreground">Placez le QR code dans le cadre.</p>
+        <Button type="button" variant="outline" className="min-h-11 w-full" onClick={() => finish(session.current)}>
+          <X aria-hidden /> Annuler le scan
+        </Button>
+      </> : <>
+        {hasCamera ? (
+          <Button type="button" variant="outline" className="min-h-11 w-full" disabled={mode !== "idle"} onClick={() => void startCamera()}>
+            <Camera aria-hidden /> Démarrer la caméra
           </Button>
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Positionnez le QR Code dans le cadre
-          </p>
-          {!('BarcodeDetector' in window) && (
-            <p className="text-xs text-amber-600 text-center mt-1">
-              ⚠️ Détection automatique non disponible. Utilisez l'upload d'image.
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {hasCamera ? (
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={startCamera}
-            >
-              <Camera className="w-4 h-4" />
-              {('BarcodeDetector' in window)
-                ? 'Démarrer la caméra'
-                : 'Démarrer la caméra (prévisualisation uniquement)'}
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center">
-              Caméra non disponible sur cet appareil
-            </p>
-          )}
-
-          <div className="relative">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="qr-file-upload"
-            />
-            <Button
-              variant="outline"
-              className="w-full gap-2"
-              onClick={() => document.getElementById('qr-file-upload')?.click()}
-            >
-              <Upload className="w-4 h-4" />
-              Uploader une image QR Code
-            </Button>
-          </div>
-
-          {!('BarcodeDetector' in window) && (
-            <p className="text-xs text-muted-foreground text-center">
-              Pour une meilleure expérience, utilisez Chrome ou Edge
-            </p>
-          )}
-
-          <canvas ref={canvasRef} className="hidden" />
-        </div>
-      )}
+        ) : <p className="text-center text-sm text-muted-foreground">Caméra indisponible. Vérifiez que l’application est ouverte en HTTPS.</p>}
+        <Input ref={fileRef} type="file" accept="image/*" onChange={readPhoto} hidden />
+        <Button type="button" variant="outline" className="min-h-11 w-full" disabled={mode !== "idle"} onClick={() => fileRef.current?.click()}>
+          <Upload aria-hidden /> Choisir une photo du QR code
+        </Button>
+      </>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>
   );
 }

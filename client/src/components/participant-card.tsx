@@ -5,7 +5,7 @@ import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -55,20 +55,25 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
       <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
-      {cardScheduleFields(card.type).map(field => (
-        <div key={field.key} className="absolute flex flex-col items-center gap-[0.6cqw] rounded-[0.95cqw] bg-white pt-[0.6cqw] leading-none text-[#101828]"
+      {cardScheduleFields(card.type).map(field => field.key === "briefing" ? (
+        <div key={field.key} className="absolute flex flex-col items-center justify-center gap-[0.7cqw] rounded-[0.95cqw] bg-white leading-none text-[#101828]"
           style={at(field.x, scheduleY, field.width, scheduleHeight)}>
-          <span className="text-[2.3cqw] font-bold text-slate-700">{cardScheduleLabel(field, card.type)}</span>
-          <strong className="text-[3.75cqw]">{cardScheduleValue(card, field.key)}</strong>
+          <span className="text-[2.3cqw] font-bold text-slate-700">{field.label}</span>
+          <strong className="text-[3.75cqw] tabular-nums">{cardBriefingTime(card.briefingTime)}</strong>
+        </div>
+      ) : (
+        <div key={field.key}>
+          <span className="absolute flex items-center justify-center rounded-l-[0.95cqw] bg-[#100b12]"
+            style={at(field.x - scheduleSideLabelWidth, scheduleY, scheduleSideLabelWidth, scheduleHeight)}>
+            <span className="-rotate-90 whitespace-nowrap text-[1.95cqw] font-bold leading-none">{field.label}</span>
+          </span>
+          <span aria-label={`Case ${field.label} à remplir à la main`} role="img"
+            className="absolute rounded-r-[0.95cqw] bg-white" style={at(field.x, scheduleY, field.width, scheduleHeight)} />
         </div>
       ))}
       {cardHasMealBox(card.type) && <>
         <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, mealY, mealBoxSize, mealBoxSize)} />
         <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, mealY + 1.25)}>Repas</span>
-      </>}
-      {theme.zombie && <>
-        <span className="absolute text-[3.3cqw] leading-none" style={at(28, 45.5)}>Maquillage</span>
-        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(49, makeupBoxY, makeupBoxWidth, makeupBoxHeight)} />
       </>}
       <p className="absolute whitespace-nowrap rounded-sm bg-black/65 px-0.5 text-center leading-tight" style={{
         ...at(5, linkY, 75), fontSize: `${Math.min(2.7, 156 / url.length)}cqw`,

@@ -2,12 +2,12 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, calibratedCardSheet, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, calibratedCardSheet, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, makeupBoxY, makeupBoxHeight, makeupBoxWidth, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -53,17 +53,24 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
     for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
-      doc.fillColor("#334155").font("CardBold").fontSize(5.5)
-        .text(cardScheduleLabel(field, type), pt(field.x), pt(scheduleY + 0.5), { width: pt(field.width), align: "center", lineBreak: false });
+      if (field.key === "briefing") {
+        doc.fillColor("#334155").font("CardBold").fontSize(5.5)
+          .text(field.label, pt(field.x), pt(scheduleY + 1.4), { width: pt(field.width), align: "center", lineBreak: false });
+      } else {
+        const labelX = field.x - scheduleSideLabelWidth;
+        const centerX = pt(labelX + scheduleSideLabelWidth / 2);
+        const centerY = pt(scheduleY + scheduleHeight / 2);
+        doc.roundedRect(pt(labelX), pt(scheduleY), pt(scheduleSideLabelWidth), pt(scheduleHeight), pt(0.8)).fill("#100b12");
+        doc.save().rotate(-90, { origin: [centerX, centerY] });
+        doc.fillColor("#ffffff").font("CardBold").fontSize(4.8);
+        doc.text(field.label, centerX - doc.widthOfString(field.label) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
+        doc.restore();
+      }
     }
     if (cardHasMealBox(type)) {
       const mealY = type === "staff" ? staffMealBoxY : mealBoxY;
       doc.roundedRect(pt(6), pt(mealY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
       doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(mealY + 1.25), { lineBreak: false });
-    }
-    if (theme.zombie) {
-      doc.fillColor("#ffffff").font("CardRegular").text("Maquillage", pt(28), pt(45.5), { lineBreak: false });
-      doc.roundedRect(pt(49), pt(makeupBoxY), pt(makeupBoxWidth), pt(makeupBoxHeight), pt(0.45)).fill("#ffffff");
     }
     return;
   }
@@ -191,11 +198,10 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
           if (side === "front") {
             if (card) printName(doc, printedCardName(card));
             if (mode === "complete" && card) {
-              for (const field of cardScheduleFields(card.type)) {
-                const value = cardScheduleValue(card, field.key);
-                if (value) doc.fillColor("#101828").font("CardBold").fontSize(9)
-                  .text(value, pt(field.x), pt(scheduleY + 3), { width: pt(field.width), align: "center", lineBreak: false });
-              }
+              const field = cardScheduleFields(card.type).find(field => field.key === "briefing");
+              const time = cardBriefingTime(card.briefingTime);
+              if (field && time) doc.fillColor("#101828").font("CardBold").fontSize(9)
+                .text(time, pt(field.x), pt(scheduleY + 4.1), { width: pt(field.width), align: "center", lineBreak: false });
             }
             const url = card ? new URL(`${souvenirPath}/${card.token}`, origin).href : recoveryUrl;
             const qr = recoveryQr ?? await QRCode.toBuffer(url, qrOptions);

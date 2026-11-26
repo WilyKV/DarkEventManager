@@ -80,7 +80,7 @@ export function WelcomeChecklistEditor({ settings, canEdit, onClose, wave }: {
       </div>
       {wave && <fieldset className="space-y-2 rounded-lg border border-border p-3">
         <legend className="px-1 text-sm font-semibold">Offres des intervenants · {wave.name}</legend>
-        <p className="text-sm text-muted-foreground">Précocher ces points pour chaque nouveau groupe de cette vague.</p>
+        <p className="text-sm text-muted-foreground">Afficher ces points dans le pense-bête des groupes de cette vague.</p>
         {welcomeOffers.map(({ id, title }) => (
           <label key={id} className="flex min-h-10 items-center gap-2 text-sm">
             <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={waveOffers.includes(id)}

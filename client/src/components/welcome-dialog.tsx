@@ -1,8 +1,9 @@
 import { WelcomeTabletHandoff } from "./welcome-tablet-handoff";
 import { makeTabletTransfer, type TabletPresentation, type TabletTransfer } from "./welcome-tablet-transfer";
+import { WelcomeReminders, welcomeReminderDefaults } from "./welcome-reminders";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, Footprints, Paintbrush, Plus, Search, ShieldCheck, Skull, UserCheck, Users } from "lucide-react";
 import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { OfflineGroupWelcome, type OfflineArrival } from "./offline-group-welcome";
 
-type Step = "profile" | "count" | "select" | "welcome" | "done";
+type Step = "count" | "select" | "welcome" | "done";
 
 type WelcomeDialogProps = {
   roster?: CheckInRoster;
@@ -64,13 +65,16 @@ export function WelcomeDialog(props: WelcomeDialogProps) {
 
 function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, checklist, onClose, onSave, onReload, onSaveOfflineGroup }: WelcomeDialogProps & { roster: CheckInRoster }) {
   const countId = useId();
-  const [step, setStep] = useState<Step>("profile");
+  const [step, setStep] = useState<Step>("count");
   const [quantity, setQuantity] = useState("1");
   const [largeGroup, setLargeGroup] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
   const [confirmedArrivals, setConfirmedArrivals] = useState<Record<number, string>>({});
   const [tabletTransfer, setTabletTransfer] = useState<TabletTransfer>();
   const [savedSquadNumber, setSavedSquadNumber] = useState<number>();
+  const [reminders, setReminders] = useState<CheckInDetails>();
+  const [dirtyReminders, setDirtyReminders] = useState(false);
+  const writeInProgress = useRef(false);
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [savedSquadId, setSavedSquadId] = useState<number>();
   const [search, setSearch] = useState("");
@@ -95,6 +99,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
   const preferredWave = wave ?? readWave(waveKey);
   const waveIndex = preferredWave === "finished" ? waveOptions.length : Math.max(0, waveOptions.findIndex(option => option.value === preferredWave));
   const currentWave = waveOptions[waveIndex];
+  const slot = roster.slots.find(slot => String(slot.id) === currentWave?.value);
+  const settings = checklist?.settings ?? roster.welcomeChecklist;
   const wavePlayers = profilePlayers.filter(player => String(player.timeSlotId ?? "none") === currentWave?.value)
     .sort((a, b) => nameOrder.compare(a.lastName, b.lastName) || nameOrder.compare(a.firstName, b.firstName) || a.id - b.id);
   const selected = selection.filter(id => wavePlayers.some(player => player.id === id));
@@ -114,6 +120,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     setLargeGroup(false);
     setSelection([]);
     setSavedIds([]);
+    setReminders(undefined);
+    setDirtyReminders(false);
     setTabletTransfer(undefined);
     setSavedSquadNumber(undefined);
     setSavedSquadId(undefined);
@@ -132,16 +140,23 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
   }
 
   async function confirm(arrivals: OfflineArrival[], tablet?: TabletPresentation) {
-    if (saving) return;
+    if (writeInProgress.current || !type || !arrivals.length) return;
+    writeInProgress.current = true;
     setSaving(true);
     setError("");
     try {
+      const groupDetails = arrivals.map(({ details, ...arrival }) => {
+        const defaults = welcomeReminderDefaults(type, details.squadId, settings, slot?.id);
+        return { ...arrival, details: { ...details, checklist: { ...details.checklist, ...defaults.checklist },
+          ...(defaults.welcomeChecks && { welcomeChecks: defaults.welcomeChecks }),
+        } };
+      });
       const transfer = tablet && makeTabletTransfer(tablet);
       if (onSaveOfflineGroup) {
-        await onSaveOfflineGroup(arrivals);
+        await onSaveOfflineGroup(groupDetails);
         setSavedIds(arrivals.map(({ player }) => player.id));
       } else if (onSave) {
-        for (const { player, details, overflowConfirmed } of arrivals) {
+        for (const { player, details, overflowConfirmed } of groupDetails) {
           if (savedIds.includes(player.id)) continue;
           await onSave(player, details, overflowConfirmed);
           if (details.squadId !== null && player.type !== "staff") setSavedSquadId(details.squadId);
@@ -152,68 +167,94 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
       setConfirmedArrivals(previous => ({
         ...previous, ...Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? previous[player.id] ?? confirmedAt])),
       }));
+      const squadId = groupDetails[0].details.squadId;
+      setReminders({ squadId, ...welcomeReminderDefaults(type, squadId, settings, slot?.id) });
       setTabletTransfer(transfer);
       setSavedSquadNumber(type === "zombie" ? roster.teams.find(team => team.id === arrivals[0]?.details.squadId)?.number : undefined);
       setStep("done");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
     } finally {
+      writeInProgress.current = false;
       setSaving(false);
     }
   }
 
+  async function saveReminders() {
+    if (!dirtyReminders) return true;
+    if (writeInProgress.current || !type || !reminders) return false;
+    writeInProgress.current = true;
+    setSaving(true);
+    setError("");
+    try {
+      const defaults = welcomeReminderDefaults(type, reminders.squadId, settings, slot?.id);
+      const visibleChecks = Object.fromEntries(Object.keys(defaults.checklist).map(key => [
+        key, reminders.checklist[key as keyof CheckInDetails["checklist"]] ?? true,
+      ]));
+      const visibleExtras = defaults.welcomeChecks && Object.fromEntries(Object.keys(defaults.welcomeChecks).map(id => [
+        id, reminders.welcomeChecks?.[id] ?? true,
+      ]));
+      const updates = savedIds.map(id => {
+        const player = roster.players.find(candidate => candidate.id === id);
+        if (!player || player.returned) throw new Error("Une fiche du groupe n’est plus disponible.");
+        return { player, overflowConfirmed: false, details: {
+          squadId: player.arrived ? player.details.squadId : reminders.squadId,
+          checklist: { ...player.details.checklist, ...visibleChecks },
+          ...(visibleExtras && { welcomeChecks: visibleExtras }),
+        } };
+      });
+      if (onSaveOfflineGroup) await onSaveOfflineGroup(updates);
+      else if (onSave) for (const { player, details } of updates) await onSave(player, details, false);
+      setDirtyReminders(false);
+      return true;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le pense-bête.");
+      return false;
+    } finally {
+      writeInProgress.current = false;
+      setSaving(false);
+    }
+  }
+
+  async function leave(next: () => void) {
+    if (!writeInProgress.current && await saveReminders()) next();
+  }
+
   const makeupWave = roster.players.filter(player => player.type === "zombie" && String(player.timeSlotId ?? "none") === currentWave?.value)
     .map(player => ({ id: player.id, arrivedAt: player.arrivedAt ?? confirmedArrivals[player.id] }));
-  const briefing = roster.slots.find(slot => String(slot.id) === currentWave?.value)?.briefingTime;
+  const briefing = slot?.briefingTime;
   const makeup = step === "done" && type === "zombie" && currentWave && roster
     ? makeupEstimates(makeupWave, briefing, roster.makeupArtists)
     : undefined;
   const title = {
-    profile: "Qui accueillez-vous ?",
-    count: "Combien de personnes ?",
+    count: "Nouveau groupe",
     select: "Choisir les personnes",
     welcome: "Accueillir le groupe",
     done: "Accueil terminé",
   }[step];
   const waveLabel = currentWave?.label ?? "Toutes les vagues sont terminées";
-  const HeaderIcon = type && step !== "profile" ? profileCards[type].Icon : Users;
+  const HeaderIcon = type ? profileCards[type].Icon : Users;
 
   return (
-    <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}>
+    <Dialog open onOpenChange={open => { if (!open && !saving) void leave(onClose); }}>
       <DialogContent className="welcome-session flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-8 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:grid [&>button]:place-items-center"
         onInteractOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (saving) event.preventDefault(); }}>
         <DialogHeader className="flex shrink-0 flex-row items-center gap-3 space-y-0 border-b border-border pb-3 pr-12 text-left sm:gap-4">
           <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl border sm:size-14",
-            type && step !== "profile" ? profileCards[type].colors : "border-primary/20 bg-primary/10 text-primary")}>
+            type ? profileCards[type].colors : "border-primary/20 bg-primary/10 text-primary")}>
             <HeaderIcon className="size-6 sm:size-7" aria-hidden />
           </span>
           <div className="min-w-0 space-y-1">
             <DialogTitle className="font-display text-xl sm:text-3xl">{title}</DialogTitle>
             <DialogDescription>
-              {step === "profile" ? "Choisissez un profil." :
+              {!type ? "Choisissez un profil et la taille du groupe." :
                 `${type ? checkInProfiles[type].label : ""} · ${waveLabel}`}
             </DialogDescription>
           </div>
         </DialogHeader>
 
         {unavailable}
-
-        {step === "profile" && (
-          <div className="grid min-h-0 flex-1 auto-rows-fr gap-3 overflow-y-auto sm:grid-cols-3 sm:gap-5">
-            {profileTypes.map(value => {
-              const { Icon, colors } = profileCards[value];
-              return (
-                <button key={value} type="button" className={cn("flex min-h-24 items-center justify-center gap-4 rounded-2xl border p-4 text-xl font-bold transition-colors sm:flex-col sm:text-3xl", colors)}
-                  onClick={() => { setType(value); setWave(undefined); resetGroup(); }}>
-                  <Icon className="size-10 sm:size-20" strokeWidth={1.4} aria-hidden />
-                  {checkInProfiles[value].label}
-                </button>
-              );
-            })}
-            {!profileTypes.length && <p role="status">Aucun profil disponible pour cet accueil.</p>}
-          </div>
-        )}
 
         {step === "count" && (
           <form className="flex min-h-0 flex-1 flex-col gap-3" onSubmit={event => {
@@ -223,12 +264,21 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
               setStep("select");
             }
           }}>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" onClick={() => setStep("profile")}><ArrowLeft /> Changer de profil</Button>
+            <div role="group" aria-label="Profil du groupe" className="grid shrink-0 grid-cols-3 gap-2">
+              {profileTypes.map(value => {
+                const { Icon, colors } = profileCards[value];
+                return <Button key={value} type="button" variant="outline" aria-pressed={type === value}
+                  className={cn("min-h-11 px-1 sm:px-3", type === value && colors)}
+                  onClick={() => { if (type !== value) { setType(value); setWave(undefined); resetGroup(); } }}>
+                  <Icon aria-hidden /> {checkInProfiles[value].label}
+                </Button>;
+              })}
+            </div>
+            {type && <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>{type === "staff" ? "Choisir une attribution" : "Choisir une vague"}</Button>
               {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline"
                 onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
-            </div>
+            </div>}
             {showWaves && (
               <select aria-label={type === "staff" ? "Attribution active" : "Vague active"} className="min-h-11 rounded-lg border bg-background px-3" value={currentWave?.value ?? "finished"}
                 onChange={event => switchWave(event.target.value)}>
@@ -236,8 +286,9 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                 {waveOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             )}
-            {wavePlayers.length ? (
+            {(!type || wavePlayers.length > 0) ? (
               <>
+                <p className="shrink-0 text-sm font-medium">Nombre de personnes</p>
                 <div role="group" aria-label="Nombre de personnes" className="grid min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-2 sm:gap-4">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map(value => (
                     <Button key={value} type="button" className="h-full min-h-10 rounded-xl px-1 text-3xl font-bold sm:rounded-2xl sm:text-6xl"
@@ -318,7 +369,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
         )}
 
         {step === "welcome" && (
-          <OfflineGroupWelcome key={reviewVersion} roster={roster} checklist={checklist} ids={selection} saving={saving} error={error}
+          <OfflineGroupWelcome key={reviewVersion} roster={roster} ids={selection} saving={saving} error={error}
             savedIds={savedIds} savedSquadId={savedSquadId} onConfirm={confirm}
             onBack={() => setStep("select")}
             onReplan={async () => {
@@ -372,12 +423,17 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                   })}
                 </ul>
               </section>
+              {type && reminders && <WelcomeReminders type={type} details={reminders} slot={slot}
+                team={roster.teams.find(team => team.id === reminders.squadId)} settings={settings}
+                canEdit={checklist?.canEdit} saving={saving} onChange={next => { setReminders(next); setDirtyReminders(true); }} />}
+              {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
             </div>
             <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
-              <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>
-              <Button type="button" variant="outline" className="min-h-12" onClick={onClose}>Quitter l’accueil</Button>
+              <Button type="button" className="min-h-12" disabled={saving} onClick={() => void leave(resetGroup)}>Nouveau groupe</Button>
+              <Button type="button" variant="outline" className="min-h-12" disabled={saving} onClick={() => void leave(onClose)}>Quitter l’accueil</Button>
+              {dirtyReminders && <Button type="button" variant="outline" disabled={saving} onClick={() => void saveReminders()}>Enregistrer les coches</Button>}
               {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
-                onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
+                disabled={saving} onClick={() => void leave(() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished"))}>Clôturer la vague <ArrowRight /></Button>}
             </div>
           </div>
         )}

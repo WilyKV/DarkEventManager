@@ -24,6 +24,7 @@ interface Props extends TabletPresentation {
   onContinue: (completed: boolean) => void;
   onTablet?: () => void;
   tablet?: boolean;
+  autoContinue?: boolean;
 }
 
 function playbackTime(seconds: number) {
@@ -31,7 +32,7 @@ function playbackTime(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, squadCount, onBack, onContinue, onTablet, tablet = false }: Props) {
+export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, squadCount, onBack, onContinue, onTablet, tablet = false, autoContinue = false }: Props) {
   const [sources, setSources] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [overlay, setOverlay] = useState<keyof typeof zombieOverlays>();
@@ -307,7 +308,11 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
           <video ref={main} hidden={phase !== "ready" && phase !== "main"} playsInline preload="auto" src={sources[0]}
             onLoadedMetadata={event => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
             onPlay={() => setPaused(false)} onPause={() => setPaused(true)}
-            onTimeUpdate={event => { setPosition(event.currentTarget.currentTime); updateTimeline(); }} onEnded={() => { if (phase === "main") setPhase("ended"); }}
+            onTimeUpdate={event => { setPosition(event.currentTarget.currentTime); updateTimeline(); }} onEnded={() => {
+              if (phase !== "main") return;
+              if (autoContinue) onContinue(true);
+              else setPhase("ended");
+            }}
             onError={() => setPhase("error")} />
           <audio ref={voice} preload="auto" src={sources[1]} />
           {phase === "loading" && <p className="zombie-show-message" role="status">Chargement de la vidéo…</p>}

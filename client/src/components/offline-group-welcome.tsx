@@ -1,9 +1,8 @@
 import type { TabletPresentation } from "./welcome-tablet-transfer";
 import { ZombieWelcomeVideo } from "./zombie-welcome-video";
 import { normalizeWelcomeTime } from "./zombie-welcome-timeline";
-import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { useState } from "react";
-import { ArrowLeft, Check, ClipboardCheck, UserRound } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CheckInDetails, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
 import { WelcomeGuide } from "./welcome-guide";
@@ -16,9 +15,8 @@ export type OfflineArrival = {
   overflowConfirmed: boolean;
 };
 
-export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, savedIds, savedSquadId, onConfirm, onBack, onReplan }: {
+export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, savedSquadId, onConfirm, onBack, onReplan }: {
   roster: CheckInRoster;
-  checklist?: { settings: WelcomeChecklist; canEdit: boolean };
   ids: number[];
   saving: boolean;
   error: string;
@@ -36,10 +34,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
   const [assignment, setAssignment] = useState<OfflineArrival[] | undefined>(() => selected[0]?.type === "staff"
     ? selected.map(player => ({ player, details: player.details, overflowConfirmed: false }))
     : undefined);
-  const [completed, setCompleted] = useState<OfflineArrival[]>();
-  const [checklistDraft, setChecklistDraft] = useState<CheckInDetails>();
-  const [tablet, setTablet] = useState<TabletPresentation>();
-  const [briefed, setBriefed] = useState(false);
+  const [pending, setPending] = useState<{ tablet?: TabletPresentation }>();
 
   if (selected.length !== ids.length || !selected.length) {
     return <>
@@ -85,13 +80,16 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
     </>;
   }
 
-  if (!briefed) {
+  if (!pending) {
     const back = () => {
       if (first.type !== "staff") setAssignment(undefined);
       else if (savedIds.length) void onReplan();
       else onBack();
     };
-    const continueWelcome = () => setBriefed(true);
+    const continueWelcome = (tablet?: TabletPresentation) => {
+      setPending({ tablet });
+      void onConfirm(assignment, tablet);
+    };
     const team = roster.teams.find(item => item.id === assignment[0]?.details.squadId);
     const briefing = normalizeWelcomeTime(slot?.briefingTime);
     const start = normalizeWelcomeTime(slot?.gameTime);
@@ -104,67 +102,19 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
       });
       const squadCount = roster.teams.filter(item => item.timeSlotId === team.timeSlotId && (!item.type || item.type === "zombie")).length;
       const presentation = { briefing, start, end, squad: team.number, otherTimes: Array.from(new Set(otherTimes)).slice(0, 8), squadCount };
-      return <ZombieWelcomeVideo {...presentation} onBack={back} onContinue={continueWelcome}
-        onTablet={() => { setTablet(presentation); continueWelcome(); }} />;
+      return <ZombieWelcomeVideo {...presentation} autoContinue onBack={back} onContinue={() => continueWelcome()}
+        onTablet={() => continueWelcome(presentation)} />;
     }
-    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={continueWelcome} />;
+    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={() => continueWelcome()} />;
   }
 
-  if (!completed) {
-    const { player, details } = assignment[0];
-    const initialDetails: CheckInDetails = checklistDraft ?? { squadId: details.squadId, checklist: {} };
-    const settings = checklist?.settings ?? roster.welcomeChecklist;
-    return <WelcomeGuide key={player.id} type={player.type} initialDetails={initialDetails} slot={slot} teams={roster.teams}
-      checklistSettings={settings} canEditChecklist={checklist?.canEdit}
-      lockSquad review defaultChecked saving={false} error=""
-      summary={<div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-        <ClipboardCheck className="size-6 shrink-0 text-primary" aria-hidden />
-        <div className="min-w-0">
-          <h3 className="text-lg font-semibold">Consignes d’accueil</h3>
-          <p className="break-words text-sm text-muted-foreground">{groupNames}</p>
-          {tablet && <p className="text-sm">Le QR de transfert sera affiché après la confirmation des arrivées.</p>}
-        </div>
-      </div>}
-      saveLabel="Valider"
-      onSave={next => {
-        setChecklistDraft(next);
-        setCompleted(assignment.map(arrival => ({
-          ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...next.checklist },
-            ...(next.welcomeChecks && { welcomeChecks: { ...arrival.details.welcomeChecks, ...next.welcomeChecks } }),
-          },
-        })));
-      }} />;
-  }
-
-  const teamNumber = new Map(roster.teams.map(team => [team.id, team.number]));
-  return <>
-    <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/5 p-4">
-      <h3 className="text-xl font-semibold">Confirmer les arrivées</h3>
-      <p className="text-sm text-muted-foreground">{completed.length} {completed.length === 1 ? "personne à enregistrer" : "personnes à enregistrer"}</p>
-    </div>
-    <ul aria-label="Arrivées à valider" className="grid min-h-0 flex-1 auto-rows-min gap-3 overflow-y-auto overscroll-contain sm:grid-cols-2 xl:grid-cols-3">
-      {completed.map(({ player, details, overflowConfirmed }) => (
-        <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-          <span className="font-medium">{player.firstName} {player.lastName}</span>
-          <span className={overflowConfirmed ? "text-amber-500" : "text-muted-foreground"}>
-            {details.squadId === null ? `Sans ${words.noun}` : `${words.name} ${teamNumber.get(details.squadId) ?? details.squadId}`}
-            {overflowConfirmed && " · Dépassement confirmé"}
-            {savedIds.includes(player.id) && " · Enregistré"}
-          </span>
-        </li>
-      ))}
-    </ul>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
-      <Button type="button" variant="outline" className="min-h-12" disabled={saving} onClick={() => {
-        if (error) onReplan();
-        else setCompleted(undefined);
-      }}><ArrowLeft aria-hidden /> {error ? "Actualiser et revoir les fiches restantes" : "Revoir les consignes"}</Button>
-      {first.type !== "staff" && !savedIds.length && !error && <Button type="button" variant="outline" className="min-h-12" disabled={saving}
-        onClick={() => { setCompleted(undefined); setChecklistDraft(undefined); setTablet(undefined); setBriefed(false); setAssignment(undefined); }}>Modifier {words.article}</Button>}
-      <Button type="button" className="min-h-12 flex-1" disabled={saving} loading={saving} onClick={() => void onConfirm(completed, tablet)}>
-        {error ? "Réessayer" : "Confirmer"} <Check aria-hidden />
-      </Button>
-    </div>
-  </>;
+  return <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
+    {saving ? <p role="status">Enregistrement des arrivées…</p> : <>
+      <p role="alert">{error || "Impossible d’enregistrer les arrivées."}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={() => void onConfirm(assignment, pending.tablet)}>Réessayer</Button>
+        <Button type="button" variant="outline" onClick={() => void onReplan()}>Actualiser et revoir les fiches restantes</Button>
+      </div>
+    </>}
+  </div>;
 }

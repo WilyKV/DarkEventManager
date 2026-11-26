@@ -27,6 +27,11 @@ export const welcomeChecksSchema = z.record(customId, z.boolean())
 export type WelcomeChecklist = z.infer<typeof welcomeChecklistSchema>;
 export const defaultWelcomeChecklist: WelcomeChecklist = { hidden: [], extra: [] };
 
+export function activeWelcomePoints(settings: WelcomeChecklist, waveId?: number) {
+  const enabled = waveId === undefined ? [] : settings.prefilledOffersByWave?.[waveId] ?? [];
+  return [...settings.extra, ...welcomeOffers.filter(point => enabled.includes(point.id))];
+}
+
 export function mergeWelcomeChecks(current: Record<string, boolean> | null | undefined, changes: Record<string, boolean> | undefined, settings: WelcomeChecklist) {
   return Object.fromEntries([...settings.extra, ...welcomeOffers].flatMap(({ id }) => {
     const value = changes?.[id] ?? current?.[id];

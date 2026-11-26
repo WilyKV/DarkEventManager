@@ -1,4 +1,4 @@
-import { defaultWelcomeChecklist, welcomeOffers, type WelcomeChecklist } from "@shared/welcome-checklist";
+import { activeWelcomePoints, defaultWelcomeChecklist, type WelcomeChecklist } from "@shared/welcome-checklist";
 import { WelcomeChecklistEditor } from "./welcome-checklist-editor";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Gift, Map, Paintbrush, Ticket, Users } from "lucide-react";
@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { orderSquads, placementLabels, recommendSquad, SquadPlacementCard, squadPlaces, type PlacementMember } from "./squad-placement";
 import { OtherWelcomeNote, WelcomeSchedule } from "./welcome-schedule";
 
-const instructions = {
+export const welcomeInstructions = {
   squadExplained: {
     title: "Présenter l’équipe",
     icon: Users,
@@ -43,7 +43,8 @@ const instructions = {
   },
 };
 
-function WelcomeCheckCard({ title, icon: Icon, checked, disabled, onChange, children, action }: {
+export function WelcomeCheckCard({ compact, title, icon: Icon, checked, disabled, onChange, children, action }: {
+  compact?: boolean;
   title: string;
   icon: typeof Check;
   checked: boolean;
@@ -54,7 +55,8 @@ function WelcomeCheckCard({ title, icon: Icon, checked, disabled, onChange, chil
 }) {
   const id = useId();
   return (
-    <li className={cn("relative rounded-2xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-ring",
+    <li className={cn("relative rounded-2xl border transition-colors focus-within:ring-2 focus-within:ring-ring",
+      compact ? "p-3" : "p-4",
       checked ? "border-emerald-600/40 bg-emerald-500/10" : "border-border bg-card",
       !disabled && "hover:border-primary/60")}>
       <label className={cn("absolute inset-0 rounded-2xl", !disabled && "cursor-pointer")}>
@@ -110,14 +112,9 @@ interface WelcomeGuideProps {
 export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, defaultChecked = false, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
-  const extra = type === "zombie" && !squadOnly ? [
-    ...checklistSettings.extra.map(point => ({ ...point, prefilled: defaultChecked })),
-    ...welcomeOffers.map(point => ({
-      ...point,
-      prefilled: defaultChecked && slot !== undefined &&
-        Boolean(checklistSettings.prefilledOffersByWave?.[slot.id]?.includes(point.id)),
-    })),
-  ] : [];
+  const extra = type === "zombie" && !squadOnly
+    ? activeWelcomePoints(checklistSettings, slot?.id).map(point => ({ ...point, prefilled: defaultChecked }))
+    : [];
   const visibleItems = items.filter(key => type !== "zombie" || !checklistSettings.hidden.includes(key));
   const hasChecklist = visibleItems.length + extra.length > 0;
   const [editingChecklist, setEditingChecklist] = useState(false);
@@ -133,10 +130,10 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   const item = items[index];
   const words = placementLabels(type);
   const stage = item === "squadExplained" ? {
-    ...instructions.squadExplained,
+    ...welcomeInstructions.squadExplained,
     title: `Présenter ${words.article}`,
     text: `Annoncez le numéro ${words.of} et où retrouver ses coéquipiers après le briefing.`,
-  } : item === undefined ? undefined : instructions[item];
+  } : item === undefined ? undefined : welcomeInstructions[item];
   const complete = item !== undefined && Boolean(details.checklist[item]);
   const canConfirm = item !== "squadExplained" || details.squadId !== null;
   const selectedTeam = teams.find(team => team.id === details.squadId);
@@ -315,8 +312,8 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 <p className="text-sm text-muted-foreground">Cochez chaque point traité, en vidéo ou de vive voix.</p>
                 <ul aria-label="Étapes de l’accueil" className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map(key => (
-                    <WelcomeCheckCard key={key} icon={instructions[key].icon}
-                      title={key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}
+                    <WelcomeCheckCard key={key} icon={welcomeInstructions[key].icon}
+                      title={key === "squadExplained" ? `Présenter ${words.article}` : welcomeInstructions[key].title}
                       checked={details.checklist[key] ?? defaultChecked}
                       disabled={saving || (key === "squadExplained" && details.squadId === null)}
                       onChange={checked => setChecklistItem(key, checked)}
@@ -324,7 +321,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                         onClick={() => { setEditing(true); setIndex(items.indexOf(key)); }}>
                         {details.squadId === null ? "Choisir" : "Modifier"}
                       </Button>}>
-                      <p>{key === "squadExplained" ? `${selectedTeam ? words.name + " " + selectedTeam.number + " · " : ""}Indiquez où retrouver ses coéquipiers après le briefing.` : instructions[key].text}</p>
+                      <p>{key === "squadExplained" ? `${selectedTeam ? words.name + " " + selectedTeam.number + " · " : ""}Indiquez où retrouver ses coéquipiers après le briefing.` : welcomeInstructions[key].text}</p>
                       {key === "briefingExplained" && <>
                         <WelcomeSchedule slot={slot} phases={type === "survivant" ? timeSlotPhases : undefined} />
                         {!slot?.briefingTime && <p>Horaire du briefing à vérifier avec l’organisation.</p>}

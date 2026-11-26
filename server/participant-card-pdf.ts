@@ -7,7 +7,7 @@ import { a4CardBleed, calibratedCardSheet, cardAssets, cardFieldIcons, cardHasMe
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrPanelX, qrPanelWidth, qrPanelHeight, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -55,9 +55,8 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   if (side === "front") {
     doc.roundedRect(pt(4.5), pt(namePanelY), pt(48.5), pt(namePanelHeight), pt(2)).fill("#ffffff");
     doc.rect(pt(4.5), pt(namePanelY + 2), pt(0.6), pt(namePanelHeight - 4)).fill(theme.accent);
-    doc.roundedRect(pt(qrPanelX), pt(namePanelY), pt(qrPanelWidth), pt(qrPanelHeight), pt(2)).fill("#ffffff");
-    doc.fillColor("#101828").font("CardBold").fontSize(5.5)
-      .text("Mon espace souvenir", pt(qrPanelX), pt(qrLabelY), { width: pt(qrPanelWidth), align: "center", lineBreak: false });
+    doc.fillColor("#ffffff").font("CardBold").fontSize(5.5)
+      .text("Mon espace souvenir", pt(qrX), pt(qrLabelY), { width: pt(qrSize), align: "center", lineBreak: false });
     for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
       const labelX = field.x - scheduleSideLabelWidth;
@@ -164,7 +163,13 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
   const capacity = a4 ? sheetLayout.capacity : 1;
   const entries = cards.length ? cards : Array.from({ length: capacity }, () => undefined);
   const recoveryUrl = new URL(souvenirRecoveryPath, origin).href;
-  const qrOptions = { width: 360, margin: 4, errorCorrectionLevel: "M" } as const;
+  // Ink-only overprints are intended for the previously printed white QR panel.
+  const overprint = mode === "front" && cards.length > 0;
+  const qrBox = overprint ? { x: 57.4, y: 23.6, size: 19.2 } : { x: qrX, y: qrY, size: qrSize };
+  const qrOptions = {
+    width: 360, margin: 4, errorCorrectionLevel: "M",
+    ...(overprint ? {} : { color: { dark: "#ffffffff", light: "#00000000" } }),
+  } as const;
   const recoveryQr = cards.length ? undefined : await QRCode.toBuffer(recoveryUrl, qrOptions);
   try {
     const artworkNames = mode === "complete" || !cards.length
@@ -211,7 +216,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             const url = card ? new URL(`${souvenirPath}/${card.token}`, origin).href : recoveryUrl;
             const qr = recoveryQr ?? await QRCode.toBuffer(url, qrOptions);
             if (mode === "complete" || !card) printCardLink(doc, url);
-            doc.image(qr, pt(qrX), pt(qrY), { width: pt(qrSize), height: pt(qrSize) });
+            doc.image(qr, pt(qrBox.x), pt(qrBox.y), { width: pt(qrBox.size), height: pt(qrBox.size) });
           } else if (card) {
             const code = `${card.code.slice(0, 5)} ${card.code.slice(5)}`;
             doc.fillColor("#101828").font("CardBold").fontSize(16);

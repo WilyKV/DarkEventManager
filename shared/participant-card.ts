@@ -110,9 +110,6 @@ export function cardBriefingTime(briefing: PrintableCard["briefingTime"]) {
 const namePanelY = 20;
 const scheduleY = 32;
 const scheduleHeight = 11.5;
-const qrPanelX = 54.5;
-const qrPanelWidth = 25;
-const qrSize = 19.2;
 
 export const cardLayout = {
   width: 85,
@@ -128,13 +125,10 @@ export const cardLayout = {
   mealBoxSize: 6,
   mealBoxX: 73.5,
   mealBoxY: 44.5,
-  qrPanelX,
-  qrPanelWidth,
-  qrPanelHeight: scheduleY + scheduleHeight - namePanelY,
-  qrLabelY: namePanelY + 0.9,
-  qrX: qrPanelX + (qrPanelWidth - qrSize) / 2,
-  qrY: namePanelY + 3.6,
-  qrSize,
+  qrX: 54,
+  qrY: 15,
+  qrSize: 26,
+  qrLabelY: 12.5,
   codeY: 27,
   linkX: 5,
   linkY: 46,

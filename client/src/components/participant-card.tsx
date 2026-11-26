@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrPanelX, qrPanelWidth, qrPanelHeight, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -57,10 +57,9 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
         style={{ ...at(nameX, nameCenterY, nameWidth), fontSize: `${Math.min(7, 112 / Math.max(1, printedName.length))}cqw` }}>
         {printedName}
       </p>
-      <div aria-hidden className={cream} style={at(qrPanelX, namePanelY, qrPanelWidth, qrPanelHeight)} />
-      <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
+      <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} fgColor="#ffffff" bgColor="transparent" className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
-      <p className="absolute z-10 text-center text-[2.3cqw] font-bold leading-none text-[#101828]" style={at(qrPanelX, qrLabelY, qrPanelWidth)}>Mon espace souvenir</p>
+      <p className="absolute z-10 text-center text-[2.3cqw] font-bold leading-none text-white" style={at(qrX, qrLabelY, qrSize)}>Mon espace souvenir</p>
       {cardScheduleFields(card.type).map(field => (
         <div key={field.key}>
           <span className="absolute flex items-center justify-center rounded-l-[0.95cqw] bg-[#100b12]"

@@ -1,8 +1,8 @@
 import { useWelcomeChecklist } from "@/components/welcome-checklist-editor";
 import { ArrivalTime, ArrivalTimeOption } from "@/components/arrival-time";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link } from "wouter";
-import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPlus, WifiOff } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { ArrowLeft, CalendarDays, LockKeyhole, RefreshCw, Trash2, Upload, UserPlus, Wifi, WifiOff } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -62,7 +62,8 @@ function errorMessage(error: unknown): string {
 }
 
 export default function OfflineCheckInPage() {
-  const { hasAnyRole, isLoading, user } = useAuth();
+  const { hasAnyRole, isLoading, user, checkSession } = useAuth();
+  const [, navigate] = useLocation();
   const online = useOnlineStatus();
   const [copy, setCopy] = useState<Copy>();
   const [loaded, setLoaded] = useState(false);
@@ -104,6 +105,15 @@ export default function OfflineCheckInPage() {
       busyRef.current = false;
       setBusy(false);
     }
+  }
+
+  function returnOnline() {
+    if (!online) return;
+    void run(async () => {
+      const session = await checkSession();
+      if (session === "unavailable") throw new Error("Serveur injoignable. Vous pouvez continuer à utiliser la copie hors ligne.");
+      navigate(session === "user" ? "/overview" : "/login");
+    });
   }
 
   async function installOrUnlock(event: FormEvent) {
@@ -369,15 +379,27 @@ export default function OfflineCheckInPage() {
   return (
     <main className="mx-auto min-h-dvh max-w-3xl space-y-5 px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6">
       <header className="workspace-header flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border p-5 sm:p-6">
-        <div>
-          <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">Accueil hors ligne</h1>
-          {data?.eventDay && <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-            <CalendarDays className="size-4" aria-hidden /> <time dateTime={data.eventDay} className="capitalize">{formatEventDay(data.eventDay)}</time>
-          </p>}
+        <div className="flex items-start gap-3">
+          <Button type="button" variant="ghost" size="icon" className="size-11 shrink-0" aria-label="Retour"
+            disabled={busy || (view === "list" && !online)}
+            onClick={() => { if (view === "squads") setView("list"); else returnOnline(); }}>
+            <ArrowLeft aria-hidden />
+          </Button>
+          <div>
+            <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-4xl">Accueil hors ligne</h1>
+            {data?.eventDay && <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+              <CalendarDays className="size-4" aria-hidden /> <time dateTime={data.eventDay} className="capitalize">{formatEventDay(data.eventDay)}</time>
+            </p>}
+          </div>
         </div>
-        <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
-          <WifiOff className="size-4" aria-hidden /> Copie locale
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="flex items-center gap-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <WifiOff className="size-4" aria-hidden /> Copie locale
+          </span>
+          <Button type="button" variant="outline" className="min-h-11" disabled={!online || busy} onClick={returnOnline}>
+            <Wifi aria-hidden /> Revenir en ligne
+          </Button>
+        </div>
       </header>
 
       {notice && <p role="status" className="rounded-lg border border-primary/40 p-3 text-sm">{notice}</p>}
@@ -544,9 +566,9 @@ export default function OfflineCheckInPage() {
           <SheetClose asChild><Button type="button" variant="ghost" disabled={busy || pending.size > 0}
             onClick={() => deleteLocalCopy(unlocked)}><Trash2 /> Supprimer la copie locale</Button></SheetClose>
         </>}
-        {online && <SheetClose asChild><Link href={user ? "/overview" : "/login"} className={buttonVariants({ variant: "outline" })}>
-          <ArrowLeft /> {user ? "Accueil en ligne" : "Se connecter"}
-        </Link></SheetClose>}
+        {online && <SheetClose asChild><Button type="button" variant="outline" disabled={busy} onClick={returnOnline}>
+          <Wifi aria-hidden /> Revenir en ligne
+        </Button></SheetClose>}
         {!unlocked && !online && <p className="text-sm text-muted-foreground">Ouvrez la copie locale pour accéder à la liste et à l’accueil.</p>}
       </OfflineNavigation>
     </main>

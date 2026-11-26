@@ -1,12 +1,15 @@
 import React from "react";
+import { ArrowLeft } from "lucide-react";
 import { Switch, Route, Redirect, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, RequireAuth, useAuth } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
 import { PwaProvider } from "@/components/install-prompt";
 import { LiveUpdatesProvider } from "@/lib/live-updates";
+import { useCanGoBack, useTrackAppHistory } from "@/hooks/use-app-back";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 import { getOfflineCopy } from "@/db/zombie-offline";
 import { souvenirRecoveryPath } from "@shared/participant-card";
@@ -72,102 +75,112 @@ function AppHome() {
       </main>
     );
   }
-  return <Redirect to={hasOfflineCopy && (!online || !user) ? offlineCheckInPage : "/overview"} />;
+  return <Redirect replace to={hasOfflineCopy && (!online || !user) ? offlineCheckInPage : "/overview"} />;
 }
 
 function Router() {
   const [location] = useLocation();
+  useTrackAppHistory();
+  const canGoBack = useCanGoBack();
   const online = useOnlineStatus();
+  const publicPage = ["/login", "/visitor", "/setup"].includes(location) || location.startsWith("/souvenir/");
   React.useLayoutEffect(() => {
-    const publicPage = ["/login", "/visitor", "/setup"].includes(location) || location.startsWith("/souvenir/");
     document.documentElement.classList.toggle("dark", publicPage);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", publicPage ? "#121417" : "#d6dae1");
     document.documentElement.dataset.workspace = publicPage ? "" : location.slice(1);
-  }, [location]);
+  }, [location, publicPage]);
   if (!online && !location.startsWith("/souvenir/") && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
-    return <Redirect to={offlineCheckInPage} />;
+    return <Redirect replace to={offlineCheckInPage} />;
   }
   return (
-    <Switch>
-      <Route path="/setup" component={SetupPage} />
-      <Route path="/login" component={LoginPage} />
-      <Route path="/souvenir/admin/:id">
-        {params => <RequireAuth roles={["admin"]}><SouvenirPage params={params} /></RequireAuth>}
-      </Route>
-      <Route path={souvenirRecoveryPath} component={SouvenirRecoveryPage} />
-      <Route path="/souvenir/:token" component={SouvenirPage} />
-      <Route path="/visitor">
-        <VisitorPage />
-      </Route>
+    <>
+      {publicPage && canGoBack && <div className="px-3 pt-[calc(.5rem+env(safe-area-inset-top))]">
+        <Button type="button" variant="ghost" size="icon" className="size-11"
+          onClick={() => window.history.back()} aria-label="Retour à la page précédente">
+          <ArrowLeft aria-hidden />
+        </Button>
+      </div>}
+      <Switch>
+        <Route path="/setup" component={SetupPage} />
+        <Route path="/login" component={LoginPage} />
+        <Route path="/souvenir/admin/:id">
+          {params => <RequireAuth roles={["admin"]}><SouvenirPage params={params} /></RequireAuth>}
+        </Route>
+        <Route path={souvenirRecoveryPath} component={SouvenirRecoveryPage} />
+        <Route path="/souvenir/:token" component={SouvenirPage} />
+        <Route path="/visitor">
+          <VisitorPage />
+        </Route>
 
-      <Route path="/" component={AppHome} />
-      {/* /home → overview (rétro-compat) */}
-      <Route path="/home">
-        <Redirect to="/overview" />
-      </Route>
+        <Route path="/" component={AppHome} />
+        {/* /home → overview (rétro-compat) */}
+        <Route path="/home">
+          <Redirect replace to="/overview" />
+        </Route>
 
-      {/* Overview — page d'atterrissage */}
-      <Route path="/overview">
-        <RequireAuth>
-          <OverviewPage />
-        </RequireAuth>
-      </Route>
+        {/* Overview — page d'atterrissage */}
+        <Route path="/overview">
+          <RequireAuth>
+            <OverviewPage />
+          </RequireAuth>
+        </Route>
 
-      {/* Dashboard analytique complet (accessible mais hors menu) */}
-      <Route path="/dashboard">
-        <RequireAuth>
-          <DashboardPage />
-        </RequireAuth>
-      </Route>
+        {/* Dashboard analytique complet (accessible mais hors menu) */}
+        <Route path="/dashboard">
+          <RequireAuth>
+            <DashboardPage />
+          </RequireAuth>
+        </Route>
 
-      <Route path={offlineCheckInPage} component={OfflineCheckInPage} />
-      <Route path={legacyOfflineCheckInPage}><Redirect to={offlineCheckInPage} /></Route>
-      <Route path="/zombie">
-        <RequireAuth><ZombiePage /></RequireAuth>
-      </Route>
-      <Route path="/survivant">
-        <RequireAuth>
-          <SurvivantPage />
-        </RequireAuth>
-      </Route>
-      <Route path="/staff">
-        <RequireAuth>
-          <StaffPage />
-        </RequireAuth>
-      </Route>
-      <Route path="/boutique">
-        <RequireAuth>
-          <BoutiquePage />
-        </RequireAuth>
-      </Route>
-      <Route path="/repas">
-        <RequireAuth>
-          <RepasPage />
-        </RequireAuth>
-      </Route>
-      <Route path="/badges">
-        <RequireAuth>
-          <BadgesPage />
-        </RequireAuth>
-      </Route>
-      <Route path="/scan">
-        <RequireAuth>
-          <ScanPage />
-        </RequireAuth>
-      </Route>
+        <Route path={offlineCheckInPage} component={OfflineCheckInPage} />
+        <Route path={legacyOfflineCheckInPage}><Redirect replace to={offlineCheckInPage} /></Route>
+        <Route path="/zombie">
+          <RequireAuth><ZombiePage /></RequireAuth>
+        </Route>
+        <Route path="/survivant">
+          <RequireAuth>
+            <SurvivantPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/staff">
+          <RequireAuth>
+            <StaffPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/boutique">
+          <RequireAuth>
+            <BoutiquePage />
+          </RequireAuth>
+        </Route>
+        <Route path="/repas">
+          <RequireAuth>
+            <RepasPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/badges">
+          <RequireAuth>
+            <BadgesPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/scan">
+          <RequireAuth>
+            <ScanPage />
+          </RequireAuth>
+        </Route>
 
-      {/* Admin only routes */}
-      <Route path="/admin">
-        <RequireAuth roles={["admin"]}>
-          <AdminPage />
-        </RequireAuth>
-      </Route>
-      <Route path="/users">
-        <Redirect to="/admin" />
-      </Route>
+        {/* Admin only routes */}
+        <Route path="/admin">
+          <RequireAuth roles={["admin"]}>
+            <AdminPage />
+          </RequireAuth>
+        </Route>
+        <Route path="/users">
+          <Redirect replace to="/admin" />
+        </Route>
 
-      <Route component={NotFound} />
-    </Switch>
+        <Route component={NotFound} />
+      </Switch>
+    </>
   );
 }
 

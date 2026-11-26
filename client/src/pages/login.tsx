@@ -43,9 +43,9 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!isLoading && user) {
-      setLocation("/overview");
+      setLocation("/overview", { replace: true });
     } else if (!isLoading && visitor) {
-      setLocation("/visitor");
+      setLocation("/visitor", { replace: true });
     }
   }, [user, visitor, isLoading, setLocation]);
 

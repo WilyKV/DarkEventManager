@@ -20,7 +20,7 @@ interface AuthContextType {
   visitor: Visitor | null;
   isLoading: boolean;
   logout: () => Promise<void>;
-  checkSession: () => Promise<void>;
+  checkSession: () => Promise<"user" | "visitor" | "signed-out" | "unavailable">;
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
   hasAllRoles: (roles: string[]) => boolean;
@@ -44,12 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [, setLocation] = useLocation();
 
-  const checkSession = async () => {
+  const checkSession: AuthContextType["checkSession"] = async () => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 6_000);
     try {
       const res = await fetch("/api/auth/session", {
         credentials: "include",
+        cache: "no-store",
         signal: controller.signal,
       });
 
@@ -58,18 +59,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.user) {
           setUser(parseUserRoles(data.user) as User);
           setVisitor(null);
+          return "user";
         } else if (data.visitor) {
           setVisitor(data.visitor);
           setUser(null);
+          return "visitor";
         }
-      } else {
-        setUser(null);
-        setVisitor(null);
       }
+      setUser(null);
+      setVisitor(null);
+      return res.status === 401 || res.ok ? "signed-out" : "unavailable";
     } catch (error) {
       if (!controller.signal.aborted && navigator.onLine) console.error("Session check error:", error);
       setUser(null);
       setVisitor(null);
+      return "unavailable";
     } finally {
       window.clearTimeout(timeout);
       setIsLoading(false);
@@ -84,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setUser(null);
       setVisitor(null);
-      setLocation("/login");
+      setLocation("/login", { replace: true });
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -167,9 +171,9 @@ export function RequireAuth({ children, roles }: { children: ReactNode; roles?: 
 
   useEffect(() => {
     if (!isLoading && !user && !visitor) {
-      setLocation("/login");
+      setLocation("/login", { replace: true });
     } else if (!isLoading && roles && roles.length > 0 && !hasAnyRole(roles)) {
-      setLocation(visitor ? "/visitor" : "/overview");
+      setLocation(visitor ? "/visitor" : "/overview", { replace: true });
     }
   }, [user, visitor, isLoading, roles, setLocation, hasAnyRole]);
 
@@ -199,7 +203,7 @@ export function RequireVisitor({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !visitor) {
-      setLocation("/login");
+      setLocation("/login", { replace: true });
     }
   }, [visitor, isLoading, setLocation]);
 

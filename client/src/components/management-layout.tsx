@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { ArrowLeft, Camera, Skull, UserCheck } from "lucide-react";
+import { ArrowLeft, Camera, UserCheck } from "lucide-react";
 import { PageTransition } from "./page-transition";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { NotificationCenter } from "./notification-center";
 import { OnlineSouvenirPhotoDialog } from "./souvenir-photo-dialog";
 import { OnlineWelcomeDialog } from "./online-welcome-dialog";
 import { checkInRoles } from "@shared/check-in";
+import { useCanGoBack } from "@/hooks/use-app-back";
 import { useAuth } from "@/lib/auth";
 import { homeItem, managementModules } from "@/lib/management-nav";
 import { SideRail } from "./side-rail";
@@ -19,8 +20,6 @@ interface ManagementLayoutProps {
   subtitle: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
-  showHomeButton?: boolean; // Unused: kept for compatibility with boutique/repas pages
-  useHistoryBack?: boolean; // Prop pour utiliser l'historique du navigateur
 }
 
 export function ManagementLayout({
@@ -28,9 +27,9 @@ export function ManagementLayout({
   subtitle,
   children,
   actions,
-  useHistoryBack = false,
 }: ManagementLayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+  const canGoBack = useCanGoBack();
   const module = managementModules.find(item => item.path === location) ?? homeItem;
   const ModuleIcon = module.icon;
   const { visitor, hasAnyRole } = useAuth();
@@ -39,11 +38,7 @@ export function ManagementLayout({
   const canWelcome = hasAnyRole(checkInRoles);
   const openWelcome = () => setWelcomeOpen(true);
 
-  const handleBackClick = () => {
-    if (useHistoryBack) {
-      window.history.back();
-    }
-  };
+  const home = visitor ? "/visitor" : "/overview";
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -57,23 +52,12 @@ export function ManagementLayout({
             {/* Header */}
             <header className="workspace-header flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border px-4 py-5 sm:px-6 sm:py-6">
               <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                {/* Mobile : bouton retour OU logo "DARK EVENT" cliquable */}
-                {useHistoryBack ? (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={handleBackClick}
-                    data-testid="button-back"
-                    className="md:hidden"
-                  >
-                    <ArrowLeft className="w-5 h-5" />
-                  </Button>
-                ) : (
-                  <Link href={visitor ? "/visitor" : "/overview"} aria-label="Retour à l’accueil" data-testid="button-back"
-                    className="grid size-11 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-primary md:hidden">
-                    <Skull className="size-5" aria-hidden />
-                  </Link>
-                )}
+                <Button type="button" variant="ghost" size="icon" className="size-11 shrink-0"
+                  aria-label="Retour à la page précédente" title="Retour à la page précédente" data-testid="button-back"
+                  disabled={!canGoBack && location === home}
+                  onClick={() => { if (canGoBack) window.history.back(); else navigate(home, { replace: true }); }}>
+                  <ArrowLeft className="size-5" aria-hidden />
+                </Button>
                 <span className="hidden md:block">
                   <span className="workspace-icon size-14" data-tone={module.tone}><ModuleIcon className="size-7" aria-hidden /></span>
                 </span>

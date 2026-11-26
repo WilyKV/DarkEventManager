@@ -353,7 +353,6 @@ export default function RepasPage() {
     <ManagementLayout
       title="Repas"
       subtitle="Valider les repas et enregistrer les achats"
-      showHomeButton
     >
       {scannedParticipant && souvenirToken && <a className="mb-3 inline-flex text-sm font-medium underline underline-offset-4" href={`${souvenirPath}/${souvenirToken}`}>Accéder à l’espace souvenir avec le code</a>}
 

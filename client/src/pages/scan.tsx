@@ -17,7 +17,6 @@ export default function ScanPage() {
     <ManagementLayout
       title="Scanner"
       subtitle="Scanner les QR codes des participants"
-      useHistoryBack={true}
     >
       <Card>
         <CardHeader>

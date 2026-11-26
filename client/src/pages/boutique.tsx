@@ -291,7 +291,6 @@ export default function BoutiquePage() {
     <ManagementLayout
       title="Boutique"
       subtitle="Enregistrer les achats des participants"
-      showHomeButton
     >
       {scannedParticipant && souvenirToken && <a className="mb-3 inline-flex text-sm font-medium underline underline-offset-4" href={`${souvenirPath}/${souvenirToken}`}>Accéder à l’espace souvenir avec le code</a>}
 

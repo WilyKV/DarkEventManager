@@ -183,6 +183,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
   }
 
   function begin() {
+    void toggleFullscreen();
     const audio = voice.current;
     if (audio) {
       audio.muted = true;
@@ -308,7 +309,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     <section ref={stage} className="zombie-show" data-expanded={expanded || undefined} aria-label="Présentation vidéo Zombies">
       <div className="zombie-show-stage">
         <div className="zombie-show-frame">
-          <video ref={main} hidden={phase !== "main"} playsInline preload="auto" src={sources[0]}
+          <video ref={main} hidden={phase !== "ready" && phase !== "main"} playsInline preload="auto" src={sources[0]}
             onLoadedMetadata={event => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
             onPlay={() => setPaused(false)} onPause={() => setPaused(true)}
             onTimeUpdate={event => { setPosition(event.currentTarget.currentTime); updateTimeline(); }} onEnded={() => { if (phase === "main") setPhase("ended"); }}
@@ -319,7 +320,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
             <p role="status">Vidéo indisponible</p>
             <button type="button" onClick={() => onContinue(false)}>Continuer vers le récapitulatif</button>
           </div>}
-          {phase === "ready" && <div className="zombie-show-center"><button type="button" onClick={begin}>Lancer la présentation</button></div>}
+          {phase === "ready" && <div className="zombie-show-center"><button type="button" onClick={begin}><Maximize className="mr-2 inline size-5" aria-hidden /> Lancer en plein écran</button></div>}
           {visible("briefing") && <div className="zombie-show-card"><span>Votre briefing</span><strong>{displayWelcomeTime(briefing)}</strong><small>{zombieBriefingLocation}</small></div>}
           {visible("squad") && <div className="zombie-show-card"><span>Votre squad</span><strong>N° {squad}</strong></div>}
           {visible("game") && <div className="zombie-show-card zombie-show-game"><span>Le jeu</span>
@@ -368,10 +369,10 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
         {(phase === "main" || phase === "ended") && <button type="button" onClick={restart} aria-label="Recommencer la vidéo" title="Recommencer la vidéo">
           <RotateCcw aria-hidden="true" />
         </button>}
-        <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen || expanded ? "Quitter le plein écran" : "Plein écran"}
+        {(phase === "main" || phase === "ended") && <button type="button" onClick={() => void toggleFullscreen()} aria-label={fullscreen || expanded ? "Quitter le plein écran" : "Plein écran"}
           title={fullscreen || expanded ? "Quitter le plein écran" : "Plein écran"} aria-pressed={fullscreen || expanded}>
           {fullscreen || expanded ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
-        </button>
+        </button>}
       </div>
     </section>
   );

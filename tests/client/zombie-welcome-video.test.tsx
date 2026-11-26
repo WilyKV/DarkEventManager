@@ -37,12 +37,13 @@ it("garde la vidéo en pause pour les quiz et renvoie vers le récapitulatif apr
   const view = render(<ZombieWelcomeVideo briefing="18:00" start="18:30" end="20:00"
     squad={7} otherTimes={["17:45", "18:15", "19:00"]} squadCount={12} onBack={vi.fn()} onContinue={onContinue} />);
   try {
-    await user.click(await screen.findByRole("button", { name: "Lancer la présentation" }));
+    const start = await screen.findByRole("button", { name: "Lancer en plein écran" });
     const video = view.container.querySelector("video")!;
+    expect(video.paused).toBe(true);
+    await user.click(start);
     expect(video.paused).toBe(false);
     expect(view.container.querySelectorAll("video")).toHaveLength(1);
     const stage = screen.getByRole("region", { name: "Présentation vidéo Zombies" });
-    await user.click(screen.getByRole("button", { name: "Plein écran", exact: true }));
     expect(stage).toHaveAttribute("data-expanded", "true");
     const frame = video.parentElement!;
     expect(frame.contains(screen.getByRole("button", { name: "Passer la présentation" }))).toBe(false);

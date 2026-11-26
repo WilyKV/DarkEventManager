@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
 import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, type CardPrintLayout } from "@shared/participant-card";
-import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
+import { checkInProfileLabels, checkInTypes, isCheckInType, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
 import { DataSyncButton } from "@/components/data-sync-button";
@@ -23,6 +23,9 @@ export default function BadgesPage() {
   const [focused, setFocused] = useState<number>();
   const [checked, setChecked] = useState<number[]>([]);
   const [search, setSearch] = useState("");
+  const [profiles, setProfiles] = useState<CheckInType[]>([]);
+  const [wave, setWave] = useState("");
+  const [squad, setSquad] = useState("");
   const [blankProfile, setBlankProfile] = useState<string>();
   const [layout, setLayout] = useState<CardPrintLayout>(defaultCardPrintLayout);
   const [mode, setMode] = useState<PrintMode>("complete");
@@ -34,13 +37,25 @@ export default function BadgesPage() {
   const templateProfile = allowed.find(type => type === blankProfile) ?? allowed[0];
   const templateQuery = new URLSearchParams({ layout, origin: window.location.origin });
   if (templateProfile) templateQuery.set("type", templateProfile);
-  const people = (roster.data ?? []).filter(person => allowed.some(type => type === person.type))
+  const people = (roster.data ?? []).filter((person): person is ParticipantWithRelations & { type: CheckInType } =>
+    isCheckInType(person.type) && allowed.includes(person.type))
     .sort((a, b) => a.lastName.localeCompare(b.lastName, "fr") || a.firstName.localeCompare(b.firstName, "fr"));
-  const filtered = people.filter(person =>
-    normalizePlayerName(`${person.firstName} ${person.lastName}`).includes(normalizePlayerName(search.trim())));
+  const waves = Array.from(new Map(people.flatMap(person => person.timeSlot ? [[person.timeSlot.id, person.timeSlot] as const] : [])).values())
+    .sort((a, b) => a.name.localeCompare(b.name, "fr", { numeric: true }));
+  const wavePeople = people.filter(person => !wave || (wave === "none" ? person.timeSlotId === null : String(person.timeSlotId) === wave));
+  const squads = Array.from(new Map(wavePeople.flatMap(person => person.squad ? [[person.squad.id, {
+    ...person.squad, waveName: person.timeSlot?.name,
+  }] as const] : [])).values()).sort((a, b) => a.number - b.number || a.id - b.id);
+  const searchTerm = normalizePlayerName(search.trim());
+  const filtered = wavePeople.filter(person =>
+    (!profiles.length || profiles.some(profile => profile === person.type)) &&
+    (!squad || (squad === "none" ? person.squadId === null : String(person.squadId) === squad)) &&
+    normalizePlayerName(`${person.firstName} ${person.lastName}`).includes(searchTerm));
   const current = people.find(person => person.id === focused);
   const card = usePrintableCard(current?.id);
-  const ids = people.filter(person => checked.includes(person.id)).map(person => person.id).sort((a, b) => a - b);
+  const selected = new Set(checked);
+  const ids = people.filter(person => selected.has(person.id)).map(person => person.id).sort((a, b) => a - b);
+  const hiddenSelectionCount = ids.length - filtered.filter(person => selected.has(person.id)).length;
 
   useEffect(() => {
     const id = Number(new URLSearchParams(window.location.search).get("participantId"));
@@ -113,11 +128,50 @@ export default function BadgesPage() {
             <h2 className="text-lg font-semibold tracking-tight">Participants à imprimer</h2>
             <Input type="search" className="min-h-11" aria-label="Rechercher un participant" placeholder="Nom ou prénom" value={search}
               onChange={event => setSearch(event.target.value)} />
+            <fieldset className="space-y-2">
+              <legend className="mb-2 text-sm font-medium">Profils</legend>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant={profiles.length ? "outline" : "default"} aria-pressed={!profiles.length}
+                  className="min-h-11" onClick={() => setProfiles([])}>Tous les profils</Button>
+                {allowed.map(profile => (
+                  <Button key={profile} type="button" variant={profiles.includes(profile) ? "default" : "outline"}
+                    aria-pressed={profiles.includes(profile)} className="min-h-11"
+                    onClick={() => setProfiles(current => current.includes(profile)
+                      ? current.filter(item => item !== profile) : [...current, profile])}>
+                    {checkInProfileLabels[profile]}
+                  </Button>
+                ))}
+              </div>
+            </fieldset>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="grid min-w-0 gap-1 text-sm font-medium">Vague
+                <select value={wave} onChange={event => { setWave(event.target.value); setSquad(""); }}
+                  className="min-h-11 min-w-0 rounded-md border border-input bg-background px-2">
+                  <option value="">Toutes les vagues</option>
+                  {waves.map(slot => <option key={slot.id} value={slot.id}>{slot.name}</option>)}
+                  {people.some(person => person.timeSlotId === null) && <option value="none">Sans vague</option>}
+                </select>
+              </label>
+              <label className="grid min-w-0 gap-1 text-sm font-medium">Squad ou équipe
+                <select value={squad} onChange={event => setSquad(event.target.value)}
+                  className="min-h-11 min-w-0 rounded-md border border-input bg-background px-2">
+                  <option value="">Toutes les squads et équipes</option>
+                  {squads.map(team => <option key={team.id} value={team.id}>
+                    {team.type === "zombie" ? "Squad" : "Équipe"} {team.number}{!wave && team.waveName ? ` · ${team.waveName}` : ""}
+                  </option>)}
+                  {wavePeople.some(person => person.squadId === null) && <option value="none">Sans squad ni équipe</option>}
+                </select>
+              </label>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" disabled={!filtered.length}
                 onClick={() => setChecked(Array.from(new Set([...checked, ...filtered.map(person => person.id)])))}>Sélectionner les résultats</Button>
               <Button type="button" variant="ghost" size="sm" disabled={!checked.length} onClick={() => setChecked([])}>Effacer la sélection</Button>
             </div>
+            {!roster.isLoading && !roster.isError && <p role="status" className="text-sm text-muted-foreground">
+              {filtered.length} {filtered.length === 1 ? "résultat" : "résultats"} · {ids.length} à imprimer
+              {hiddenSelectionCount > 0 && ` (dont ${hiddenSelectionCount} hors des filtres actuels)`}
+            </p>}
             {roster.isLoading && <p role="status">Chargement des participants…</p>}
             {roster.isError && <p role="alert">Impossible de charger les participants.</p>}
             {!roster.isLoading && !roster.isError && filtered.length === 0 && <p role="status">Aucun participant trouvé.</p>}
@@ -126,10 +180,17 @@ export default function BadgesPage() {
                 <li key={person.id} className="flex items-center gap-2 rounded-lg border border-border px-2">
                   <input type="checkbox" className="size-5 shrink-0 accent-primary"
                     aria-label={`Inclure ${person.firstName} ${person.lastName}`}
-                    checked={checked.includes(person.id)}
+                    checked={selected.has(person.id)}
                     onChange={event => setChecked(event.target.checked ? [...checked, person.id] : checked.filter(id => id !== person.id))} />
                   <button type="button" aria-pressed={focused === person.id} className="min-h-12 flex-1 break-words px-2 text-left font-medium aria-pressed:text-primary"
-                    onClick={() => setFocused(person.id)}>{person.firstName} {person.lastName}</button>
+                    onClick={() => setFocused(person.id)}>
+                    <span className="block">{person.firstName} {person.lastName}</span>
+                    <span className="block text-xs font-normal text-muted-foreground">
+                      {[checkInProfileLabels[person.type],
+                        person.timeSlot?.name,
+                        person.squad && `${person.type === "zombie" ? "Squad" : "Équipe"} ${person.squad.number}`].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
                   {hasAnyRole(["admin"]) && <AdminSouvenirLink id={person.id} name={`${person.firstName} ${person.lastName}`} />}
                 </li>
               ))}

@@ -84,15 +84,14 @@ const squadField = { key: "squad", label: "Squad", x: 23, width: 11.5 } as const
 const makeupField = { key: "makeup", label: "Maquillage", x: 38.5, width: 14.5 } as const;
 
 export const cardFieldIcons = {
-  team: "M13 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0M4 19v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 5a3 3 0 0 1 0 6M18 13a4 4 0 0 1 3 4v2",
-  squad: "M4 5h16M4 12h16M4 19h16M9 3L7 21M17 3l-2 18",
+  squad: "M13 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0M4 19v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2M16 5a3 3 0 0 1 0 6M18 13a4 4 0 0 1 3 4v2",
   makeup: "M10 14l8-10a2 2 0 0 1 3 3l-8 10M10 14a4 4 0 0 0-5 3c0 2-2 4-2 4h5a4 4 0 0 0 5-4z",
   meal: "M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 21V3c-3 1-4 4-4 8v2h4",
 } as const;
 
 export function cardScheduleFields(type: string) {
   if (type === "staff") return [];
-  if (type === "survivant") return [briefingField, { ...squadField, key: "team" as const, label: "Équipe" }];
+  if (type === "survivant") return [briefingField, { ...squadField, label: "Équipe" }];
   return [briefingField, squadField, makeupField];
 }
 

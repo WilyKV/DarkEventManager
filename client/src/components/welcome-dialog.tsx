@@ -1,7 +1,7 @@
 import { WelcomeTabletHandoff } from "./welcome-tablet-handoff";
-import { makeTabletTransfer, type TabletPresentation, type TabletTransfer } from "./welcome-tablet-transfer";
+import { makeTabletTransfer, type TabletTransfer } from "./welcome-tablet-transfer";
 import { WelcomeReminders, welcomeReminderDefaults } from "./welcome-reminders";
-import type { WelcomeChecklist } from "@shared/welcome-checklist";
+import { welcomeVideoCheckId, type WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, Check, ChevronDown, Footprints, Paintbrush, Plus, Search, ShieldCheck, Skull, UserCheck, Users } from "lucide-react";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { OfflineGroupWelcome, type OfflineArrival } from "./offline-group-welcome";
+import { OfflineGroupWelcome, type OfflineArrival, type WelcomePresentationResult } from "./offline-group-welcome";
 
 type Step = "count" | "select" | "welcome" | "done";
 
@@ -139,14 +139,14 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     resetGroup();
   }
 
-  async function confirm(arrivals: OfflineArrival[], tablet?: TabletPresentation) {
+  async function confirm(arrivals: OfflineArrival[], { tablet, videoWatched }: WelcomePresentationResult) {
     if (writeInProgress.current || !type || !arrivals.length) return;
     writeInProgress.current = true;
     setSaving(true);
     setError("");
     try {
       const groupDetails = arrivals.map(({ details, ...arrival }) => {
-        const defaults = welcomeReminderDefaults(type, details.squadId, settings, slot?.id);
+        const defaults = welcomeReminderDefaults(type, details.squadId, settings, slot?.id, videoWatched ?? false);
         return { ...arrival, details: { ...details, checklist: { ...details.checklist, ...defaults.checklist },
           ...(defaults.welcomeChecks && { welcomeChecks: defaults.welcomeChecks }),
         } };
@@ -168,7 +168,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
         ...previous, ...Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? previous[player.id] ?? confirmedAt])),
       }));
       const squadId = groupDetails[0].details.squadId;
-      setReminders({ squadId, ...welcomeReminderDefaults(type, squadId, settings, slot?.id) });
+      setReminders({ squadId, ...welcomeReminderDefaults(type, squadId, settings, slot?.id, videoWatched ?? false) });
       setTabletTransfer(transfer);
       setSavedSquadNumber(type === "zombie" ? roster.teams.find(team => team.id === arrivals[0]?.details.squadId)?.number : undefined);
       setStep("done");
@@ -191,8 +191,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
       const visibleChecks = Object.fromEntries(Object.keys(defaults.checklist).map(key => [
         key, reminders.checklist[key as keyof CheckInDetails["checklist"]] ?? true,
       ]));
-      const visibleExtras = defaults.welcomeChecks && Object.fromEntries(Object.keys(defaults.welcomeChecks).map(id => [
-        id, reminders.welcomeChecks?.[id] ?? true,
+      const visibleExtras = defaults.welcomeChecks && Object.fromEntries(Object.entries(defaults.welcomeChecks).map(([id, checked]) => [
+        id, reminders.welcomeChecks?.[id] ?? checked,
       ]));
       const updates = savedIds.map(id => {
         const player = roster.players.find(candidate => candidate.id === id);
@@ -402,7 +402,11 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                   <p className="text-sm text-muted-foreground">{onSaveOfflineGroup ? "Arrivées enregistrées sur cet appareil." : "Arrivées enregistrées."}</p>
                 </div>
               </div>
-              {tabletTransfer ? <WelcomeTabletHandoff key={tabletTransfer.id} transfer={tabletTransfer} />
+              {tabletTransfer ? <WelcomeTabletHandoff key={tabletTransfer.id} transfer={tabletTransfer} disabled={saving} onConfirmed={() => {
+                if (settings?.hideVideo) return;
+                setReminders(previous => previous && { ...previous, welcomeChecks: { ...previous.welcomeChecks, [welcomeVideoCheckId]: true } });
+                setDirtyReminders(true);
+              }} />
                 : savedSquadNumber !== undefined && <p className="text-lg font-semibold">Squad {savedSquadNumber}</p>}
               <section className="space-y-3" aria-label={makeup ? "Heures estimées de maquillage" : "Participants accueillis"}>
                 {makeup && <div className="space-y-1">

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const welcomeChecklistPath = "/api/check-in/welcome-checklist";
 export const welcomeChecklistLimit = 20;
+export const welcomeVideoCheckId = "a8c46362-04f8-4e83-ae5e-8a65965c45b2";
 const defaultItem = z.enum(["squadExplained", "briefingExplained", "mealTicketGiven", "waterBottleGiven", "makeupWaitExplained", "mapGiven"]);
 export const welcomeOffers = [
   { id: "ab623085-61d5-4389-bbd9-f27db314bdee", title: "Remettre le manga offert", note: "Un manga sur le thème de l’événement par participant." },
@@ -14,6 +15,7 @@ const customId = z.string().uuid();
 export const welcomeChecklistSchema = z.object({
   prefilledOffersByWave: z.record(z.string().regex(/^\d+$/), z.array(offerId).max(welcomeOffers.length)).optional(),
   hidden: z.array(defaultItem).max(6),
+  hideVideo: z.boolean().optional(),
   extra: z.array(z.object({
     id: customId,
     title: z.string().trim().min(1).max(100),
@@ -22,7 +24,7 @@ export const welcomeChecklistSchema = z.object({
 }).strict();
 
 export const welcomeChecksSchema = z.record(customId, z.boolean())
-  .refine(items => Object.keys(items).length <= welcomeChecklistLimit + welcomeOffers.length);
+  .refine(items => Object.keys(items).length <= welcomeChecklistLimit + welcomeOffers.length + 1);
 
 export type WelcomeChecklist = z.infer<typeof welcomeChecklistSchema>;
 export const defaultWelcomeChecklist: WelcomeChecklist = { hidden: [], extra: [] };
@@ -33,7 +35,7 @@ export function activeWelcomePoints(settings: WelcomeChecklist, waveId?: number)
 }
 
 export function mergeWelcomeChecks(current: Record<string, boolean> | null | undefined, changes: Record<string, boolean> | undefined, settings: WelcomeChecklist) {
-  return Object.fromEntries([...settings.extra, ...welcomeOffers].flatMap(({ id }) => {
+  return Object.fromEntries([...settings.extra, ...welcomeOffers, { id: welcomeVideoCheckId }].flatMap(({ id }) => {
     const value = changes?.[id] ?? current?.[id];
     return value === undefined ? [] : [[id, value]];
   }));

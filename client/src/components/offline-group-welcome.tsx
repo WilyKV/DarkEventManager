@@ -15,6 +15,8 @@ export type OfflineArrival = {
   overflowConfirmed: boolean;
 };
 
+export type WelcomePresentationResult = { tablet?: TabletPresentation; videoWatched?: boolean };
+
 export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, savedSquadId, onConfirm, onBack, onReplan }: {
   roster: CheckInRoster;
   ids: number[];
@@ -22,7 +24,7 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
   error: string;
   savedIds: number[];
   savedSquadId?: number;
-  onConfirm: (arrivals: OfflineArrival[], tablet?: TabletPresentation) => Promise<void>;
+  onConfirm: (arrivals: OfflineArrival[], result: WelcomePresentationResult) => Promise<void>;
   onBack: () => void;
   onReplan: () => Promise<void>;
 }) {
@@ -34,7 +36,7 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
   const [assignment, setAssignment] = useState<OfflineArrival[] | undefined>(() => selected[0]?.type === "staff"
     ? selected.map(player => ({ player, details: player.details, overflowConfirmed: false }))
     : undefined);
-  const [pending, setPending] = useState<{ tablet?: TabletPresentation }>();
+  const [pending, setPending] = useState<WelcomePresentationResult>();
 
   const first = selected[0];
   const words = placementLabels(first?.type);
@@ -107,9 +109,9 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
       else if (savedIds.length) void onReplan();
       else onBack();
     };
-    const continueWelcome = (tablet?: TabletPresentation) => {
-      setPending({ tablet });
-      void onConfirm(assignment, tablet);
+    const continueWelcome = (result: WelcomePresentationResult) => {
+      setPending(result);
+      void onConfirm(assignment, result);
     };
     const team = roster.teams.find(item => item.id === assignment[0]?.details.squadId);
     const briefing = normalizeWelcomeTime(slot?.briefingTime);
@@ -123,17 +125,17 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
       });
       const squadCount = roster.teams.filter(item => item.timeSlotId === team.timeSlotId && (!item.type || item.type === "zombie")).length;
       const presentation = { briefing, start, end, squad: team.number, otherTimes: Array.from(new Set(otherTimes)).slice(0, 8), squadCount };
-      return <ZombieWelcomeVideo {...presentation} autoContinue onBack={back} onContinue={() => continueWelcome()}
-        onTablet={() => continueWelcome(presentation)} />;
+      return <ZombieWelcomeVideo {...presentation} autoContinue onBack={back} onContinue={videoWatched => continueWelcome({ videoWatched })}
+        onTablet={() => continueWelcome({ tablet: presentation })} />;
     }
-    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={() => continueWelcome()} />;
+    return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={() => continueWelcome({})} />;
   }
 
   return <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
     {saving ? <p role="status">Enregistrement des arrivées…</p> : <>
       <p role="alert">{error || "Impossible d’enregistrer les arrivées."}</p>
       <div className="flex flex-wrap gap-2">
-        <Button type="button" onClick={() => void onConfirm(assignment, pending.tablet)}>Réessayer</Button>
+        <Button type="button" onClick={() => void onConfirm(assignment, pending)}>Réessayer</Button>
         <Button type="button" variant="outline" onClick={() => void onReplan()}>Actualiser et revoir les fiches restantes</Button>
       </div>
     </>}

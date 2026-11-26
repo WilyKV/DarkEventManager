@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WelcomeDialog } from "@/components/welcome-dialog";
-import { defaultWelcomeChecklist, welcomeOffers } from "@shared/welcome-checklist";
+import { defaultWelcomeChecklist, welcomeOffers, welcomeVideoCheckId } from "@shared/welcome-checklist";
 import type { CheckInPlayer, CheckInRoster } from "@shared/check-in";
 
 function player(id: number, firstName: string, lastName: string, overrides: Partial<CheckInPlayer> = {}): CheckInPlayer {
@@ -258,7 +258,7 @@ describe("Accueil tactile", () => {
     await click(user, "Enregistrer les coches");
     expect(onSave).toHaveBeenLastCalledWith(previous, {
       squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true, makeupWaitExplained: true, mapGiven: true },
-      welcomeChecks: { [welcomeOffers[0].id]: true },
+      welcomeChecks: { [welcomeOffers[0].id]: true, [welcomeVideoCheckId]: false },
     }, false);
   });
   it("affiche les horaires et les consignes configurées, puis permet de quitter sans clôturer la vague", async () => {
@@ -278,16 +278,20 @@ describe("Accueil tactile", () => {
 
     const list = within(screen.getByRole("list", { name: "Étapes de l’accueil" }));
     expect(list.getByText("18:00")).toBeVisible();
-    expect(list.getByText("19:00")).toBeVisible();
-    expect(list.getByText("22:00")).toBeVisible();
-    expect(list.getByText("Rendez-vous sous le préau.")).toBeVisible();
+    expect(list.getByText("2", { exact: true })).toBeVisible();
+    expect(list.getByRole("checkbox", { name: "Squad" })).toBeChecked();
+    expect(list.getByRole("checkbox", { name: "Vidéo visionnée" })).not.toBeChecked();
+    await user.click(screen.getByText("Horaires et consignes détaillés"));
+    expect(screen.getByText("19:00")).toBeVisible();
+    expect(screen.getByText("22:00")).toBeVisible();
+    expect(screen.getByText("Rendez-vous sous le préau.")).toBeVisible();
     expect(list.queryByRole("checkbox", { name: "Proposer une carte" })).toBeNull();
-    expect(list.getByText(point.note)).toBeVisible();
+    expect(screen.getByText(point.note)).toBeVisible();
     expect(list.getByRole("checkbox", { name: point.title })).toBeChecked();
     expect(list.queryByRole("checkbox", { name: welcomeOffers[0].title })).toBeNull();
     expect(list.queryByRole("checkbox", { name: welcomeOffers[1].title })).toBeNull();
 
-    expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true } }), false);
+    expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true, [welcomeVideoCheckId]: false } }), false);
     expect(within(screen.getByRole("region", { name: "Heures estimées de maquillage" })).getByText(/^\d{2}:\d{2}$/)).toBeVisible();
     await click(user, "Quitter l’accueil");
     expect(onClose).toHaveBeenCalledOnce();
@@ -311,10 +315,15 @@ describe("Accueil tactile", () => {
     const recap = within(screen.getByRole("region", { name: "Heures estimées de maquillage" }));
     expect(recap.getByText("Clara Martin")).toBeVisible();
     expect(recap.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
-    await user.click(screen.getByRole("checkbox", { name: "Présentation et horaires" }));
+    const video = screen.getByRole("checkbox", { name: "Vidéo visionnée" });
+    expect(video).not.toBeChecked();
+    await user.click(video);
+    expect(video).toBeChecked();
+    await user.click(screen.getByRole("checkbox", { name: "Annoncer les horaires" }));
     await click(user, "Nouveau groupe");
     expect(onSaveOfflineGroup).toHaveBeenCalledTimes(2);
     expect(onSaveOfflineGroup.mock.calls[1][0][0].details.checklist.briefingExplained).toBe(false);
+    expect(onSaveOfflineGroup.mock.calls[1][0][0].details.welcomeChecks[welcomeVideoCheckId]).toBe(true);
     expect(screen.getByRole("button", { name: "Zombie" })).toHaveAttribute("aria-pressed", "true");
 
   });

@@ -43,8 +43,7 @@ export const welcomeInstructions = {
   },
 };
 
-export function WelcomeCheckCard({ compact, title, icon: Icon, checked, disabled, onChange, children, action }: {
-  compact?: boolean;
+function WelcomeCheckCard({ title, icon: Icon, checked, disabled, onChange, children, action }: {
   title: string;
   icon: typeof Check;
   checked: boolean;
@@ -55,8 +54,7 @@ export function WelcomeCheckCard({ compact, title, icon: Icon, checked, disabled
 }) {
   const id = useId();
   return (
-    <li className={cn("relative rounded-2xl border transition-colors focus-within:ring-2 focus-within:ring-ring",
-      compact ? "p-3" : "p-4",
+    <li className={cn("relative rounded-2xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-ring",
       checked ? "border-emerald-600/40 bg-emerald-500/10" : "border-border bg-card",
       !disabled && "hover:border-primary/60")}>
       <label className={cn("absolute inset-0 rounded-2xl", !disabled && "cursor-pointer")}>

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { QRCodeScanner } from "./qr-code-scanner";
 import { readTabletQr, type TabletTransfer } from "./welcome-tablet-transfer";
 
-export function WelcomeTabletHandoff({ transfer }: { transfer: TabletTransfer }) {
+export function WelcomeTabletHandoff({ transfer, onConfirmed, disabled }: { transfer: TabletTransfer; onConfirmed?: () => void; disabled?: boolean }) {
   const [scanning, setScanning] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
@@ -23,12 +23,12 @@ export function WelcomeTabletHandoff({ transfer }: { transfer: TabletTransfer })
     </div>
     {!confirmed && expanded && <QRCodeSVG title="QR de transfert vers la tablette" value={JSON.stringify(transfer)}
       level="M" marginSize={4} className="h-auto w-48 rounded-xl bg-white" />}
-    {!confirmed && <Button type="button" variant="ghost" aria-expanded={scanning} onClick={() => {
+    {!confirmed && <Button type="button" variant="ghost" disabled={disabled} aria-expanded={scanning && !disabled} onClick={() => {
       setScanning(!scanning);
       setExpanded(false);
       setError("");
     }}>{scanning ? "Fermer le scanner" : "Lire le QR de fin sur la tablette"}</Button>}
-    {!confirmed && scanning && <QRCodeScanner onScan={value => {
+    {!confirmed && scanning && !disabled && <QRCodeScanner onScan={value => {
       const result = readTabletQr(value);
       if (result?.kind !== "zombin-tablet-done-v1" || result.id !== transfer.id) {
         setError("Ce QR de fin ne correspond pas à ce groupe.");
@@ -37,6 +37,7 @@ export function WelcomeTabletHandoff({ transfer }: { transfer: TabletTransfer })
       setError("");
       setScanning(false);
       setConfirmed(true);
+      onConfirmed?.();
     }} />}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
   </section>;

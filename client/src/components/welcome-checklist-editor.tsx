@@ -77,6 +77,11 @@ export function WelcomeChecklistEditor({ settings, canEdit, onClose, wave }: {
             {zombieWelcomeLabels[key]}
           </label>
         ))}
+        <label className="flex min-h-10 items-center gap-2 text-sm">
+          <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={!draft.hideVideo}
+            onChange={event => setDraft({ ...draft, hideVideo: !event.target.checked })} />
+          Vidéo visionnée
+        </label>
       </div>
       {wave && <fieldset className="space-y-2 rounded-lg border border-border p-3">
         <legend className="px-1 text-sm font-semibold">Offres des intervenants · {wave.name}</legend>

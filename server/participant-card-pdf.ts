@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, calibratedCardSheet, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardScheduleLabel, cardScheduleValue, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -117,10 +117,34 @@ function trimMarks(doc: PDFKit.PDFDocument) {
   doc.stroke();
 }
 
+function alignmentMark(doc: PDFKit.PDFDocument, side: "front" | "back", calibrated: boolean) {
+  const offset = cardSheetOffset(side, calibrated);
+  const x = (side === "front" ? 10 : cardSheet.width - 10) + offset.x;
+  const y = 15 + offset.y;
+  doc.save().translate(pt(x), pt(y)).lineWidth(0.4).strokeColor("#222222");
+  doc.moveTo(pt(-3), 0).lineTo(pt(3), 0);
+  doc.moveTo(0, pt(-5)).lineTo(0, pt(5));
+  for (let mm = -4; mm <= 4; mm++) {
+    if (mm !== 0) doc.moveTo(pt(-0.55), pt(mm)).lineTo(pt(0.55), pt(mm));
+  }
+  for (const mm of [-2, -1, 1, 2]) {
+    doc.moveTo(pt(mm), pt(-0.55)).lineTo(pt(mm), pt(0.55));
+  }
+  doc.stroke().restore();
+}
+
 export async function renderParticipantCards(cards: readonly PrintableCard[], origin: string, mode: PrintMode, layout: CardPrintLayout = "card", templateType = "zombie") {
-  const a4 = layout === "a4";
-  const page = a4 ? cardSheet : cardLayout;
-  const doc = new PDFDocument({ size: [pt(page.width), pt(page.height)], margin: 0, autoFirstPage: false });
+  const a4 = layout !== "card";
+  const calibrated = layout === "a4-calibrated";
+  const sheetLayout = calibrated ? calibratedCardSheet : cardSheet;
+  const page = a4 ? sheetLayout : cardLayout;
+  const doc = new PDFDocument({ pdfVersion: "1.7", size: [pt(page.width), pt(page.height)], margin: 0, autoFirstPage: false });
+  // PDFKit serializes and closes this catalog reference when the document ends.
+  const { _root } = doc as PDFKit.PDFDocument & { _root: { data: { ViewerPreferences?: PDFKit.PDFKitReference } } };
+  _root.data.ViewerPreferences = doc.ref({
+    PrintScaling: "None",
+    ...(a4 && mode === "complete" && { Duplex: "DuplexFlipLongEdge" }),
+  });
   const parts: Buffer[] = [];
   const output = new Promise<Buffer>((resolve, reject) => {
     doc.on("data", chunk => parts.push(chunk));
@@ -128,7 +152,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
     doc.once("end", () => resolve(Buffer.concat(parts)));
   });
   const sides = mode === "complete" ? ["front", "back"] as const : [mode];
-  const capacity = a4 ? cardSheet.capacity : 1;
+  const capacity = a4 ? sheetLayout.capacity : 1;
   const entries = cards.length ? cards : Array.from({ length: capacity }, () => undefined);
   const recoveryUrl = new URL(souvenirRecoveryPath, origin).href;
   const qrOptions = { width: 360, margin: 4, errorCorrectionLevel: "M" } as const;
@@ -149,11 +173,12 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
       const sheet = entries.slice(start, start + capacity);
       for (const side of sides) {
         doc.addPage();
+        if (a4) alignmentMark(doc, side, calibrated);
         for (let index = 0; index < sheet.length; index++) {
           const card = sheet[index];
           doc.save();
           if (a4) {
-            const { x, y } = cardSheetPosition(index, side);
+            const { x, y } = cardSheetPosition(index, side, calibrated);
             doc.translate(pt(x), pt(y));
           }
           if (mode === "complete" || !card) {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
-import { cardsPath, type CardPrintLayout } from "@shared/participant-card";
+import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, type CardPrintLayout } from "@shared/participant-card";
 import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
@@ -24,7 +24,7 @@ export default function BadgesPage() {
   const [checked, setChecked] = useState<number[]>([]);
   const [search, setSearch] = useState("");
   const [blankProfile, setBlankProfile] = useState<string>();
-  const [layout, setLayout] = useState<CardPrintLayout>("a4");
+  const [layout, setLayout] = useState<CardPrintLayout>(defaultCardPrintLayout);
   const [mode, setMode] = useState<PrintMode>("complete");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -57,7 +57,7 @@ export default function BadgesPage() {
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = `cartes-${mode}-${layout === "a4" ? "a4" : "85x55"}.pdf`;
+      link.download = `cartes-${mode}-${cardPrintFormatLabel(layout)}.pdf`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch {
@@ -74,7 +74,8 @@ export default function BadgesPage() {
           <div className="flex flex-wrap items-end gap-3">
             <label className="grid gap-1 text-sm font-medium">Format du papier
               <select value={layout} onChange={event => setLayout(event.target.value as CardPrintLayout)} className="min-h-11 rounded-md border border-input bg-background px-2">
-                <option value="a4">A4 · 10 cartes par feuille</option>
+                <option value="a4-calibrated">A4 cartonné · calibré · {calibratedCardSheet.capacity} cartes par feuille</option>
+                <option value="a4">A4 standard · {cardSheet.capacity} cartes par feuille</option>
                 <option value="card">85 × 55 mm · carte individuelle</option>
               </select>
             </label>
@@ -83,7 +84,7 @@ export default function BadgesPage() {
                 {allowed.map(type => <option key={type} value={type}>{checkInProfileLabels[type]}</option>)}
               </select>
             </label>
-            <Button asChild variant="outline" className="min-h-11"><a href={`${cardsPath}/template?${templateQuery}`} download><Download /> Modèle vierge de secours · {layout === "a4" ? "A4" : "85 × 55 mm"}</a></Button>
+            <Button asChild variant="outline" className="min-h-11"><a href={`${cardsPath}/template?${templateQuery}`} download><Download /> Modèle vierge de secours · {layout === "card" ? "85 × 55 mm" : "A4"}</a></Button>
             <label className="grid gap-1 text-sm font-medium">Faces à imprimer
               <select value={mode} onChange={event => setMode(event.target.value as PrintMode)} className="min-h-11 rounded-md border border-input bg-background px-2">
                 <option value="complete">Carte complète recto verso</option>
@@ -95,9 +96,15 @@ export default function BadgesPage() {
               <Printer /> Exporter la sélection ({ids.length})
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground">{layout === "a4"
-            ? "Pour les cartes complètes et le modèle vierge, imprimez en A4 portrait à 100 %, en recto verso avec retournement sur le bord long. Découpez en suivant les repères."
-            : "Imprimez à taille réelle. Utilisez la même sélection pour exporter les deux faces et faites un essai avant le tirage."}</p>
+          <div className="space-y-1 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+            <p><strong className="text-foreground">Papier épais ou cartonné</strong> · sélectionnez ce type de papier dans les propriétés de l’imprimante.</p>
+            {layout !== "card" ? <>
+              <p>A4 portrait, taille réelle (100 %). Pour les cartes complètes et le modèle vierge, choisissez le recto verso sur le bord long si le pilote le permet.</p>
+              {layout === "a4-calibrated" && <p>Correction du recto appliquée · 1 mm à gauche et 4 mm vers le haut.</p>}
+              <p>Superposez les deux croix par transparence. Leurs graduations sont espacées de 1 mm. Découpez ensuite aux repères des cartes.</p>
+            </> : <p>Imprimez à taille réelle (100 %).</p>}
+            {mode !== "complete" && <p>Utilisez la même sélection et le même format pour exporter les deux faces.</p>}
+          </div>
           {ids.length > 500 && <p role="status" className="text-sm">Sélectionnez jusqu’à 500 cartes par PDF.</p>}
           {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </section>

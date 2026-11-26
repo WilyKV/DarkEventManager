@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
-import { cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
+import { cardPrintFormatLabel, cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
 import { checkInRoles, checkInTypes } from "@shared/check-in";
 import { db } from "./db";
@@ -384,7 +384,7 @@ export function registerParticipantCardRoutes(app: Express) {
       return res.status(400).json({ message: "Modèle de carte invalide." });
     }
     const pdf = await renderParticipantCards([], origin.data, "complete", layout.data, type.data);
-    res.attachment(layout.data === "a4" ? "modele-cartes-a4.pdf" : "modele-carte-85x55.pdf").type("application/pdf").send(pdf);
+    res.attachment(layout.data === "card" ? "modele-carte-85x55.pdf" : `modele-cartes-${cardPrintFormatLabel(layout.data)}.pdf`).type("application/pdf").send(pdf);
   });
 
   app.post(`${cardsPath}/print`, staff, async (req, res) => {
@@ -411,7 +411,7 @@ export function registerParticipantCardRoutes(app: Express) {
     if (!cards) return res.status(404).json({ message: "Une fiche est introuvable dans vos listes." });
     if (form.data.pdf && form.data.origin) {
       const pdf = await renderParticipantCards(cards, form.data.origin, form.data.pdf, form.data.layout);
-      return res.attachment(`cartes-${form.data.pdf}-${form.data.layout === "a4" ? "a4" : "85x55"}.pdf`).type("application/pdf").send(pdf);
+      return res.attachment(`cartes-${form.data.pdf}-${cardPrintFormatLabel(form.data.layout ?? "card")}.pdf`).type("application/pdf").send(pdf);
     }
     res.json(cards);
   });

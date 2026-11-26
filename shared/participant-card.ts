@@ -137,21 +137,35 @@ export function cardTheme(type: string) {
 }
 
 
-export const cardPrintLayouts = ["a4", "card"] as const;
+export const cardPrintLayouts = ["a4-calibrated", "a4", "card"] as const;
 export type CardPrintLayout = typeof cardPrintLayouts[number];
 
 export const a4CardBleed = { x: 2.5, y: 1.5 } as const;
 export const a4CardColumns = 2;
-const a4CardRows = 5;
 const a4CardGap = { x: 7, y: 4 } as const;
-export const cardSheet = { width: 210, height: 297, capacity: a4CardColumns * a4CardRows } as const;
+export const cardSheet = { width: 210, height: 297, capacity: 10 } as const;
+export const calibratedCardSheet = { ...cardSheet, capacity: 8 } as const;
+export const defaultCardPrintLayout: CardPrintLayout = "a4-calibrated";
 
-export function cardSheetPosition(index: number, side: "front" | "back") {
+export function cardPrintFormatLabel(layout: CardPrintLayout) {
+  return layout === "a4-calibrated" ? "a4-calibre" : layout === "a4" ? "a4" : "85x55";
+}
+
+export function cardSheetOffset(side: "front" | "back", calibrated: boolean) {
+  return calibrated && side === "front" ? { x: -1, y: -4 } : { x: 0, y: 0 };
+}
+
+export function cardSheetPosition(index: number, side: "front" | "back", calibrated = false) {
+  const a4CardRows = (calibrated ? calibratedCardSheet.capacity : cardSheet.capacity) / a4CardColumns;
   const column = index % a4CardColumns;
   const row = Math.floor(index / a4CardColumns);
   const gridWidth = a4CardColumns * cardLayout.width + (a4CardColumns - 1) * a4CardGap.x;
   const gridHeight = a4CardRows * cardLayout.height + (a4CardRows - 1) * a4CardGap.y;
   const frontX = (cardSheet.width - gridWidth) / 2 + column * (cardLayout.width + a4CardGap.x);
   const y = (cardSheet.height - gridHeight) / 2 + row * (cardLayout.height + a4CardGap.y);
-  return { x: side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width, y };
+  const offset = cardSheetOffset(side, calibrated);
+  return {
+    x: (side === "front" ? frontX : cardSheet.width - frontX - cardLayout.width) + offset.x,
+    y: y + offset.y,
+  };
 }

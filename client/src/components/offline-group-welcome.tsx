@@ -2,6 +2,7 @@ import { ZombieWelcomeVideo } from "./zombie-welcome-video";
 import { normalizeWelcomeTime } from "./zombie-welcome-timeline";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { useState } from "react";
+import { ArrowLeft, Check, ClipboardCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CheckInDetails, type CheckInPlayer, type CheckInRoster } from "@shared/check-in";
 import { WelcomeGuide } from "./welcome-guide";
@@ -35,6 +36,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
     ? selected.map(player => ({ player, details: player.details, overflowConfirmed: false }))
     : undefined);
   const [completed, setCompleted] = useState<OfflineArrival[]>();
+  const [checklistDraft, setChecklistDraft] = useState<CheckInDetails>();
   const [briefed, setBriefed] = useState(false);
 
   if (selected.length !== ids.length || !selected.length) {
@@ -62,7 +64,10 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
     const selectedByTeam = placementMembers(selected.map(player => ({ ...player, squadId: player.details.squadId })));
 
     return <>
-      <p className="shrink-0 break-words font-semibold">{words.name} · {groupNames}</p>
+      <div className="shrink-0 space-y-1 rounded-2xl border border-border bg-muted/50 p-4">
+        <h3 className="text-lg font-semibold">Choisir {words.article}</h3>
+        <p className="break-words text-sm text-muted-foreground">{groupNames} · Étape réservée au staff</p>
+      </div>
       {savedSquadId !== undefined && <p className="text-sm text-muted-foreground">
         Les fiches restantes rejoindront {words.article} déjà confirmée pour le groupe.
       </p>}
@@ -104,14 +109,21 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
 
   if (!completed) {
     const { player, details } = assignment[0];
-    const initialDetails: CheckInDetails = { squadId: details.squadId, checklist: {} };
+    const initialDetails: CheckInDetails = checklistDraft ?? { squadId: details.squadId, checklist: {} };
     const settings = checklist?.settings ?? roster.welcomeChecklist;
     return <WelcomeGuide key={player.id} type={player.type} initialDetails={initialDetails} slot={slot} teams={roster.teams}
       checklistSettings={settings} canEditChecklist={checklist?.canEdit}
       lockSquad review defaultChecked saving={false} error=""
-      summary={<p className="break-words text-sm text-muted-foreground">{groupNames}</p>}
-      saveLabel="Vérifier les arrivées"
+      summary={<div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+        <ClipboardCheck className="size-6 shrink-0 text-primary" aria-hidden />
+        <div className="min-w-0">
+          <h3 className="text-lg font-semibold">Consignes d’accueil</h3>
+          <p className="break-words text-sm text-muted-foreground">{groupNames}</p>
+        </div>
+      </div>}
+      saveLabel="Valider"
       onSave={next => {
+        setChecklistDraft(next);
         setCompleted(assignment.map(arrival => ({
           ...arrival, details: { ...arrival.details, checklist: { ...arrival.details.checklist, ...next.checklist },
             ...(next.welcomeChecks && { welcomeChecks: { ...arrival.details.welcomeChecks, ...next.welcomeChecks } }),
@@ -122,7 +134,11 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
 
   const teamNumber = new Map(roster.teams.map(team => [team.id, team.number]));
   return <>
-    <ul aria-label="Arrivées à valider" className="min-h-0 divide-y divide-border overflow-y-auto rounded-lg border border-border">
+    <div className="shrink-0 rounded-2xl border border-primary/20 bg-primary/5 p-4">
+      <h3 className="text-xl font-semibold">Confirmer les arrivées</h3>
+      <p className="text-sm text-muted-foreground">{completed.length} {completed.length === 1 ? "personne à enregistrer" : "personnes à enregistrer"}</p>
+    </div>
+    <ul aria-label="Arrivées à valider" className="grid min-h-0 flex-1 auto-rows-min gap-3 overflow-y-auto overscroll-contain sm:grid-cols-2 xl:grid-cols-3">
       {completed.map(({ player, details, overflowConfirmed }) => (
         <li key={player.id} className="flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
           <span className="font-medium">{player.firstName} {player.lastName}</span>
@@ -135,15 +151,15 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
       ))}
     </ul>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    <div className="flex shrink-0 flex-wrap gap-2">
-      <Button type="button" variant="outline" disabled={saving} onClick={() => {
+    <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
+      <Button type="button" variant="outline" className="min-h-12" disabled={saving} onClick={() => {
         if (error) onReplan();
         else setCompleted(undefined);
-      }}>{error ? "Actualiser et revoir les fiches restantes" : "Revoir les consignes"}</Button>
-      {first.type !== "staff" && !savedIds.length && !error && <Button type="button" variant="outline" disabled={saving}
-        onClick={() => { setCompleted(undefined); setBriefed(false); setAssignment(undefined); }}>Modifier {words.article}</Button>}
-      <Button type="button" className="flex-1" disabled={saving} loading={saving} onClick={() => void onConfirm(completed)}>
-        {error ? "Réessayer" : completed.length === 1 ? "Valider l’arrivée" : `Valider les ${completed.length} arrivées`}
+      }}><ArrowLeft aria-hidden /> {error ? "Actualiser et revoir les fiches restantes" : "Revoir les consignes"}</Button>
+      {first.type !== "staff" && !savedIds.length && !error && <Button type="button" variant="outline" className="min-h-12" disabled={saving}
+        onClick={() => { setCompleted(undefined); setChecklistDraft(undefined); setBriefed(false); setAssignment(undefined); }}>Modifier {words.article}</Button>}
+      <Button type="button" className="min-h-12 flex-1" disabled={saving} loading={saving} onClick={() => void onConfirm(completed)}>
+        {error ? "Réessayer" : "Confirmer"} <Check aria-hidden />
       </Button>
     </div>
   </>;

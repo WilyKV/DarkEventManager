@@ -46,7 +46,7 @@ async function begin(user: User, quantity = 1) {
 
 async function reviewArrival(user: User) {
   await click(user, "Passer la présentation");
-  await click(user, "Vérifier les arrivées");
+  await click(user, "Valider");
 }
 
 beforeEach(() => sessionStorage.clear());
@@ -104,7 +104,7 @@ describe("Accueil tactile", () => {
     expect(screen.getByRole("region", { name: "Présentation vidéo Zombies" })).toBeVisible();
     expect(onSave).not.toHaveBeenCalled();
     await reviewArrival(user);
-    await click(user, "Valider les 2 arrivées");
+    await click(user, "Confirmer");
     expect(await screen.findByText("2 personnes accueillies.")).toBeVisible();
     expect(onSave.mock.calls.map(([person, details]) => [person.id, details.squadId])).toEqual([[1, 1], [2, 1]]);
 
@@ -158,7 +158,7 @@ describe("Accueil tactile", () => {
     await click(user, "Commencer l’accueil");
     expect(screen.getByText("Bonjour Aline !")).toBeVisible();
     await reviewArrival(user);
-    await click(user, "Valider l’arrivée");
+    await click(user, "Confirmer");
     expect(await screen.findByText("1 personne accueillie.")).toBeVisible();
   });
 
@@ -176,7 +176,7 @@ describe("Accueil tactile", () => {
     await user.click(screen.getByRole("checkbox", { name: /Confirmer le dépassement/ }));
     await click(user, "Confirmer la squad");
     await reviewArrival(user);
-    await click(user, "Valider les 2 arrivées");
+    await click(user, "Confirmer");
     expect(onSaveOfflineGroup).toHaveBeenCalledTimes(1);
     expect(onSaveOfflineGroup.mock.calls[0][0].map(({ player, details, overflowConfirmed }: {
       player: CheckInPlayer; details: CheckInPlayer["details"]; overflowConfirmed: boolean;
@@ -195,7 +195,7 @@ describe("Accueil tactile", () => {
     await click(user, /Squad 2.*Recommandée/);
     await click(user, "Confirmer la squad");
     await reviewArrival(user);
-    await click(user, "Valider les 2 arrivées");
+    await click(user, "Confirmer");
     expect(await screen.findByRole("alert")).toHaveTextContent("Serveur indisponible");
     await click(user, "Réessayer");
     expect(await screen.findByText("2 personnes accueillies.")).toBeVisible();
@@ -225,8 +225,11 @@ describe("Accueil tactile", () => {
     await user.click(card);
     expect(card).not.toBeChecked();
     expect(water).toBeChecked();
-    await click(user, "Vérifier les arrivées");
-    await click(user, "Valider l’arrivée");
+    await click(user, "Valider");
+    await click(user, "Revoir les consignes");
+    expect(screen.getByRole("checkbox", { name: "Remettre la carte participant" })).not.toBeChecked();
+    await click(user, "Valider");
+    await click(user, "Confirmer");
     expect(onSave).toHaveBeenCalledWith(previous, {
       squadId: 1, checklist: { squadExplained: true, mealTicketGiven: false, briefingExplained: true, waterBottleGiven: true, makeupWaitExplained: true, mapGiven: true },
       welcomeChecks: { [welcomeOffers[0].id]: true, [welcomeOffers[1].id]: false },
@@ -258,8 +261,8 @@ describe("Accueil tactile", () => {
     expect(list.getByRole("checkbox", { name: welcomeOffers[0].title })).not.toBeChecked();
     expect(list.getByRole("checkbox", { name: welcomeOffers[1].title })).not.toBeChecked();
     await user.click(list.getByRole("checkbox", { name: welcomeOffers[0].title }));
-    await click(user, "Vérifier les arrivées");
-    await click(user, "Valider l’arrivée");
+    await click(user, "Valider");
+    await click(user, "Confirmer");
 
     expect(onSave).toHaveBeenCalledWith(clara, expect.objectContaining({ welcomeChecks: { [point.id]: true, [welcomeOffers[0].id]: true, [welcomeOffers[1].id]: false } }), false);
     expect(within(screen.getByRole("region", { name: "Heures estimées de maquillage" })).getByText(/^\d{2}:\d{2}$/)).toBeVisible();

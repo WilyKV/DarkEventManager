@@ -1,7 +1,7 @@
 import { defaultWelcomeChecklist, welcomeOffers, type WelcomeChecklist } from "@shared/welcome-checklist";
 import { WelcomeChecklistEditor } from "./welcome-checklist-editor";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Map, Paintbrush, Ticket, Users } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, ArrowRight, CalendarClock, Check, Droplet, Gift, Map, Paintbrush, Ticket, Users } from "lucide-react";
 import { checkInProfiles, type ChecklistItem, type CheckInDetails, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { timeSlotPhases } from "@shared/time-slot-notes";
 import { zombieChecklist } from "@shared/zombie-offline";
@@ -42,6 +42,40 @@ const instructions = {
     text: "Proposez une carte au joueur s’il souhaite reconnaître le terrain. Rappelez-lui de revenir pour le briefing.",
   },
 };
+
+function WelcomeCheckCard({ title, icon: Icon, checked, disabled, onChange, children, action }: {
+  title: string;
+  icon: typeof Check;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+  children?: ReactNode;
+  action?: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <li className={cn("relative rounded-2xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-ring",
+      checked ? "border-emerald-600/40 bg-emerald-500/10" : "border-border bg-card",
+      !disabled && "hover:border-primary/60")}>
+      <label className={cn("absolute inset-0 rounded-2xl", !disabled && "cursor-pointer")}>
+        <input type="checkbox" className="sr-only" aria-label={title} aria-describedby={children ? id : undefined}
+          checked={checked} disabled={disabled} onChange={event => onChange(event.target.checked)} />
+      </label>
+      <div className="pointer-events-none flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-background/70 text-primary">
+          <Icon className="size-5" aria-hidden />
+        </span>
+        <h4 className="min-w-0 flex-1 break-words text-base font-semibold">{title}</h4>
+        <span aria-hidden className={cn("grid size-7 shrink-0 place-items-center rounded-lg border",
+          checked ? "border-emerald-700 bg-emerald-700 text-white" : "border-muted-foreground/50 bg-background")}>
+          {checked && <Check className="size-5" />}
+        </span>
+      </div>
+      {children && <div id={id} className="pointer-events-none mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">{children}</div>}
+      {action && <div className="relative mt-2 w-fit">{action}</div>}
+    </li>
+  );
+}
 
 type WelcomeSlot = CheckInRoster["slots"][number];
 type WelcomeTeam = CheckInRoster["teams"][number];
@@ -279,47 +313,32 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             {hasChecklist && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">Cochez chaque point traité, en vidéo ou de vive voix.</p>
-                <ul aria-label="Étapes de l’accueil" className="divide-y divide-border rounded-lg border border-border bg-card">
+                <ul aria-label="Étapes de l’accueil" className="grid items-start gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {visibleItems.map(key => (
-                    <li key={key} className="px-3 py-2">
-                      <div className="flex flex-wrap items-center gap-x-2">
-                        <label className="flex min-h-11 flex-1 cursor-pointer items-center gap-3 text-sm font-medium">
-                          <input type="checkbox" className="size-5 shrink-0 accent-primary"
-                            checked={details.checklist[key] ?? defaultChecked}
-                            disabled={saving || (key === "squadExplained" && details.squadId === null)}
-                            onChange={event => setChecklistItem(key, event.target.checked)} />
-                          <span>{key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}</span>
-                        </label>
-                        {key === "squadExplained" && (
-                          <Button type="button" variant="ghost" className="min-h-11 text-primary" disabled={saving}
-                            onClick={() => { setEditing(true); setIndex(items.indexOf(key)); }}>
-                            {details.squadId === null ? "Choisir" : "Modifier"}
-                          </Button>
-                        )}
-                      </div>
-                      <div className="space-y-2 pb-1 pl-8 text-xs leading-relaxed text-muted-foreground">
-                        <p>{key === "squadExplained" ? `${selectedTeam ? words.name + " " + selectedTeam.number + " · " : ""}Indiquez où retrouver ses coéquipiers après le briefing.` : instructions[key].text}</p>
-                        {key === "briefingExplained" && <>
-                          <WelcomeSchedule slot={slot} phases={type === "survivant" ? timeSlotPhases : undefined} compact />
-                          {!slot?.briefingTime && <p>Horaire du briefing à vérifier avec l’organisation.</p>}
-                          {selectedTeam?.briefing?.trim() && <p className="whitespace-pre-wrap break-words">{selectedTeam.briefing}</p>}
-                        </>}
-                        {key === "mealTicketGiven" && <WelcomeSchedule slot={slot} phases={["meal"]} compact />}
-                      </div>
-                    </li>
+                    <WelcomeCheckCard key={key} icon={instructions[key].icon}
+                      title={key === "squadExplained" ? `Présenter ${words.article}` : instructions[key].title}
+                      checked={details.checklist[key] ?? defaultChecked}
+                      disabled={saving || (key === "squadExplained" && details.squadId === null)}
+                      onChange={checked => setChecklistItem(key, checked)}
+                      action={key === "squadExplained" && <Button type="button" variant="outline" className="min-h-11" disabled={saving}
+                        onClick={() => { setEditing(true); setIndex(items.indexOf(key)); }}>
+                        {details.squadId === null ? "Choisir" : "Modifier"}
+                      </Button>}>
+                      <p>{key === "squadExplained" ? `${selectedTeam ? words.name + " " + selectedTeam.number + " · " : ""}Indiquez où retrouver ses coéquipiers après le briefing.` : instructions[key].text}</p>
+                      {key === "briefingExplained" && <>
+                        <WelcomeSchedule slot={slot} phases={type === "survivant" ? timeSlotPhases : undefined} />
+                        {!slot?.briefingTime && <p>Horaire du briefing à vérifier avec l’organisation.</p>}
+                        {selectedTeam?.briefing?.trim() && <p className="whitespace-pre-wrap break-words">{selectedTeam.briefing}</p>}
+                      </>}
+                      {key === "mealTicketGiven" && <WelcomeSchedule slot={slot} phases={["meal"]} />}
+                    </WelcomeCheckCard>
                   ))}
                   {extra.map(({ id, title, note, prefilled }) => (
-                    <li key={id} className="px-3 py-2">
-                      <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm font-medium">
-                        <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={details.welcomeChecks?.[id] ?? prefilled}
-                          disabled={saving} onChange={event => {
-                            const checked = event.target.checked;
-                            setDetails(previous => ({ ...previous, welcomeChecks: { ...previous.welcomeChecks, [id]: checked } }));
-                          }} />
-                        <span className="min-w-0 break-words">{title}</span>
-                      </label>
-                      {note && <p className="whitespace-pre-wrap break-words pb-1 pl-8 text-xs text-muted-foreground">{note}</p>}
-                    </li>
+                    <WelcomeCheckCard key={id} title={title} icon={Gift} checked={details.welcomeChecks?.[id] ?? prefilled}
+                      disabled={saving} onChange={checked =>
+                        setDetails(previous => ({ ...previous, welcomeChecks: { ...previous.welcomeChecks, [id]: checked } }))}>
+                      {note && <p className="whitespace-pre-wrap break-words">{note}</p>}
+                    </WelcomeCheckCard>
                   ))}
                 </ul>
               </div>
@@ -382,7 +401,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
             )}
           </>
         ) : (
-          <Button type="submit" className="w-full whitespace-normal" disabled={editingChecklist || teamUnavailable || groupUnavailable} loading={saving}>
+          <Button type="submit" className="min-h-12 w-full whitespace-normal" disabled={editingChecklist || teamUnavailable || groupUnavailable} loading={saving}>
             {saving ? "Enregistrement…" : saveLabel}
           </Button>
         )}

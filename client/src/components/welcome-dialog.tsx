@@ -1,7 +1,7 @@
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
 import { useId, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Footprints, Plus, Search, ShieldCheck, Skull, UserCheck } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Footprints, Paintbrush, Plus, Search, ShieldCheck, Skull, UserCheck, Users } from "lucide-react";
 import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
@@ -167,18 +167,25 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     done: "Accueil terminé",
   }[step];
   const waveLabel = currentWave?.label ?? "Toutes les vagues sont terminées";
+  const HeaderIcon = type && step !== "profile" ? profileCards[type].Icon : Users;
 
   return (
     <Dialog open onOpenChange={open => { if (!open && !saving) onClose(); }}>
       <DialogContent className="welcome-session flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden rounded-none border-0 p-4 sm:rounded-none sm:p-8 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:grid [&>button]:place-items-center"
         onInteractOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (saving) event.preventDefault(); }}>
-        <DialogHeader className="shrink-0 pr-12 text-left">
-          <DialogTitle className="text-2xl sm:text-4xl">{title}</DialogTitle>
-          <DialogDescription>
-            {step === "profile" ? "Choisissez un profil." :
-              `${type ? checkInProfiles[type].label : ""} · ${waveLabel}`}
-          </DialogDescription>
+        <DialogHeader className="flex shrink-0 flex-row items-center gap-3 space-y-0 border-b border-border pb-3 pr-12 text-left sm:gap-4">
+          <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl border sm:size-14",
+            type && step !== "profile" ? profileCards[type].colors : "border-primary/20 bg-primary/10 text-primary")}>
+            <HeaderIcon className="size-6 sm:size-7" aria-hidden />
+          </span>
+          <div className="min-w-0 space-y-1">
+            <DialogTitle className="font-display text-xl sm:text-3xl">{title}</DialogTitle>
+            <DialogDescription>
+              {step === "profile" ? "Choisissez un profil." :
+                `${type ? checkInProfiles[type].label : ""} · ${waveLabel}`}
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
         {unavailable}
@@ -251,7 +258,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
 
         {step === "select" && (
           <div className="welcome-people flex min-h-0 flex-1 flex-col gap-3">
-            <div className="welcome-people-filters shrink-0 space-y-2">
+            <div className="welcome-people-filters shrink-0 space-y-2 rounded-2xl border border-border bg-card p-3">
               <div className="relative">
                 <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" aria-hidden />
                 <Input type="search" aria-label="Rechercher une personne" placeholder="Nom ou prénom"
@@ -265,7 +272,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                 ))}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-x-2">
-                <p role="status" className="text-sm font-semibold">{selected.length} sur {total} sélectionnées</p>
+                <p role="status" className="rounded-lg bg-primary/10 px-3 py-1.5 text-sm font-semibold text-primary">{selected.length} sur {total} sélectionnées</p>
                 <Button type="button" variant="ghost" onClick={() => setSelectedOnly(!selectedOnly)}>
                   {selectedOnly ? "Retour à la recherche" : "Voir ma sélection"}
                 </Button>
@@ -324,22 +331,36 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
         {step === "done" && (
           <div className="flex min-h-0 flex-1 flex-col gap-4">
             <div className="min-h-0 space-y-4 overflow-y-auto">
-              <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 font-medium">
-                <UserCheck className="size-6" aria-hidden />
-                {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
-              </p>
-              {makeup && <section className="rounded-xl border border-border bg-card p-4" aria-label="Heures estimées de maquillage">
-                <h3 className="font-semibold">Maquillage · horaires estimés</h3>
-                {savedIds.some(id => makeup.has(id)) ? <>
-                  <p className="mt-1 text-sm text-muted-foreground">Notez l’heure sur la carte de chaque participant. Si le briefing est déjà passé, vérifiez la disponibilité du stand.</p>
-                  <ul className="mt-2 divide-y divide-border">
-                    {wavePlayers.filter(player => savedIds.includes(player.id)).map(player => <li key={player.id} className="flex justify-between gap-2 py-2 text-sm">
-                      <span>{player.firstName} {player.lastName}</span>
-                      <strong>{makeup.has(player.id) ? makeupClock.format(makeup.get(player.id)!) : "Horaire indisponible"}</strong>
-                    </li>)}
-                  </ul>
-                </> : <p className="mt-1 text-sm text-muted-foreground">Renseignez une heure de briefing valide dans le créneau pour obtenir une estimation.</p>}
-              </section>}
+              <div className="flex items-center gap-4 rounded-2xl border border-emerald-600/35 bg-emerald-500/10 p-5 sm:p-6">
+                <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-emerald-800 text-white">
+                  <UserCheck className="size-7" aria-hidden />
+                </span>
+                <div>
+                  <p role="status" className="text-xl font-semibold sm:text-2xl">
+                    {savedIds.length} {savedIds.length === 1 ? "personne accueillie" : "personnes accueillies"}.
+                  </p>
+                  <p className="text-sm text-muted-foreground">{onSaveOfflineGroup ? "Arrivées enregistrées sur cet appareil." : "Arrivées enregistrées."}</p>
+                </div>
+              </div>
+              <section className="space-y-3" aria-label={makeup ? "Heures estimées de maquillage" : "Participants accueillis"}>
+                {makeup && <div className="space-y-1">
+                  <h3 className="flex items-center gap-2 text-lg font-semibold"><Paintbrush className="size-5 text-primary" aria-hidden /> Maquillage · horaires estimés</h3>
+                  <p className="text-sm text-muted-foreground">{savedIds.some(id => makeup.has(id))
+                    ? "Notez l’heure sur la carte de chaque participant. Si le briefing est déjà passé, vérifiez la disponibilité du stand."
+                    : "Renseignez une heure de briefing valide dans le créneau pour obtenir une estimation."}</p>
+                </div>}
+                <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {wavePlayers.filter(player => savedIds.includes(player.id)).map(player => {
+                    const time = makeup?.get(player.id);
+                    return <li key={player.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4">
+                      <span className="min-w-0 break-words font-semibold">{player.firstName} {player.lastName}</span>
+                      {makeup && <strong className="rounded-xl bg-primary/10 px-3 py-2 text-primary tabular-nums">
+                        {time === undefined ? "Horaire indisponible" : makeupClock.format(time)}
+                      </strong>}
+                    </li>;
+                  })}
+                </ul>
+              </section>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
               <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>

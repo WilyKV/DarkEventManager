@@ -15,6 +15,7 @@ import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
 import { requireAuth } from "./auth-middleware";
 import { registerStaffCompensationRoutes } from "./staff-compensation-routes";
+import { purgeInactivePlayerProfiles, registerSouvenirEngagementRoutes } from "./souvenir-engagement-routes";
 import { purgeExpiredParticipantCards, registerParticipantCardRoutes } from "./participant-card-routes";
 import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
@@ -104,6 +105,7 @@ app.use(publishLiveChanges);
   // Register end event route (admin only)
   setupEndEventRoute(app);
   registerParticipantCardRoutes(app);
+  registerSouvenirEngagementRoutes(app);
   registerStaffCompensationRoutes(app);
 
   // Register main routes
@@ -152,6 +154,7 @@ app.use(publishLiveChanges);
     // Start WebSocket Sync Server
     wsSyncServer.start(server);
     const purgeSouvenirs = () => {
+      void purgeInactivePlayerProfiles().catch(err => appLogger.error({ err }, "Échec de la purge des profils joueurs"));
       void purgeExpiredParticipantCards().catch(err => appLogger.error({ err }, "Échec de la purge des espaces souvenir"));
     };
     purgeSouvenirs();

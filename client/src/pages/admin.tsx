@@ -1,9 +1,10 @@
+import { eventReviewsPath, type AdminEventReview } from "@shared/souvenir-engagement";
 import { WelcomeChecklistSettings } from "@/components/welcome-checklist-editor";
 import { useLayoutEffect, useRef, useState } from "react";
 import { ManagementLayout } from "@/components/management-layout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, ChevronRight, Database, Flag, History, Images, Settings, Shield, ShoppingBag, Skull, UserCog, Users, Utensils } from "lucide-react";
+import { ArrowLeft, ChevronRight, Database, Flag, History, Images, Settings, Shield, ShoppingBag, Skull, Star, UserCog, Users, Utensils } from "lucide-react";
 import { ExcelImport } from "@/components/excel-import";
 import { ExcelExport } from "@/components/excel-export.tsx";
 import { ResetDataSection } from "@/components/reset-data-section";
@@ -34,7 +35,7 @@ const adminSections = [
     items: [
       { id: "zombie", label: "Zombies", description: "Inscriptions, vagues et squads", icon: Skull, tone: "red" },
       { id: "survivant", label: "Survivants", description: "Inscriptions, vagues et équipes", icon: Users, tone: "blue" },
-      { id: "staff", label: "Staff", description: "Fiches et équipes du staff", icon: UserCog, tone: "green" },
+      { id: "staff", label: "Staff", description: "Fiches, attributions et budget du staff", icon: UserCog, tone: "green" },
     ],
   },
   {
@@ -48,6 +49,7 @@ const adminSections = [
     label: "Événement et accès",
     items: [
       { id: "config", label: "Réglages de l’événement", description: "Date, maquillage, checklist et synchronisation", icon: Settings, tone: "slate" },
+      { id: "avis", label: "Avis", description: "Notes et commentaires sur l’événement", icon: Star, tone: "amber" },
       { id: "souvenir", label: "Espaces souvenir", description: "Galerie, statistiques et demandes d’effacement", icon: Images, tone: "violet" },
       { id: "users", label: "Comptes et permissions", description: "Accès à l’application et rôles du staff", icon: Shield, tone: "blue" },
       { id: "historique", label: "Historique", description: "Activité et actions enregistrées", icon: History, tone: "slate" },
@@ -246,6 +248,7 @@ export default function AdminPage() {
             <WelcomeChecklistSettings />
             <SyncModeManager />
           </div>}
+          {activeTab === "avis" && <AdminEventReviews />}
           {activeTab === "souvenir" && <div className="space-y-4">
             <SouvenirSettings />
             <SouvenirErasureRequests />
@@ -406,4 +409,30 @@ export default function AdminPage() {
       )}
     </ManagementLayout>
   );
+}
+
+
+function AdminEventReviews() {
+  const { data, isError } = useQuery<AdminEventReview[]>({ queryKey: [eventReviewsPath], staleTime: 0 });
+  const average = data?.length ? data.reduce((sum, review) => sum + review.halfStars / 2, 0) / data.length : undefined;
+  const format = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
+  return <section className="space-y-4 rounded-2xl border border-border bg-card p-4">
+    <h2 className="text-xl font-semibold">Avis sur l’événement</h2>
+    {isError ? <p role="alert">Impossible de charger les avis.</p>
+      : !data ? <p role="status">Chargement des avis…</p>
+      : !data.length ? <p>Aucun avis reçu.</p>
+      : <>
+        <p className="font-medium">{format.format(average ?? 0)} / 5 · {data.length} avis</p>
+        <ul className="grid gap-3 lg:grid-cols-2">{data.map(review => (
+          <li key={review.id} className="space-y-2 rounded-xl border border-border p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <strong className="flex items-center gap-2"><Star className="size-4 fill-amber-400 text-amber-500" aria-hidden /> {format.format(review.halfStars / 2)} / 5</strong>
+              <time className="text-sm text-muted-foreground" dateTime={review.updatedAt}>{new Date(review.updatedAt).toLocaleDateString("fr-FR")}</time>
+            </div>
+            {review.eventDay && <p className="text-sm text-muted-foreground">Événement du {new Date(review.eventDay).toLocaleDateString("fr-FR", { timeZone: "UTC" })}</p>}
+            {review.comment && <p className="whitespace-pre-wrap break-words text-sm">{review.comment}</p>}
+          </li>
+        ))}</ul>
+      </>}
+  </section>;
 }

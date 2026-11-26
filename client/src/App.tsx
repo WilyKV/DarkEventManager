@@ -16,6 +16,7 @@ import { souvenirRecoveryPath } from "@shared/participant-card";
 import { legacyOfflineCheckInPage, offlineCheckInPage } from "@shared/zombie-offline";
 
 const LoginPage = React.lazy(() => import("@/pages/login"));
+const PlayerProfilePage = React.lazy(() => import("@/pages/player-profile"));
 const SouvenirPage = React.lazy(() => import("@/pages/souvenir"));
 const SouvenirRecoveryPage = React.lazy(() => import("@/pages/souvenir").then(module => ({ default: module.SouvenirRecoveryPage })));
 const VisitorPage = React.lazy(() => import("@/pages/visitor"));
@@ -83,7 +84,7 @@ function Router() {
   useTrackAppHistory();
   const canGoBack = useCanGoBack();
   const online = useOnlineStatus();
-  const publicPage = ["/login", "/visitor", "/setup"].includes(location) || location.startsWith("/souvenir/");
+  const publicPage = ["/login", "/visitor", "/setup", "/profil-joueur"].includes(location) || location.startsWith("/souvenir/");
   React.useLayoutEffect(() => {
     document.documentElement.classList.toggle("dark", publicPage);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", publicPage ? "#121417" : "#d6dae1");
@@ -103,6 +104,7 @@ function Router() {
       <Switch>
         <Route path="/setup" component={SetupPage} />
         <Route path="/login" component={LoginPage} />
+      <Route path="/profil-joueur" component={PlayerProfilePage} />
         <Route path="/souvenir/admin/:id">
           {params => <RequireAuth roles={["admin"]}><SouvenirPage params={params} /></RequireAuth>}
         </Route>

@@ -293,6 +293,9 @@ export default function LoginPage() {
                 </form>
               </TabsContent>
             </Tabs>
+            <p className="mt-4 text-center text-sm">
+              <Link href="/profil-joueur" className="underline underline-offset-4">Ouvrir mon profil joueur avec ma clé privée</Link>
+            </p>
           </CardContent>
         </Card>
       </div>

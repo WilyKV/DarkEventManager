@@ -167,7 +167,7 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
           </div>
 
           <div className="space-y-2 pt-4 border-t">
-            <Label>Code unique</Label>
+            <Label>Code visiteur · ancien badge</Label>
             <div className="flex items-center gap-2">
               <div className="flex-1 p-3 bg-muted rounded-md">
                 <p className="font-mono text-lg font-bold text-primary">
@@ -190,7 +190,7 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Cliquez sur l'icône pour générer un nouveau code unique
+              Ce code à cinq chiffres sert à la connexion visiteur et aux anciens badges. Le code de l’espace souvenir est imprimé au verso de la carte.
             </p>
           </div>
 

@@ -5,6 +5,7 @@ import express from "express";
 import session from "express-session";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eventReviewsPath, reviewInput } from "@shared/souvenir-engagement";
 import { cardsPath, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath } from "@shared/participant-card";
 
 const { readCard, savePhotoWithdrawal } = vi.hoisted(() => ({ readCard: vi.fn(), savePhotoWithdrawal: vi.fn() }));
@@ -15,6 +16,7 @@ vi.mock("../../server/db", () => ({
   },
 }));
 
+import { registerSouvenirEngagementRoutes } from "../../server/souvenir-engagement-routes";
 import { registerParticipantCardRoutes } from "../../server/participant-card-routes";
 
 const token = "A".repeat(27);
@@ -31,6 +33,7 @@ function makeApp(role?: string) {
     next();
   });
   registerParticipantCardRoutes(app);
+  registerSouvenirEngagementRoutes(app);
   return app;
 }
 
@@ -102,6 +105,38 @@ describe("Espace souvenir", () => {
     await request(makeApp()).post(souvenirRecoveryApi).send(form).expect(401);
     readCard.mockResolvedValueOnce([card, { ...card, token: "B".repeat(27) }]);
     await request(makeApp()).post(souvenirRecoveryApi).send(form).expect(401);
+  });
+
+  it("réserve les avis à la session souvenir et accepte les demi-étoiles", async () => {
+    const app = makeApp();
+    const rating = { halfStars: 9, comment: "Très bonne soirée" };
+    expect(reviewInput.parse(rating)).toEqual(rating);
+    expect(reviewInput.safeParse({ ...rating, halfStars: 9.5 }).success).toBe(false);
+    expect(reviewInput.safeParse({ ...rating, halfStars: 1 }).success).toBe(false);
+    await request(app).get(`${view}/review`).expect(401);
+    await request(app).put(`${view}/review`).send(rating).expect(401);
+    await request(app).post(`${view}/profile`).send({ action: "create", key: "a".repeat(64), email: null }).expect(401);
+    await request(makeApp("staff_zombie")).get(eventReviewsPath).expect(403);
+  });
+
+  it("protège les téléchargements et exporte les données personnelles et les rubriques choisies", async () => {
+    const agent = request.agent(makeApp());
+    await agent.get(`${view}/export`).expect(401);
+    await agent.get(`${view}/keepsake?sections=identity`).expect(401);
+    await agent.post(open).send({ code }).expect(204);
+    await agent.get(`${view}/keepsake?sections=token`).expect(400);
+    const pdf = await agent.get(`${view}/keepsake?sections=identity,event`).expect(200);
+    expect(pdf.headers["content-type"]).toMatch(/^application\/pdf/);
+
+    const [card] = await readCard();
+    readCard.mockResolvedValueOnce([card]).mockResolvedValueOnce([{ halfStars: 9, comment: "Super soirée !" }]);
+    const exported = await agent.get(`${view}/export`).expect(200);
+    expect(exported.body).toMatchObject({
+      firstName: "Clara", photo: "data:image/jpeg;base64,/9j/2Q==", review: { halfStars: 9, comment: "Super soirée !" },
+    });
+    expect(exported.body).not.toHaveProperty("code");
+    expect(exported.body).not.toHaveProperty("token");
+    expect(exported.headers["cache-control"]).toContain("no-store");
   });
 
   it("réserve l’aperçu et sa photo aux administrateurs", async () => {

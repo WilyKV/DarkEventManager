@@ -5,6 +5,7 @@ import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, souve
 import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
 import { StaffCardActions } from "@/components/staff-card-actions";
 import { useAuth } from "@/lib/auth";
+import { SouvenirEngagement, SouvenirExports } from "@/components/souvenir-extras";
 import { SouvenirDeleteAction } from "@/components/souvenir-delete-action";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -311,6 +312,8 @@ function SouvenirSession({ token, adminId, onRecoveryClose }: { token?: string; 
           {summary.expiresAt ? <p>Espace disponible jusqu’au <time dateTime={summary.expiresAt}>{parisDate.format(new Date(summary.expiresAt))}</time>, soit trois mois après la clôture de l’événement.</p>
             : <p>Cet espace restera accessible jusqu’à trois mois après la clôture de l’événement.</p>}
         </footer>
+        {!adminId && summary.expiresAt && <SouvenirEngagement view={view} summary={summary} />}
+        {!adminId && <SouvenirExports view={view} summary={summary} />}
         {!adminId && <section className="souvenir-highlights" aria-labelledby="souvenir-data-title">
           <h2 id="souvenir-data-title">Mes données personnelles</h2>
           {summary.erasureRequestedAt ? <p role="status" className="my-3 text-sm text-[#e1cdd5]">

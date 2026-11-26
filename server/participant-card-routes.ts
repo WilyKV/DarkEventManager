@@ -3,7 +3,7 @@ import type { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots } from "@shared/schema";
+import { appConfig, auditLogs, discounts, eventReviews, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots } from "@shared/schema";
 import { cardPrintFormatLabel, cardPrintLayouts, cardSurnamePrefixes, cardsPath, normalizeSouvenirCode, staffCardSpecialization, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirPurchases, type SouvenirPurchaseLine, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
 import { checkInRoles, checkInTypes } from "@shared/check-in";
@@ -12,6 +12,9 @@ import { storage } from "./storage";
 import { hasSessionRole, requireRole } from "./auth-middleware";
 import { allowedCheckInTypes } from "./check-in-routes";
 import { checkSyncPermissions } from "./sync-middleware";
+import { souvenirCodeProof as codeProof } from "./souvenir-engagement-routes";
+import { keepsakeSections } from "@shared/souvenir-engagement";
+import { renderSouvenirKeepsake } from "./souvenir-keepsake";
 import { renderSouvenirReceipt } from "./souvenir-receipt";
 import { printModes, renderParticipantCards } from "./participant-card-pdf";
 import { offlinePlayerIdentity } from "./zombie-offline-routes";
@@ -20,10 +23,6 @@ const tokenPattern = /^[A-Za-z0-9_-]{27}$/;
 const codeCharacters = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 function generateCardCode() {
   return Array.from({ length: 10 }, () => codeCharacters[randomInt(codeCharacters.length)]).join("");
-}
-
-function codeProof(card: Pick<typeof participantCards.$inferSelect, "token" | "code">) {
-  return createHash("sha256").update(JSON.stringify([card.token, card.code])).digest("hex");
 }
 
 const originSchema = z.url().max(240).refine(url => {
@@ -574,7 +573,7 @@ export function registerParticipantCardRoutes(app: Express) {
     return res.json({ ...summary, highlights, expiresAt: expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card?.photo) });
   });
 
-  app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`, `${cardsPath}/view/:token/receipt`], async (req, res) => {
+  app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`, `${cardsPath}/view/:token/receipt`, `${cardsPath}/view/:token/export`, `${cardsPath}/view/:token/keepsake`], async (req, res) => {
     if (!req.session.souvenirToken || req.session.souvenirToken !== req.params.token ||
         (req.query.resume === "1" && !req.session.souvenirRemembered)) return res.sendStatus(401);
     const card = await getCard(req.params.token);
@@ -597,6 +596,25 @@ export function registerParticipantCardRoutes(app: Express) {
         ...recap(player, config.eventDay), highlights: await eventHighlights(tx, config),
         purchases: (await purchaseHistory(tx, [player])).get(player.id),
       }));
+    }
+    const exporting = req.path.endsWith("/export");
+    const keepsake = req.path.endsWith("/keepsake");
+    if (exporting || keepsake) {
+      const sections = z.array(z.enum(keepsakeSections)).min(1).max(keepsakeSections.length)
+        .safeParse(typeof req.query.sections === "string" ? req.query.sections.split(",") : undefined);
+      if (keepsake && !sections.success) return res.status(400).json({ message: "Choisissez les rubriques du PDF." });
+      const [review] = exporting || (sections.success && sections.data.includes("review"))
+        ? await db.select({ halfStars: eventReviews.halfStars, comment: eventReviews.comment, updatedAt: eventReviews.updatedAt })
+          .from(eventReviews).where(eq(eventReviews.cardId, card.id))
+        : [];
+      res.set("Cache-Control", "private, no-store");
+      if (exporting) return res.attachment("mes-donnees-zombin.json").json({
+        ...summary, photo: card.photo ? `data:image/jpeg;base64,${card.photo}` : null,
+        review: review ?? null, expiresAt: card.expiresAt?.toISOString() ?? null,
+        erasureRequestedAt: card.erasureRequestedAt?.toISOString() ?? null,
+      });
+      if (sections.success) return res.attachment("mon-souvenir-zombin.pdf").type("application/pdf")
+        .send(await renderSouvenirKeepsake(summary, new Set(sections.data), card.photo, review));
     }
     if (req.path.endsWith("/receipt")) {
       if (!summary.purchases?.lines.some(line => line.paid)) return res.sendStatus(404);

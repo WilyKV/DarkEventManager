@@ -68,11 +68,22 @@ export const staffCompensations = pgTable("staff_compensations", {
   check("staff_compensation_valid_rate", sql`${table.rateCents} IS NULL OR (NOT ${table.volunteer} AND ${table.rateCents} >= 0)`),
 ]);
 
+export const playerProfiles = pgTable("player_profiles", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  keyHash: text("key_hash").notNull().unique(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
+  email: text("email"),
+  eventKeys: jsonb("event_keys").$type<string[]>().notNull().default([]),
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [index("player_profiles_last_activity_idx").on(table.lastActivityAt)]);
+
 // Issued cards retain their closed recap when the operational roster is reset.
 export const participantCards = pgTable("participant_cards", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   identity: text("identity").notNull().unique(),
   participantId: integer("participant_id").notNull(),
+  playerProfileId: integer("player_profile_id").references(() => playerProfiles.id, { onDelete: "set null" }),
   token: text("token").notNull().unique(),
   code: text("code").notNull(),
   summary: jsonb("summary").$type<SouvenirSummary>().notNull(),
@@ -81,6 +92,14 @@ export const participantCards = pgTable("participant_cards", {
   erasureRequestedAt: timestamp("erasure_requested_at", { withTimezone: true }),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
 });
+
+export const eventReviews = pgTable("event_reviews", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  cardId: integer("card_id").notNull().unique().references(() => participantCards.id, { onDelete: "cascade" }),
+  halfStars: integer("half_stars").notNull(),
+  comment: text("comment").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, table => [check("event_reviews_rating_range", sql`${table.halfStars} BETWEEN 2 AND 10`)]);
 
 // Shop Items Table (Products)
 export const shopItems = pgTable("shop_items", {

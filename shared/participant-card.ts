@@ -80,8 +80,8 @@ export function printedCardName({ firstName, surnamePrefix }: Pick<PrintableCard
 }
 
 const briefingField = { key: "briefing", label: "Briefing", x: 5, width: 14 } as const;
-const squadField = { key: "squad", label: "Squad", shortLabel: "SQ", x: 23, width: 11.5 } as const;
-const makeupField = { key: "makeup", label: "Maquillage", shortLabel: "MQ", x: 38.5, width: 14.5 } as const;
+const squadField = { key: "squad", label: "Squad", x: 23, width: 11.5 } as const;
+const makeupField = { key: "makeup", label: "Maquillage", x: 38.5, width: 14.5 } as const;
 
 export const cardFieldIcons = {
   squad: "M4 5h16M4 12h16M4 19h16M9 3L7 21M17 3l-2 18",
@@ -91,7 +91,7 @@ export const cardFieldIcons = {
 
 export function cardScheduleFields(type: string) {
   if (type === "staff") return [];
-  if (type === "survivant") return [briefingField, { ...squadField, label: "Équipe", shortLabel: "ÉQ" }];
+  if (type === "survivant") return [briefingField, { ...squadField, label: "Équipe" }];
   return [briefingField, squadField, makeupField];
 }
 

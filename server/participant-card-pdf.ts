@@ -60,20 +60,15 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
     for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
-      if (field.key === "briefing") {
-        doc.fillColor("#334155").font("CardBold").fontSize(5.5)
-          .text(field.label, pt(field.x), pt(scheduleY + 1.4), { width: pt(field.width), align: "center", lineBreak: false });
-      } else {
-        const labelX = field.x - scheduleSideLabelWidth;
-        const centerX = pt(labelX + scheduleSideLabelWidth / 2);
-        const centerY = pt(scheduleY + scheduleHeight / 2);
-        doc.roundedRect(pt(labelX), pt(scheduleY), pt(scheduleSideLabelWidth), pt(scheduleHeight), pt(0.8)).fill("#100b12");
-        doc.save().rotate(-90, { origin: [centerX, centerY] });
-        doc.fillColor("#ffffff").font("CardBold").fontSize(6);
-        doc.text(field.shortLabel, centerX - doc.widthOfString(field.shortLabel) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
-        doc.restore();
-        fieldIcon(doc, field.key, field.x, scheduleY, field.width, scheduleHeight);
-      }
+      const labelX = field.x - scheduleSideLabelWidth;
+      const centerX = pt(labelX + scheduleSideLabelWidth / 2);
+      const centerY = pt(scheduleY + scheduleHeight / 2);
+      doc.roundedRect(pt(labelX), pt(scheduleY), pt(scheduleSideLabelWidth), pt(scheduleHeight), pt(0.8)).fill("#100b12");
+      doc.save().rotate(-90, { origin: [centerX, centerY] });
+      doc.fillColor("#ffffff").font("CardBold").fontSize(5.2);
+      doc.text(field.label, centerX - doc.widthOfString(field.label) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
+      doc.restore();
+      if (field.key !== "briefing") fieldIcon(doc, field.key, field.x, scheduleY, field.width, scheduleHeight);
     }
     if (cardHasMealBox(type)) {
       const mealY = type === "staff" ? staffMealBoxY : mealBoxY;

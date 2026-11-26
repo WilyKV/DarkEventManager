@@ -62,21 +62,19 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
       <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
-      {cardScheduleFields(card.type).map(field => field.key === "briefing" ? (
-        <div key={field.key} className="absolute flex flex-col items-center justify-center gap-[0.7cqw] rounded-[0.95cqw] bg-white leading-none text-[#101828]"
-          style={at(field.x, scheduleY, field.width, scheduleHeight)}>
-          <span className="text-[2.3cqw] font-bold text-slate-700">{field.label}</span>
-          <strong className="text-[3.75cqw] tabular-nums">{cardBriefingTime(card.briefingTime)}</strong>
-        </div>
-      ) : (
+      {cardScheduleFields(card.type).map(field => (
         <div key={field.key}>
           <span className="absolute flex items-center justify-center rounded-l-[0.95cqw] bg-[#100b12]"
             style={at(field.x - scheduleSideLabelWidth, scheduleY, scheduleSideLabelWidth, scheduleHeight)}>
-            <span className="-rotate-90 whitespace-nowrap text-[2.55cqw] font-bold leading-none">{field.shortLabel}</span>
+            <span className="-rotate-90 whitespace-nowrap text-[2.15cqw] font-bold leading-none">{field.label}</span>
           </span>
-          <span aria-label={`Case ${field.label} à remplir à la main`} role="img"
-            className="absolute flex items-center justify-center rounded-r-[0.95cqw] bg-white" style={at(field.x, scheduleY, field.width, scheduleHeight)}>
-            <CardFieldIcon field={field.key} />
+          <span className="absolute flex items-center justify-center rounded-r-[0.95cqw] bg-white text-[#101828]"
+            style={at(field.x, scheduleY, field.width, scheduleHeight)}>
+            {field.key === "briefing"
+              ? <strong className="text-[3.75cqw] leading-none tabular-nums">{cardBriefingTime(card.briefingTime)}</strong>
+              : <span role="img" aria-label={`Case ${field.label} à remplir à la main`} className="flex size-full items-center justify-center">
+                <CardFieldIcon field={field.key} />
+              </span>}
           </span>
         </div>
       ))}

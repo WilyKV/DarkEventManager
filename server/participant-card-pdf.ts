@@ -202,8 +202,11 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             if (mode === "complete" && card) {
               const field = cardScheduleFields(card.type).find(field => field.key === "briefing");
               const time = cardBriefingTime(card.briefingTime);
-              if (field && time) doc.fillColor("#101828").font("CardBold").fontSize(9)
-                .text(time, pt(field.x), pt(scheduleY + 4.1), { width: pt(field.width), align: "center", lineBreak: false });
+              if (field && time) {
+                doc.fillColor("#101828").font("CardBold").fontSize(12.5);
+                const y = pt(scheduleY + scheduleHeight / 2) - doc.currentLineHeight() / 2;
+                doc.text(time, pt(field.x), y, { width: pt(field.width), align: "center", lineBreak: false });
+              }
             }
             const url = card ? new URL(`${souvenirPath}/${card.token}`, origin).href : recoveryUrl;
             const qr = recoveryQr ?? await QRCode.toBuffer(url, qrOptions);

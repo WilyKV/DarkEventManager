@@ -70,7 +70,7 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
           <span className="absolute flex items-center justify-center rounded-r-[0.95cqw] bg-white text-[#101828]"
             style={at(field.x, scheduleY, field.width, scheduleHeight)}>
             {field.key === "briefing"
-              ? <strong className="text-[3.75cqw] leading-none tabular-nums">{cardBriefingTime(card.briefingTime)}</strong>
+              ? <strong className="text-[5.2cqw] leading-none tabular-nums">{cardBriefingTime(card.briefingTime)}</strong>
               : <span role="img" aria-label={`Case ${field.label} à remplir à la main`} className="flex size-full items-center justify-center">
                 <CardFieldIcon field={field.key} />
               </span>}

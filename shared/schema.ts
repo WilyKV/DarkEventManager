@@ -4,7 +4,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
-import type { SouvenirAttendance, SouvenirSettings, SouvenirSummary } from "./participant-card";
+import { staffSpecializations, type SouvenirAttendance, type SouvenirSettings, type SouvenirSummary } from "./participant-card";
 import { timeSlotNotesSchema, type TimeSlotNotes } from "./time-slot-notes";
 
 // Time Slots Table
@@ -36,6 +36,7 @@ export const participants = pgTable("participants", {
   lastName: text("last_name").notNull(),
   email: text("email"),
   type: text("type").notNull(), // 'zombie', 'survivant' or 'staff'
+  staffSpecialization: text("staff_specialization", { enum: staffSpecializations }),
   timeSlotId: integer("time_slot_id").references(() => timeSlots.id),
   squadId: integer("squad_id").references(() => squads.id),
   arrived: boolean("arrived").default(false),
@@ -389,7 +390,7 @@ export const createSquadBatchSchema = z.object({
   new Set(slots.map(slot => slot.id)).size === slots.length &&
   slots.every(slot => slot.lastNumber + count <= 2_147_483_647),
 );
-export const insertParticipantSchema = createInsertSchema(participants).omit({ createdAt: true, arrivedAt: true, returnedAt: true, deletedAt: true });
+export const insertParticipantSchema = createInsertSchema(participants, { staffSpecialization: z.enum(staffSpecializations).nullish() }).omit({ createdAt: true, arrivedAt: true, returnedAt: true, deletedAt: true });
 export const insertShopItemSchema = createInsertSchema(shopItems);
 export const insertMealItemSchema = createInsertSchema(mealItems);
 export const insertSquadAuditLogSchema = createInsertSchema(squadAuditLog).omit({ changedAt: true });

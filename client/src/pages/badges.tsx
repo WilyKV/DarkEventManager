@@ -1,10 +1,10 @@
 import { CardCodeActions } from "@/components/card-code-actions";
 import { AdminSouvenirLink } from "@/components/admin-souvenir-link";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
-import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, type CardPrintLayout } from "@shared/participant-card";
+import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, staffSpecializationLabels, staffSpecializations, type CardPrintLayout, type StaffSpecialization } from "@shared/participant-card";
 import { checkInProfileLabels, checkInTypes, isCheckInType, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
@@ -31,7 +31,17 @@ export default function BadgesPage() {
   const [mode, setMode] = useState<PrintMode>("complete");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const queryClient = useQueryClient();
   const roster = useQuery<ParticipantWithRelations[]>({ queryKey: ["/api/participants"] });
+  const specialization = useMutation({
+    mutationFn: async ({ id, value }: { id: number; value: StaffSpecialization | null }) => {
+      await apiRequest("PATCH", `/api/participants/${id}`, { staffSpecialization: value });
+    },
+    onSuccess: (_, { id, value }) => {
+      queryClient.setQueryData<ParticipantWithRelations[]>(["/api/participants"], people =>
+        people?.map(person => person.id === id ? { ...person, staffSpecialization: value } : person));
+    },
+  });
   const allowed = hasAnyRole(["admin"]) ? checkInTypes
     : checkInTypes.filter(type => type !== "staff" && hasAnyRole([`staff_${type}`]));
   const templateProfile = allowed.find(type => type === blankProfile) ?? allowed[0];
@@ -107,7 +117,7 @@ export default function BadgesPage() {
                 <option value="back">Surimpression verso · code</option>
               </select>
             </label>
-            <Button type="button" className="min-h-11" disabled={!ids.length || ids.length > 500 || busy} onClick={() => void download(ids)}>
+            <Button type="button" className="min-h-11" disabled={!ids.length || ids.length > 500 || busy || specialization.isPending} onClick={() => void download(ids)}>
               <Printer /> Exporter la sélection ({ids.length})
             </Button>
           </div>
@@ -199,11 +209,27 @@ export default function BadgesPage() {
           {current ? <section aria-label="Carte sélectionnée" className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-semibold">Carte de {current.firstName} {current.lastName}</h2>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => void download([current.id])}><Download /> Exporter cette carte</Button>
+              <Button type="button" variant="outline" disabled={busy || specialization.isPending} onClick={() => void download([current.id])}><Download /> Exporter cette carte</Button>
             </div>
+            {current.type === "staff" && hasAnyRole(["admin"]) && (
+              <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+                <label className="grid gap-1 text-sm font-medium">Spécialisation
+                  <select className="min-h-11 rounded-md border border-input bg-background px-2"
+                    value={current.staffSpecialization ?? ""} disabled={busy || specialization.isPending}
+                    onChange={event => specialization.mutate({
+                      id: current.id, value: staffSpecializations.find(role => role === event.target.value) ?? null,
+                    })}>
+                    <option value="">Case vierge · à écrire à la main</option>
+                    {staffSpecializations.map(role => <option key={role} value={role}>{staffSpecializationLabels[role]}</option>)}
+                  </select>
+                </label>
+                {specialization.isPending && specialization.variables?.id === current.id && <p role="status" className="text-sm">Enregistrement…</p>}
+                {specialization.isError && specialization.variables?.id === current.id && <p role="alert" className="text-sm text-destructive">La spécialisation n’a pas été enregistrée.</p>}
+              </div>
+            )}
             {card.isLoading && <p role="status">Préparation de la carte…</p>}
             {card.isError && <p role="alert">Impossible de charger la carte.</p>}
-            {card.data && <><CardCodeActions key={card.data.id} card={card.data} /><ParticipantCard card={card.data} /></>}
+            {card.data && <><CardCodeActions key={card.data.id} card={card.data} /><ParticipantCard card={{ ...card.data, staffSpecialization: current.staffSpecialization }} /></>}
             <SouvenirPhoto key={current.id} onSave={async photo => { await apiRequest("PATCH", `${cardsPath}/${current.id}/photo`, { photo }); }} />
           </section> : <p className="p-4 text-muted-foreground">Ouvrez un nom dans la liste pour voir sa carte et associer une photo.</p>}
         </div>

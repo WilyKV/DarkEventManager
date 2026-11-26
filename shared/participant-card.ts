@@ -16,6 +16,19 @@ export const adminSouvenirPath = "/souvenir/admin";
 export const souvenirCodeHint = "Majuscules, minuscules et espaces acceptés";
 export const photoMaxBytes = 64_000;
 
+export const staffSpecializations = ["zombies", "survivants", "boutique", "repas", "photographe", "modele", "general"] as const;
+export type StaffSpecialization = typeof staffSpecializations[number];
+
+export const staffSpecializationLabels: Record<StaffSpecialization, string> = {
+  zombies: "Zombies",
+  survivants: "Survivants",
+  boutique: "Boutique",
+  repas: "Repas",
+  photographe: "Photographe",
+  modele: "Modèle",
+  general: "Général",
+};
+
 export type PrintableCard = {
   id: number;
   firstName: string;
@@ -25,6 +38,7 @@ export type PrintableCard = {
   code: string;
   squad?: number | null;
   briefingTime?: string | null;
+  staffSpecialization?: StaffSpecialization | null;
 };
 
 export type SouvenirSummary = {
@@ -118,6 +132,7 @@ export const cardLayout = {
   nameCenterY: 25,
   namePanelY,
   namePanelHeight: 10,
+  staffSpecializationBox: { x: 4.5, y: 32, width: 48.5, height: 9 },
   scheduleY,
   scheduleHeight,
   scheduleSideLabelWidth: 3.5,

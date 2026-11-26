@@ -5,7 +5,7 @@ import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, staffSpecializationLabels, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -76,6 +76,12 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
           </span>
         </div>
       ))}
+      {card.type === "staff" && (
+        <div aria-label="Spécialisation" className="absolute flex items-center rounded-[0.95cqw] bg-white px-[2cqw] text-[3.6cqw] font-bold text-[#101828]"
+          style={at(cardLayout.staffSpecializationBox.x, cardLayout.staffSpecializationBox.y, cardLayout.staffSpecializationBox.width, cardLayout.staffSpecializationBox.height)}>
+          {card.staffSpecialization && staffSpecializationLabels[card.staffSpecialization]}
+        </div>
+      )}
       {cardHasMealBox(card.type) && (
         <span role="img" aria-label="Case repas à cocher" className="absolute flex items-center justify-center rounded-[0.55cqw] bg-white"
           style={at(mealBoxX, mealBoxY, mealBoxSize, mealBoxSize)}>

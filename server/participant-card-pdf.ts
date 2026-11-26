@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, calibratedCardSheet, cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, calibratedCardSheet, cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, staffSpecializationLabels, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -45,7 +45,7 @@ function fieldIcon(doc: PDFKit.PDFDocument, field: keyof typeof cardFieldIcons, 
     .path(cardFieldIcons[field]).stroke("#0f172a").restore();
 }
 
-function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, recovery: boolean, type: string, artwork?: string) {
+function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, recovery: boolean, type: string, artwork?: string, staffSpecialization?: PrintableCard["staffSpecialization"]) {
   backdrop(doc, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
     .text("ZOMB’IN THE DARK", pt(6), pt(5), { lineBreak: false });
@@ -68,6 +68,15 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       doc.text(field.label, centerX - doc.widthOfString(field.label) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
       doc.restore();
       if (field.key !== "briefing") fieldIcon(doc, field.key, field.x, scheduleY, field.width, scheduleHeight);
+    }
+    if (type === "staff") {
+      const box = cardLayout.staffSpecializationBox;
+      doc.roundedRect(pt(box.x), pt(box.y), pt(box.width), pt(box.height), pt(0.8)).fill("#ffffff");
+      const label = staffSpecialization && staffSpecializationLabels[staffSpecialization];
+      if (label) {
+        doc.fillColor("#101828").font("CardBold").fontSize(9);
+        doc.text(label, pt(box.x + 1.7), pt(box.y + box.height / 2) - doc.currentLineHeight() / 2, { lineBreak: false });
+      }
     }
     if (cardHasMealBox(type)) {
       doc.roundedRect(pt(mealBoxX), pt(mealBoxY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
@@ -199,7 +208,7 @@ export async function renderParticipantCards(cards: readonly PrintableCard[], or
             const type = card?.type ?? templateType;
             const theme = cardTheme(type);
             template(doc, side, theme, a4 ? a4CardBleed : { x: 0, y: 0 }, !card, type,
-              theme.artwork ? artworkByName.get(theme.artwork) : undefined);
+              theme.artwork ? artworkByName.get(theme.artwork) : undefined, card?.staffSpecialization);
             if (a4) trimMarks(doc);
           }
           if (side === "front") {

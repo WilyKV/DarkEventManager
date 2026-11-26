@@ -105,6 +105,7 @@ async function cardPlayers(tx: Transaction, ids?: number[]) {
   return tx.select({
     id: participants.id, createdAt: participants.createdAt, firstName: participants.firstName,
     lastName: participants.lastName, type: participants.type, wave: timeSlots.name, squad: squads.number, squadBriefing: squads.briefing,
+    staffSpecialization: participants.staffSpecialization,
     arrivedAt: participants.arrivedAt, briefingTime: timeSlots.briefingTime, gameStart: timeSlots.gameTime, gameEnd: timeSlots.exitTime, squadSize: squadCounts.total,
   }).from(participants).leftJoin(timeSlots, eq(timeSlots.id, participants.timeSlotId))
     .leftJoin(squads, eq(squads.id, participants.squadId))
@@ -403,9 +404,9 @@ export function registerParticipantCardRoutes(app: Express) {
         .from(participants).where(isNull(participants.deletedAt));
       const prefixes = cardSurnamePrefixes(names);
       const records = await issueCards(tx, ordered, config);
-      return ordered.map(({ id, firstName, type, squad, briefingTime }, index): PrintableCard => {
+      return ordered.map(({ id, firstName, type, squad, briefingTime, staffSpecialization }, index): PrintableCard => {
         const { token, code } = records[index];
-        return { id, token, code, firstName, surnamePrefix: prefixes.get(id) ?? "", type, squad, briefingTime };
+        return { id, token, code, firstName, surnamePrefix: prefixes.get(id) ?? "", type, squad, briefingTime, ...(type === "staff" && { staffSpecialization }) };
       });
     });
     if (!cards) return res.status(404).json({ message: "Une fiche est introuvable dans vos listes." });

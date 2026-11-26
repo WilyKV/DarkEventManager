@@ -35,6 +35,8 @@ const participantPatchSchema = insertParticipantSchema.omit({ secretCode: true }
   returnedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value)).nullish(),
 }).strict();
 function canPatchParticipantOperations(roles: unknown, profile: string, changes: z.infer<typeof participantPatchSchema>) {
+  if (changes.staffSpecialization !== undefined &&
+      (profile !== "staff" || (changes.type !== undefined && changes.type !== "staff") || !hasSessionRole(roles, ["admin"]))) return false;
   if (hasSessionRole(roles, ["admin"])) return true;
   const presence = ["arrived", "arrivedAt", "returned", "returnedAt"].some(key => Object.hasOwn(changes, key));
   const meal = ["hasFreemeal", "freeMealClaimed"].some(key => Object.hasOwn(changes, key));

@@ -448,6 +448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/time-slots", requireRole("admin"), async (req, res) => {
     try {
       const data = insertTimeSlotSchema.parse(req.body) as InsertTimeSlot;
+      if (data.staffAssignment && data.type !== "staff") return res.status(400).json({ message: "Cette spécialisation est réservée au staff." });
       const timeSlot = await storage.createTimeSlot(data);
       res.json(timeSlot);
     } catch (error) {
@@ -460,6 +461,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!data.success) return res.status(400).json({ message: "Données du créneau invalides." });
     try {
       const id = parseInt(String(req.params.id), 10);
+      if (data.data.staffAssignment && (data.data.type ?? (await storage.getTimeSlot(id))?.type) !== "staff") {
+        return res.status(400).json({ message: "Cette spécialisation est réservée au staff." });
+      }
       const timeSlot = await storage.updateTimeSlot(id, data.data);
       res.json(timeSlot);
     } catch (error) {

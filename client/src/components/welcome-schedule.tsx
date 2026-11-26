@@ -1,18 +1,19 @@
 import { Info } from "lucide-react";
-import { timeSlotHourFields, type TimeSlotPhase, type WelcomeTimeSlot } from "@shared/time-slot-notes";
+import { staffAssignmentPhases, staffAssignmentPhaseLabels, timeSlotHourFields, type TimeSlotPhase, type WelcomeTimeSlot } from "@shared/time-slot-notes";
 
 const labels = { meal: "Repas", briefing: "Briefing", game: "Début du jeu", exit: "Sortie" };
 const briefingPhases = ["briefing", "game", "exit"] as const;
 
-export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = false, compact = false }: {
+export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = false, compact = false, staff = false }: {
   slot?: WelcomeTimeSlot | null;
   phases?: readonly TimeSlotPhase[];
   notesOnly?: boolean;
   compact?: boolean;
+  staff?: boolean;
 }) {
   if (!slot) return null;
 
-  const rows = phases.map(phase => ({
+  const rows = (staff ? staffAssignmentPhases : phases).map(phase => ({
     phase,
     time: slot[timeSlotHourFields[phase]],
     note: slot.welcomeNotes?.[phase]?.trim(),
@@ -23,7 +24,7 @@ export function WelcomeSchedule({ slot, phases = briefingPhases, notesOnly = fal
     <dl className={`divide-y divide-border/75 rounded-lg bg-muted/60 px-3 ${compact ? "text-xs" : "text-sm"}`}>
       {rows.map(({ phase, time, note }) => (
         <div key={phase} className={`grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-1 ${compact ? "py-1.5" : "py-2.5"}`}>
-          <dt className="font-medium">{labels[phase]}</dt>
+          <dt className="font-medium">{staff && phase !== "game" ? staffAssignmentPhaseLabels[phase] : labels[phase]}</dt>
           {time && <dd className="font-semibold tabular-nums text-right">{time.replace(/^(\d{1,2}:\d{2}):\d{2}$/, "$1")}</dd>}
           {note && <dd className="col-span-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-muted-foreground">{note}</dd>}
         </div>

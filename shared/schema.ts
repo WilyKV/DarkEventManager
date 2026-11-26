@@ -4,7 +4,7 @@ import { pgTable, text, varchar, integer, boolean, timestamp, date, json, jsonb,
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
-import { staffSpecializations, type SouvenirAttendance, type SouvenirSettings, type SouvenirSummary } from "./participant-card";
+import { staffAssignmentKinds, staffSpecializations, type SouvenirAttendance, type SouvenirSettings, type SouvenirSummary } from "./participant-card";
 import { timeSlotNotesSchema, type TimeSlotNotes } from "./time-slot-notes";
 
 // Time Slots Table
@@ -12,6 +12,7 @@ export const timeSlots = pgTable("time_slots", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
   name: text("name").notNull(),
   type: text("type").notNull(), // 'zombie', 'survivant' or 'staff'
+  staffAssignment: text("staff_assignment", { enum: staffAssignmentKinds }),
   mealTime: text("meal_time").notNull(),
   briefingTime: text("briefing_time").notNull(),
   gameTime: text("game_time").notNull(),
@@ -57,6 +58,15 @@ export const participants = pgTable("participants", {
   createdAt: timestamp("created_at").defaultNow(),
   deletedAt: timestamp("deleted_at"),
 });
+
+export const staffCompensations = pgTable("staff_compensations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  participantId: integer("participant_id").notNull().unique().references(() => participants.id, { onDelete: "cascade" }),
+  volunteer: boolean("volunteer").notNull(),
+  rateCents: integer("rate_cents"),
+}, table => [
+  check("staff_compensation_valid_rate", sql`${table.rateCents} IS NULL OR (NOT ${table.volunteer} AND ${table.rateCents} >= 0)`),
+]);
 
 // Issued cards retain their closed recap when the operational roster is reset.
 export const participantCards = pgTable("participant_cards", {
@@ -378,6 +388,7 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 export const insertServerEventSchema = createInsertSchema(serverEvents);
 export const insertTimeSlotSchema = createInsertSchema(timeSlots, {
   welcomeNotes: timeSlotNotesSchema.nullish(),
+  staffAssignment: z.enum(staffAssignmentKinds).nullish(),
 });
 export const insertSquadSchema = createInsertSchema(squads);
 export const createSquadBatchSchema = z.object({

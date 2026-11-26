@@ -1,3 +1,5 @@
+import { StaffCompensationEditor } from "./staff-compensation";
+import { useAuth } from "@/lib/auth";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,6 +20,8 @@ interface EditParticipantDialogProps {
 }
 
 export function EditParticipantDialog({ participant, onClose, onSuccess }: EditParticipantDialogProps) {
+  const { hasAnyRole } = useAuth();
+  const staff = participant.type === "staff";
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     firstName: participant.firstName,
@@ -143,16 +147,16 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="timeSlot">Créneau</Label>
+            <Label htmlFor="timeSlot">{staff ? "Attribution" : "Créneau"}</Label>
             <Select
               value={formData.timeSlotId}
               onValueChange={(value) => setFormData({ ...formData, timeSlotId: value })}
             >
               <SelectTrigger id="timeSlot">
-                <SelectValue placeholder="Sélectionner un créneau" />
+                <SelectValue placeholder={staff ? "Sélectionner une attribution" : "Sélectionner un créneau"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Aucun créneau</SelectItem>
+                <SelectItem value="none">{staff ? "Sans attribution" : "Aucun créneau"}</SelectItem>
                 {timeSlots.map((slot) => (
                   <SelectItem key={slot.id} value={slot.id.toString()}>
                     {slot.name}
@@ -216,6 +220,7 @@ export function EditParticipantDialog({ participant, onClose, onSuccess }: EditP
             </Button>
           </div>
         </form>
+        {staff && hasAnyRole(["admin"]) && <StaffCompensationEditor participantId={participant.id} />}
       </DialogContent>
     </Dialog>
   );

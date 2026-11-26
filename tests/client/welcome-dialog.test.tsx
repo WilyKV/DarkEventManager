@@ -145,13 +145,13 @@ describe("Accueil tactile", () => {
     expect(screen.getByText("0 sur 15 sélectionnées")).toBeVisible();
   });
 
-  it("permet de garder le staff sans créneau et limite le choix aux profils autorisés", async () => {
+  it("permet de garder le staff sans attribution et limite le choix aux profils autorisés", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
     render(<WelcomeDialog roster={roster} profileTypes={["staff"]} onSave={onSave} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Zombie" })).toBeNull();
     await click(user, "Staff");
-    expect(screen.getByText("Staff · Sans créneau")).toBeVisible();
+    expect(screen.getByText("Staff · Sans attribution")).toBeVisible();
     await click(user, "Choisir les personnes");
     await click(user, "B");
     await click(user, /Borel Aline/);

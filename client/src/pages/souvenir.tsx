@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ArrowRight, CalendarDays, Clock3, Download, Flag, Images, LockKeyhole, LogOut, Radio, Users } from "lucide-react";
-import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, souvenirRecoveryApi, type ParticipantSouvenir } from "@shared/participant-card";
+import { cardAssets, cardsPath, souvenirCodeHint, souvenirErasureDeadline, souvenirRecoveryApi, type ParticipantSouvenir, type SouvenirPurchases } from "@shared/participant-card";
 import { checkInProfileLabels, checkInTypes } from "@shared/check-in";
 import { StaffCardActions } from "@/components/staff-card-actions";
 import { useAuth } from "@/lib/auth";
@@ -19,6 +19,44 @@ function Detail({ icon, label, children }: { icon: ReactNode; label: string; chi
     <dt>{icon}{label}</dt>
     <dd>{children}</dd>
   </div>;
+}
+
+const souvenirEuro = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" });
+
+function SouvenirPurchasesSection({ purchases, receipt }: { purchases?: SouvenirPurchases; receipt?: string }) {
+  if (!purchases) return <section className="souvenir-highlights" aria-labelledby="souvenir-purchases-title">
+    <h2 id="souvenir-purchases-title">Repas et achats</h2>
+    <p className="mt-3 text-sm">L’historique des achats n’est pas disponible pour cet espace.</p>
+  </section>;
+  const { freeMealClaimed, freeMealIncluded, lines } = purchases;
+  const total = lines.reduce((sum, line) => sum + (line.paid ? line.totalCents : 0), 0);
+  return <section className="souvenir-highlights space-y-3" aria-labelledby="souvenir-purchases-title">
+    <h2 id="souvenir-purchases-title">Repas et achats</h2>
+    <p className="text-sm">{freeMealClaimed ? "Repas offert pris." : freeMealIncluded ? "Repas offert non enregistré comme pris." : "Aucun repas offert enregistré."}</p>
+    {lines.length ? <>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[28rem] text-left text-sm">
+          <thead><tr className="border-b border-white/20">
+            <th scope="col" className="py-2 pr-2">Article</th>
+            <th scope="col" className="p-2">Qté</th>
+            <th scope="col" className="p-2">Total</th>
+            <th scope="col" className="py-2 pl-2">Paiement</th>
+          </tr></thead>
+          <tbody>{lines.map((line, index) => <tr key={index} className="border-b border-white/10">
+            <td className="py-2 pr-2">{line.name}<span className="block text-xs opacity-75">{line.category === "repas" ? "Repas" : "Boutique"} · {souvenirEuro.format(line.unitCents / 100)} / unité</span></td>
+            <td className="p-2">{line.quantity}</td><td className="whitespace-nowrap p-2">{souvenirEuro.format(line.totalCents / 100)}</td>
+            <td className="py-2 pl-2">{line.paid ? "Réglé" : "Non réglé"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <strong>Total payé · {souvenirEuro.format(total / 100)}</strong>
+        {receipt && lines.some(line => line.paid) && <Button asChild variant="outline">
+          <a href={receipt} download><Download aria-hidden /> Télécharger mon relevé d’achats</a>
+        </Button>}
+      </div>
+    </> : <p className="text-sm">Aucun achat enregistré.</p>}
+  </section>;
 }
 
 function SouvenirPortrait({ summary, src, onRemove, busy }: { summary: ParticipantSouvenir; src: string; onRemove?: () => void; busy: boolean }) {
@@ -241,13 +279,13 @@ function SouvenirSession({ token, adminId, onRecoveryClose }: { token?: string; 
             </> : <p className="souvenir-squad-size">Sans affectation</p>}
           </div>}
           <dl className="souvenir-details">
-            <Detail icon={<Radio />} label="Vague">{summary.wave ?? "Sans vague attribuée"}</Detail>
+            <Detail icon={<Radio />} label={summary.type === "staff" ? "Attribution" : "Vague"}>{summary.wave ?? (summary.type === "staff" ? "Sans attribution" : "Sans vague attribuée")}</Detail>
             {summary.arrivedAt && <Detail icon={<Clock3 />} label="Arrivée">
               <time dateTime={summary.arrivedAt}>{parisDate.format(new Date(summary.arrivedAt))}</time>
             </Detail>}
-            {summary.gameStart && <Detail icon={<Clock3 />} label="Début du jeu">{summary.gameStart}</Detail>}
-            {summary.gameEnd && <Detail icon={<Flag />} label="Fin du jeu · vague">{summary.gameEnd}</Detail>}
-            {summary.squadBriefing && <Detail icon={<Users />} label={`Consignes · ${squadLabel}`}>{summary.squadBriefing}</Detail>}
+            {summary.type !== "staff" && summary.gameStart && <Detail icon={<Clock3 />} label="Début du jeu">{summary.gameStart}</Detail>}
+            {summary.gameEnd && <Detail icon={<Flag />} label={summary.type === "staff" ? "Fin de l’attribution" : "Fin du jeu · vague"}>{summary.gameEnd}</Detail>}
+            {summary.type !== "staff" && summary.squadBriefing && <Detail icon={<Users />} label={`Consignes · ${squadLabel}`}>{summary.squadBriefing}</Detail>}
           </dl>
         </section>
         {summary.highlights && <section className="souvenir-highlights" aria-label="La soirée en chiffres">
@@ -257,6 +295,7 @@ function SouvenirSession({ token, adminId, onRecoveryClose }: { token?: string; 
             <div><dt>Survivants présents</dt><dd>{summary.highlights.survivors.toLocaleString("fr-FR")}</dd></div>
           </dl>
         </section>}
+        <SouvenirPurchasesSection purchases={summary.purchases} receipt={adminId ? undefined : `${view}/receipt`} />
         <section className="souvenir-album" aria-labelledby="souvenir-album-title">
           <span className="souvenir-album-icon" aria-hidden><Images /></span>
           <div>

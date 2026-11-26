@@ -14,6 +14,7 @@ import { registerSyncRoutes } from "./sync-routes";
 import { registerSyncPushPullRoutes } from "./sync-push-pull-routes";
 import { registerAuthRoutes } from "./auth-routes";
 import { requireAuth } from "./auth-middleware";
+import { registerStaffCompensationRoutes } from "./staff-compensation-routes";
 import { purgeExpiredParticipantCards, registerParticipantCardRoutes } from "./participant-card-routes";
 import { setupEndEventRoute } from "./end-event-routes";
 import { wsSyncServer } from "./websocket-sync";
@@ -103,6 +104,7 @@ app.use(publishLiveChanges);
   // Register end event route (admin only)
   setupEndEventRoute(app);
   registerParticipantCardRoutes(app);
+  registerStaffCompensationRoutes(app);
 
   // Register main routes
   registerDemoDataRoutes(app);

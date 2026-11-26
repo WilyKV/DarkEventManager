@@ -130,12 +130,15 @@ export function ParticipantListByTimeslot({
     .map(slot => ({
       id: slot.id,
       name: slot.name,
-      details: `Briefing ${slot.briefingTime} · Jeu ${slot.gameTime}`,
+      details: type === "staff" ? [
+        slot.briefingTime && `Arrivée ${slot.briefingTime}`, slot.mealTime && `Repas conseillé ${slot.mealTime}`,
+        slot.exitTime && `Fin de l’attribution ${slot.exitTime}`,
+      ].filter(Boolean).join(" · ") : `Briefing ${slot.briefingTime} · Jeu ${slot.gameTime}`,
       members: filteredParticipants.filter(p => p.timeSlotId === slot.id),
     }));
   groups.push({
     id: -1,
-    name: "Sans créneau",
+    name: type === "staff" ? "Sans attribution" : "Sans créneau",
     details: "",
     members: filteredParticipants.filter(p => p.timeSlotId == null || !knownSlotIds.has(p.timeSlotId)),
   });
@@ -242,7 +245,7 @@ export function ParticipantListByTimeslot({
                             <span className="mt-1 flex flex-wrap items-center gap-1.5">
                               <Badge variant="outline" className={getStatusColor(participant)}>{getStatusText(participant)}</Badge>
                               {showArrivalTimes && (participant.arrived || participant.arrivedAt) && <ArrivalTime value={participant.arrivedAt} />}
-                              {participant.squad && <span className="text-xs text-muted-foreground">Équipe {participant.squad.number}</span>}
+                              {type !== "staff" && participant.squad && <span className="text-xs text-muted-foreground">Équipe {participant.squad.number}</span>}
                               {participant.secretCode && type !== "zombie" && (
                                 <Badge variant="outline" className="font-mono text-xs">Code {participant.secretCode}</Badge>
                               )}

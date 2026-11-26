@@ -15,7 +15,7 @@ import { Form } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import type { TimeSlot } from "@shared/schema";
-import { TimeSlotFields, timeSlotDialogClass, timeSlotFormSchema, timeSlotFormValues, type TimeSlotFormData } from "./time-slot-fields";
+import { staffAssignmentFormSchema, TimeSlotFields, timeSlotDialogClass, timeSlotFormSchema, timeSlotFormValues, type TimeSlotFormData } from "./time-slot-fields";
 
 interface EditTimeSlotDialogProps {
   timeSlot: TimeSlot;
@@ -25,9 +25,10 @@ interface EditTimeSlotDialogProps {
 
 export function EditTimeSlotDialog({ timeSlot, open, onOpenChange }: EditTimeSlotDialogProps) {
   const { toast } = useToast();
+  const staff = timeSlot.type === "staff";
 
   const form = useForm<TimeSlotFormData>({
-    resolver: zodResolver(timeSlotFormSchema),
+    resolver: zodResolver(staff ? staffAssignmentFormSchema : timeSlotFormSchema),
     defaultValues: timeSlotFormValues(timeSlot),
   });
 
@@ -37,7 +38,7 @@ export function EditTimeSlotDialog({ timeSlot, open, onOpenChange }: EditTimeSlo
 
   const updateMutation = useMutation({
     mutationFn: async (data: TimeSlotFormData) => {
-      return await apiRequest("PATCH", `/api/time-slots/${timeSlot.id}`, data);
+      return await apiRequest("PATCH", `/api/time-slots/${timeSlot.id}`, staff ? { ...data, gameTime: "" } : data);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -45,15 +46,15 @@ export function EditTimeSlotDialog({ timeSlot, open, onOpenChange }: EditTimeSlo
           liveQueryPrefixes.roster.some(prefix => matchesQueryPrefix(key, prefix)),
       });
       toast({
-        title: "Créneau modifié",
-        description: "Le créneau horaire a été modifié avec succès.",
+        title: staff ? "Attribution modifiée" : "Créneau modifié",
+        description: staff ? "L’attribution a été modifiée." : "Le créneau horaire a été modifié avec succès.",
       });
       onOpenChange(false);
     },
     onError: (error) => {
       toast({
         title: "Erreur",
-        description: "Une erreur est survenue lors de la modification du créneau.",
+        description: staff ? "Impossible d’enregistrer l’attribution." : "Impossible d’enregistrer le créneau.",
         variant: "destructive",
       });
       console.error("Error updating time slot:", error);
@@ -69,15 +70,15 @@ export function EditTimeSlotDialog({ timeSlot, open, onOpenChange }: EditTimeSlo
       <DialogContent className={timeSlotDialogClass}>
         <DialogHeader>
           <DialogTitle>
-            Modifier le créneau horaire
+            {staff ? "Modifier l’attribution" : "Modifier le créneau horaire"}
           </DialogTitle>
           <DialogDescription>
-            Les précisions facultatives s’affichent à l’accueil des personnes de ce créneau.
+            {staff ? "Les précisions facultatives s’affichent à l’accueil du staff." : "Les précisions facultatives s’affichent à l’accueil des personnes de ce créneau."}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <TimeSlotFields control={form.control} />
+            <TimeSlotFields control={form.control} staff={staff} />
 
             <div className="flex justify-end gap-3 pt-2">
               <Button

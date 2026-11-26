@@ -3,8 +3,8 @@ import type { Express, Request } from "express";
 import rateLimit from "express-rate-limit";
 import { and, count, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
-import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, squadAuditLog, squads, timeSlots } from "@shared/schema";
-import { cardPrintFormatLabel, cardPrintLayouts, cardSurnamePrefixes, cardsPath, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
+import { appConfig, auditLogs, discounts, mealDiscounts, mealItems, mealPurchases, participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots } from "@shared/schema";
+import { cardPrintFormatLabel, cardPrintLayouts, cardSurnamePrefixes, cardsPath, normalizeSouvenirCode, staffCardSpecialization, photoMaxBytes, souvenirErasureRequestsPath, souvenirExpiry, souvenirRecoveryApi, souvenirSettingsPath, type PrintableCard, type SouvenirPurchases, type SouvenirPurchaseLine, type SouvenirAttendance, type SouvenirHighlights, type SouvenirSettings, type SouvenirSummary } from "@shared/participant-card";
 import { freeMealPath, staffCardPath, tokenFromCardQr, type StaffCardScan } from "@shared/card-scan";
 import { checkInRoles, checkInTypes } from "@shared/check-in";
 import { db } from "./db";
@@ -12,6 +12,7 @@ import { storage } from "./storage";
 import { hasSessionRole, requireRole } from "./auth-middleware";
 import { allowedCheckInTypes } from "./check-in-routes";
 import { checkSyncPermissions } from "./sync-middleware";
+import { renderSouvenirReceipt } from "./souvenir-receipt";
 import { printModes, renderParticipantCards } from "./participant-card-pdf";
 import { offlinePlayerIdentity } from "./zombie-offline-routes";
 
@@ -105,7 +106,8 @@ async function cardPlayers(tx: Transaction, ids?: number[]) {
   return tx.select({
     id: participants.id, createdAt: participants.createdAt, firstName: participants.firstName,
     lastName: participants.lastName, type: participants.type, wave: timeSlots.name, squad: squads.number, squadBriefing: squads.briefing,
-    staffSpecialization: participants.staffSpecialization,
+    staffSpecialization: participants.staffSpecialization, staffAssignment: timeSlots.staffAssignment,
+    freeMealClaimed: participants.freeMealClaimed, hasFreeMeal: participants.hasFreemeal,
     arrivedAt: participants.arrivedAt, briefingTime: timeSlots.briefingTime, gameStart: timeSlots.gameTime, gameEnd: timeSlots.exitTime, squadSize: squadCounts.total,
   }).from(participants).leftJoin(timeSlots, eq(timeSlots.id, participants.timeSlotId))
     .leftJoin(squads, eq(squads.id, participants.squadId))
@@ -124,6 +126,36 @@ function recap(player: CardPlayer, eventDay: string | null): SouvenirSummary {
   return { firstName, lastName, type, wave, squad, squadBriefing, squadSize, gameStart, gameEnd, arrivedAt: arrivedAt?.toISOString() ?? null, eventDay };
 }
 
+async function purchaseHistory(tx: Transaction, players: readonly CardPlayer[]) {
+  const result = new Map<number, SouvenirPurchases>(players.map(player => [player.id, {
+    freeMealClaimed: Boolean(player.freeMealClaimed), freeMealIncluded: Boolean(player.hasFreeMeal), lines: [],
+  }]));
+  if (!players.length) return result;
+
+  const ids = players.map(player => player.id);
+  const [shop, meals] = await Promise.all([
+    tx.select({ participantId: purchases.participantId, name: shopItems.name, quantity: purchases.quantity,
+      unit: purchases.unitPrice, total: purchases.totalPrice, paid: purchases.isPaid })
+      .from(purchases).innerJoin(shopItems, eq(shopItems.id, purchases.shopItemId))
+      .where(inArray(purchases.participantId, ids)).orderBy(purchases.id),
+    tx.select({ participantId: mealPurchases.participantId, name: mealItems.name, quantity: mealPurchases.quantity,
+      unit: mealPurchases.unitPrice, total: mealPurchases.totalPrice, paid: mealPurchases.isPaid })
+      .from(mealPurchases).innerJoin(mealItems, eq(mealItems.id, mealPurchases.mealItemId))
+      .where(inArray(mealPurchases.participantId, ids)).orderBy(mealPurchases.id),
+  ]);
+  const cents = (amount: string) => Math.round(Number(amount) * 100);
+  function addLines(rows: typeof shop, category: SouvenirPurchaseLine["category"]) {
+    for (const { participantId, name, quantity, unit, total, paid } of rows) {
+      result.get(participantId)?.lines.push({
+        category, name, quantity, unitCents: cents(unit), totalCents: cents(total), paid: Boolean(paid),
+      });
+    }
+  }
+  addLines(shop, "boutique");
+  addLines(meals, "repas");
+  return result;
+}
+
 async function lockedConfig(tx: Transaction, id: number) {
   const [config] = await tx.select().from(appConfig).where(eq(appConfig.id, id)).for("update");
   if (!config) throw new Error("Configuration introuvable");
@@ -139,11 +171,12 @@ async function issueCards(tx: Transaction, players: CardPlayer[], config: typeof
   const expiresAt = config.eventClosedAt ? souvenirExpiry(config.eventClosedAt) : null;
   const highlights = expiresAt && players.some(player => !byIdentity.has(identityOf(player)))
     ? await eventHighlights(tx, config) : undefined;
+  const history = highlights ? await purchaseHistory(tx, players.filter(player => !byIdentity.has(identityOf(player)))) : undefined;
   const missing = players.flatMap(player => {
     const identity = identityOf(player);
     if (byIdentity.has(identity)) return [];
     return [{
-      identity, participantId: player.id, summary: { ...recap(player, config.eventDay), highlights },
+      identity, participantId: player.id, summary: { ...recap(player, config.eventDay), highlights, purchases: history?.get(player.id) },
       token: randomBytes(20).toString("base64url"),
       code: generateCardCode(),
       expiresAt,
@@ -173,9 +206,10 @@ export async function closeParticipantCards() {
     const issued = await tx.select({ id: participantCards.id, identity: participantCards.identity })
       .from(participantCards).where(isNull(participantCards.expiresAt));
     const byIdentity = new Map(roster.map(player => [identityOf(player), player]));
+    const history = await purchaseHistory(tx, roster);
     for (const card of issued) {
       const player = byIdentity.get(card.identity);
-      if (player) await tx.update(participantCards).set({ expiresAt, summary: { ...recap(player, config.eventDay), highlights } })
+      if (player) await tx.update(participantCards).set({ expiresAt, summary: { ...recap(player, config.eventDay), highlights, purchases: history.get(player.id) } })
         .where(eq(participantCards.id, card.id));
     }
     await tx.update(appConfig).set({ eventClosedAt: closedAt, souvenirSettings }).where(eq(appConfig.id, id));
@@ -184,7 +218,7 @@ export async function closeParticipantCards() {
 
 async function completeArchivedSummary(card: typeof participantCards.$inferSelect, currentConfig?: typeof appConfig.$inferSelect) {
   const summary = card.summary;
-  if (summary.highlights && summary.gameStart !== undefined && summary.gameEnd !== undefined) return summary;
+  if (summary.highlights && summary.purchases && summary.gameStart !== undefined && summary.gameEnd !== undefined) return summary;
   const config = currentConfig ?? await storage.getSyncConfig();
   if (!card.expiresAt || !config.eventClosedAt ||
       card.expiresAt.getTime() !== souvenirExpiry(config.eventClosedAt).getTime()) return summary;
@@ -193,7 +227,9 @@ async function completeArchivedSummary(card: typeof participantCards.$inferSelec
     const schedule = player && identityOf(player) === card.identity && player.wave === summary.wave
       ? { gameStart: summary.gameStart ?? player.gameStart, gameEnd: summary.gameEnd ?? player.gameEnd }
       : {};
-    return { ...summary, ...schedule, highlights: summary.highlights ?? await eventHighlights(tx, config) };
+    const history = !summary.purchases && player && identityOf(player) === card.identity
+      ? (await purchaseHistory(tx, [player])).get(player.id) : undefined;
+    return { ...summary, ...schedule, purchases: summary.purchases ?? history, highlights: summary.highlights ?? await eventHighlights(tx, config) };
   });
 }
 
@@ -404,9 +440,9 @@ export function registerParticipantCardRoutes(app: Express) {
         .from(participants).where(isNull(participants.deletedAt));
       const prefixes = cardSurnamePrefixes(names);
       const records = await issueCards(tx, ordered, config);
-      return ordered.map(({ id, firstName, type, squad, briefingTime, staffSpecialization }, index): PrintableCard => {
+      return ordered.map(({ id, firstName, type, squad, briefingTime, staffSpecialization, staffAssignment }, index): PrintableCard => {
         const { token, code } = records[index];
-        return { id, token, code, firstName, surnamePrefix: prefixes.get(id) ?? "", type, squad, briefingTime, ...(type === "staff" && { staffSpecialization }) };
+        return { id, token, code, firstName, surnamePrefix: prefixes.get(id) ?? "", type, squad, briefingTime, ...(type === "staff" && { staffSpecialization: staffCardSpecialization(staffAssignment, staffSpecialization) }) };
       });
     });
     if (!cards) return res.status(404).json({ message: "Une fiche est introuvable dans vos listes." });
@@ -479,7 +515,7 @@ export function registerParticipantCardRoutes(app: Express) {
     const { type } = form.data;
     const firstName = recoveryName(form.data.firstName);
     const lastName = recoveryName(form.data.lastName);
-    const code = form.data.code.replace(/[\s-]/g, "").toUpperCase();
+    const code = normalizeSouvenirCode(form.data.code);
     if (!firstName || !lastName || !/^[A-Z2-9]{10}$/.test(code)) return rejected();
 
     const candidates = await db.select().from(participantCards).where(and(
@@ -508,7 +544,7 @@ export function registerParticipantCardRoutes(app: Express) {
   });
 
   app.post(`${cardsPath}/open/:token`, unlockLimit, async (req, res) => {
-    const code = typeof req.body?.code === "string" ? req.body.code.replace(/[\s-]/g, "").toUpperCase() : "";
+    const code = typeof req.body?.code === "string" && req.body.code.length <= 64 ? normalizeSouvenirCode(req.body.code) : "";
     const card = await getCard(req.params.token);
     if (!card || !/^[A-Z2-9]{10}$/.test(code) || !timingSafeEqual(Buffer.from(code), Buffer.from(card.code))) {
       return res.status(401).json({ message: "Code d’accès ou carte incorrect." });
@@ -531,12 +567,14 @@ export function registerParticipantCardRoutes(app: Express) {
       if (!card?.photo) return res.sendStatus(404);
       return res.type("image/jpeg").send(Buffer.from(card.photo, "base64"));
     }
-    const summary = card?.expiresAt ? await completeArchivedSummary(card, config) : recap(player, config.eventDay);
+    const summary = card?.expiresAt ? await completeArchivedSummary(card, config) : {
+      ...recap(player, config.eventDay), purchases: await db.transaction(async tx => (await purchaseHistory(tx, [player])).get(player.id)),
+    };
     const highlights = summary.highlights ?? (!card?.expiresAt ? await db.transaction(tx => eventHighlights(tx, config)) : undefined);
     return res.json({ ...summary, highlights, expiresAt: expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card?.photo) });
   });
 
-  app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`], async (req, res) => {
+  app.get([`${cardsPath}/view/:token`, `${cardsPath}/view/:token/photo`, `${cardsPath}/view/:token/receipt`], async (req, res) => {
     if (!req.session.souvenirToken || req.session.souvenirToken !== req.params.token ||
         (req.query.resume === "1" && !req.session.souvenirRemembered)) return res.sendStatus(401);
     const card = await getCard(req.params.token);
@@ -555,7 +593,15 @@ export function registerParticipantCardRoutes(app: Express) {
       const [player] = await db.transaction(tx => cardPlayers(tx, [card.participantId]));
       if (!player || identityOf(player) !== card.identity) return res.sendStatus(404);
       const config = await storage.getSyncConfig();
-      summary = { ...recap(player, config.eventDay), highlights: await db.transaction(tx => eventHighlights(tx, config)) };
+      summary = await db.transaction(async tx => ({
+        ...recap(player, config.eventDay), highlights: await eventHighlights(tx, config),
+        purchases: (await purchaseHistory(tx, [player])).get(player.id),
+      }));
+    }
+    if (req.path.endsWith("/receipt")) {
+      if (!summary.purchases?.lines.some(line => line.paid)) return res.sendStatus(404);
+      res.set("Cache-Control", "private, no-store");
+      return res.attachment("releve-achats-zombin-the-dark.pdf").type("application/pdf").send(await renderSouvenirReceipt(summary));
     }
     res.json({ ...summary, expiresAt: card.expiresAt?.toISOString() ?? null, photoAvailable: Boolean(card.photo), erasureRequestedAt: card.erasureRequestedAt?.toISOString() ?? null });
   });

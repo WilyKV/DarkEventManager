@@ -299,7 +299,7 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                 <p className="mt-1 text-sm text-muted-foreground">{words.name} proposée aux {groupSize} personnes de ce créneau.</p>
               )}
             </div>
-            {type === "staff" && <WelcomeSchedule slot={slot} phases={timeSlotPhases} notesOnly />}
+            {type === "staff" && <WelcomeSchedule slot={slot} staff />}
             <OtherWelcomeNote slot={slot} />
             {summary}
             {type === "zombie" && (canEditChecklist || editingChecklist) && (

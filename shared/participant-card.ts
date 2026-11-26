@@ -13,10 +13,13 @@ export const souvenirPath = "/souvenir";
 export const souvenirRecoveryPath = `${souvenirPath}/recuperation`;
 export const souvenirRecoveryApi = `${cardsPath}/recover`;
 export const adminSouvenirPath = "/souvenir/admin";
-export const souvenirCodeHint = "Majuscules, minuscules et espaces acceptés";
+export const souvenirCodeHint = "Casse, espaces et symboles ignorés";
+export function normalizeSouvenirCode(value: string) {
+  return value.replace(/[^a-z0-9]/gi, "").toUpperCase();
+}
 export const photoMaxBytes = 64_000;
 
-export const staffSpecializations = ["zombies", "survivants", "boutique", "repas", "photographe", "modele", "general"] as const;
+export const staffSpecializations = ["zombies", "survivants", "boutique", "repas", "photographe", "modele", "maquillage", "web-design", "general"] as const;
 export type StaffSpecialization = typeof staffSpecializations[number];
 
 export const staffSpecializationLabels: Record<StaffSpecialization, string> = {
@@ -26,8 +29,22 @@ export const staffSpecializationLabels: Record<StaffSpecialization, string> = {
   repas: "Repas",
   photographe: "Photographe",
   modele: "Modèle",
+  maquillage: "Maquilleuse",
+  "web-design": "Web designer",
   general: "Général",
 };
+
+export const staffAssignmentKinds = [...staffSpecializations, "autre"] as const;
+export type StaffAssignmentKind = typeof staffAssignmentKinds[number];
+export const staffAssignmentLabels = {
+  ...staffSpecializationLabels, zombies: "Gestion des zombies", survivants: "Gestion des survivants",
+  boutique: "Gestion de la boutique", repas: "Gestion des repas", autre: "Autre",
+} satisfies Record<StaffAssignmentKind, string>;
+
+export function staffCardSpecialization(assignment: StaffAssignmentKind | null | undefined, legacy?: StaffSpecialization | null) {
+  if (assignment === "autre") return null;
+  return assignment ?? legacy ?? null;
+}
 
 export type PrintableCard = {
   id: number;
@@ -39,6 +56,20 @@ export type PrintableCard = {
   squad?: number | null;
   briefingTime?: string | null;
   staffSpecialization?: StaffSpecialization | null;
+};
+
+export type SouvenirPurchaseLine = {
+  category: "boutique" | "repas";
+  name: string;
+  quantity: number;
+  unitCents: number;
+  totalCents: number;
+  paid: boolean;
+};
+export type SouvenirPurchases = {
+  freeMealClaimed: boolean;
+  freeMealIncluded: boolean;
+  lines: SouvenirPurchaseLine[];
 };
 
 export type SouvenirSummary = {
@@ -54,6 +85,7 @@ export type SouvenirSummary = {
   squadSize?: number | null;
   arrivedAt?: string | null;
   eventDay: string | null;
+  purchases?: SouvenirPurchases;
 };
 
 export type ParticipantSouvenir = SouvenirSummary & {

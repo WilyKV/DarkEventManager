@@ -85,7 +85,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     .sort((a, b) => nameOrder.compare(a.briefingTime, b.briefingTime) || nameOrder.compare(a.name, b.name) || a.id - b.id);
   const waveOptions = profileSlots.map(slot => ({ value: String(slot.id), label: slot.name }));
   if (profilePlayers.some(player => player.timeSlotId === null) || !waveOptions.length) {
-    waveOptions.push({ value: "none", label: "Sans créneau" });
+    waveOptions.push({ value: "none", label: type === "staff" ? "Sans attribution" : "Sans créneau" });
   }
   const waveKey = `welcome-wave:${roster.eventDay ?? "event"}:${type}:${profileSlots.map(slot => slot.id).join(",")}`;
   const preferredWave = wave ?? readWave(waveKey);
@@ -216,12 +216,12 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
           }}>
             <div className="flex flex-wrap items-center gap-2">
               <Button type="button" variant="outline" onClick={() => setStep("profile")}><ArrowLeft /> Changer de profil</Button>
-              <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>Choisir une vague</Button>
-              {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline"
+              <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>{type === "staff" ? "Choisir une attribution" : "Choisir une vague"}</Button>
+              {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline"
                 onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
             </div>
             {showWaves && (
-              <select aria-label="Vague active" className="min-h-11 rounded-lg border bg-background px-3" value={currentWave?.value ?? "finished"}
+              <select aria-label={type === "staff" ? "Attribution active" : "Vague active"} className="min-h-11 rounded-lg border bg-background px-3" value={currentWave?.value ?? "finished"}
                 onChange={event => switchWave(event.target.value)}>
                 {!currentWave && <option value="finished">Vagues terminées</option>}
                 {waveOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -365,7 +365,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
             <div className="flex shrink-0 flex-wrap gap-2 border-t border-border pt-3">
               <Button type="button" className="min-h-12" onClick={resetGroup}>Nouveau groupe</Button>
               <Button type="button" variant="outline" className="min-h-12" onClick={onClose}>Quitter l’accueil</Button>
-              {currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
+              {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
                 onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
             </div>
           </div>

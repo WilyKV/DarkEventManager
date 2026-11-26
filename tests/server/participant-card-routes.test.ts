@@ -39,7 +39,9 @@ describe("Espace souvenir", () => {
     readCard.mockReset().mockResolvedValue([{
       participantId: 12, token, code, expiresAt: new Date(Date.now() + 86_400_000),
       summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: "Vague 2", squad: 4, eventDay: null,
-        gameStart: "20:00", gameEnd: "22:00", highlights: { zombies: 64, survivors: 80, photoUrl: "https://example.com/album" } },
+        gameStart: "20:00", gameEnd: "22:00", purchases: { freeMealClaimed: true, freeMealIncluded: true,
+          lines: [{ name: "Manga", category: "boutique", quantity: 1, unitCents: 500, totalCents: 500, paid: true }] },
+        highlights: { zombies: 64, survivors: 80, photoUrl: "https://example.com/album" } },
       photo: "/9j/2Q==",
     }]);
   });
@@ -48,6 +50,7 @@ describe("Espace souvenir", () => {
     const agent = request.agent(makeApp());
     expect((await agent.get(view)).status).toBe(401);
     expect((await agent.get(`${view}/photo`)).status).toBe(401);
+    expect((await agent.get(`${view}/receipt`)).status).toBe(401);
     expect((await agent.post(open).send({ code: "ZZZZZ45678" })).status).toBe(401);
     expect((await agent.post(open).send({ code: "abcd2 34567" })).status).toBe(204);
 
@@ -55,6 +58,10 @@ describe("Espace souvenir", () => {
     expect(recap.status).toBe(200);
     expect(recap.headers["cache-control"]).toContain("no-store");
     expect(recap.body).toMatchObject({ firstName: "Clara", wave: "Vague 2", squad: 4, photoAvailable: true, gameStart: "20:00", gameEnd: "22:00", highlights: { zombies: 64, survivors: 80 } });
+    expect(recap.body.purchases).toMatchObject({ freeMealClaimed: true, lines: [{ name: "Manga", totalCents: 500 }] });
+    const receipt = await agent.get(`${view}/receipt`).expect(200);
+    expect(receipt.headers["content-type"]).toMatch(/^application\/pdf/);
+    expect(receipt.headers["cache-control"]).toContain("no-store");
     expect(recap.body).not.toHaveProperty("code");
     expect(recap.body).not.toHaveProperty("photo");
     expect((await agent.get(`${view}/photo`)).headers["content-type"]).toMatch(/^image\/jpeg/);
@@ -63,7 +70,7 @@ describe("Espace souvenir", () => {
     expect((await agent.get(view)).status).toBe(401);
   });
 
-  it.each(["abcd234567", "ABCD2 34567", " a B c D 2\u00a034567 ", "AbCd2-34567"])(
+  it.each(["abcd234567", "ABCD2 34567", " a B c D 2\u00a034567 ", "AbCd2-34567", "a!b@c#d2/3.4_5+6*7"])(
     "accepte la saisie du code avec les variantes de casse et d’espacement (%s)",
     async input => {
       expect((await request(makeApp()).post(open).send({ code: input })).status).toBe(204);
@@ -128,7 +135,7 @@ describe("Espace souvenir", () => {
       participantId: 12, token, code, expiresAt: new Date(Date.now() + 86_400_000),
       erasureRequestedAt: requestedAt,
       summary: { firstName: "Clara", lastName: "Martin", type: "zombie", wave: null, squad: null, eventDay: null,
-        gameStart: null, gameEnd: null, highlights: { zombies: 64, survivors: 80, photoUrl: null } },
+        gameStart: null, gameEnd: null, purchases: { freeMealClaimed: false, freeMealIncluded: false, lines: [] }, highlights: { zombies: 64, survivors: 80, photoUrl: null } },
     }]);
     savePhotoWithdrawal.mockReturnValueOnce({ where: () => ({ returning: async () => [{ requestedAt }] }) });
     expect((await agent.post(`${view}/erasure-request`)).body).toEqual({ requestedAt: requestedAt.toISOString() });
@@ -190,7 +197,7 @@ describe("Espace souvenir", () => {
     const newCode = "WXYZ234567";
     readCard.mockResolvedValue([{
       id: 3, participantId: 12, token, code: newCode, expiresAt: new Date(Date.now() + 60_000),
-      summary: { firstName: "Clara", gameStart: null, gameEnd: null, highlights: { zombies: 1, survivors: 0, photoUrl: null } },
+      summary: { firstName: "Clara", gameStart: null, gameEnd: null, purchases: { freeMealClaimed: false, freeMealIncluded: false, lines: [] }, highlights: { zombies: 1, survivors: 0, photoUrl: null } },
       photo: "/9j/2Q==",
     }]);
     expect((await agent.get(`${view}?resume=1`)).status).toBe(401);

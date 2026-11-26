@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 export const timeSlotPhases = ["meal", "briefing", "game", "exit"] as const;
+export const staffAssignmentPhases = ["meal", "briefing", "exit"] as const;
+export const staffAssignmentPhaseLabels = {
+  meal: "Heure de repas conseillée", briefing: "Heure d’arrivée", exit: "Fin de l’attribution",
+} as const;
+
 export type TimeSlotPhase = typeof timeSlotPhases[number];
 export const timeSlotHourFields = {
   meal: "mealTime", briefing: "briefingTime", game: "gameTime", exit: "exitTime",

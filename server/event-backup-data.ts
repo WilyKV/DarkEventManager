@@ -2,7 +2,7 @@ import { getTableColumns, getTableName, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   appConfig, auditLogs, demoRecords, discounts, mealDiscounts, mealItems, mealPurchases,
-  participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, timeSlots, users,
+  participantCards, participants, purchases, serverEvents, sessions, shopItems, squadAuditLog, squads, staffCompensations, timeSlots, users,
 } from "@shared/schema";
 import type { EventBackupSummary } from "@shared/event-backup";
 import { db } from "./db";
@@ -11,13 +11,13 @@ import { isBcryptHash, isLegacyHash } from "./password-hashing";
 
 // Order the tables so referenced rows are restored before their dependents.
 const identityTables = [
-  users, appConfig, timeSlots, squads, participants, shopItems, mealItems,
+  users, appConfig, timeSlots, squads, participants, staffCompensations, shopItems, mealItems,
   discounts, mealDiscounts, purchases, mealPurchases, squadAuditLog, auditLogs, demoRecords, participantCards,
 ];
 const backupTables = [...identityTables, serverEvents];
 const eventTables = [
   serverEvents, purchases, mealPurchases, discounts, mealDiscounts, squadAuditLog,
-  participants, squads, timeSlots, shopItems, mealItems,
+  staffCompensations, participants, squads, timeSlots, shopItems, mealItems,
 ];
 const backupSchema = z.object({
   version: z.literal(1),
@@ -74,6 +74,7 @@ export function inspectEventBackup(payload: unknown): { backup: EventBackup; sum
   }
   const backup = parsed.data;
   backup.tables[getTableName(participantCards)] ??= { rows: "[]", count: 0, nextId: 1 };
+  backup.tables[getTableName(staffCompensations)] ??= { rows: "[]", count: 0, nextId: 1 };
   const records = new Map<string, Record<string, unknown>[]>();
   for (const table of backupTables) {
     const name = getTableName(table);
@@ -83,11 +84,11 @@ export function inspectEventBackup(payload: unknown): { backup: EventBackup; sum
     }
     const columns = Object.values(getTableColumns(table)).map(column => column.name);
     const rows: unknown = JSON.parse(data.rows);
-    if ((table === appConfig || table === participantCards || table === participants) && Array.isArray(rows)) {
+    if ((table === appConfig || table === participantCards || table === participants || table === timeSlots) && Array.isArray(rows)) {
       for (const row of rows) {
         if (row && typeof row === "object") {
           const optionalColumns = table === appConfig ? ["event_closed_at", "souvenir_settings", "makeup_artists", "welcome_checklist"]
-            : table === participants ? ["welcome_checks"] : ["photo_removed_at", "erasure_requested_at"];
+            : table === participants ? ["welcome_checks", "staff_specialization"] : table === timeSlots ? ["staff_assignment"] : ["photo_removed_at", "erasure_requested_at"];
           for (const column of optionalColumns) if (!Object.hasOwn(row, column)) row[column] = null;
         }
       }

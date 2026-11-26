@@ -1,3 +1,5 @@
+import { staffAssignmentLabels } from "@shared/participant-card";
+import { StaffBudgetSummary } from "./staff-compensation";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { normalizePlayerName } from "@shared/zombie-offline";
@@ -54,6 +56,7 @@ export function ParticipantTypeSection({
   onDeleteTimeSlot,
   onDeleteSquad,
 }: ParticipantTypeSectionProps) {
+  const staff = type === "staff";
   const [activeSubTab, setActiveSubTab] = useState("participants");
   const [participantSearch, setParticipantSearch] = useState("");
   const [deletingParticipant, setDeletingParticipant] = useState<ParticipantWithRelations | null>(null);
@@ -85,13 +88,14 @@ export function ParticipantTypeSection({
       <Tabs value={activeSubTab} onValueChange={setActiveSubTab}>
         <TabsList className="workspace-tabs">
           <TabsTrigger value="participants" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Participants</TabsTrigger>
-          <TabsTrigger value="creneaux" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Créneaux</TabsTrigger>
-          <TabsTrigger value="squads" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">{type === "zombie" ? "Squads" : "Équipes"}</TabsTrigger>
+          <TabsTrigger value="creneaux" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">{staff ? "Attributions" : "Créneaux"}</TabsTrigger>
+          {!staff && <TabsTrigger value="squads" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">{type === "zombie" ? "Squads" : "Équipes"}</TabsTrigger>}
           <TabsTrigger value="tout" className="min-h-11 px-1 text-xs sm:px-3 sm:text-sm">Tout</TabsTrigger>
         </TabsList>
 
         {/* Participants Tab */}
         <TabsContent value="participants" className="space-y-4 mt-4">
+          {staff && <StaffBudgetSummary participants={participants} />}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className={`text-lg font-semibold text-${color}-500`}>{title}</h3>
@@ -141,9 +145,9 @@ export function ParticipantTypeSection({
                               <p className="break-all text-xs text-muted-foreground">{participant.email}</p>
                             )}
                             {participant.timeSlot && (
-                              <span className="text-xs text-muted-foreground">• Créneau: {participant.timeSlot.name}</span>
+                              <span className="text-xs text-muted-foreground">• {staff ? "Attribution" : "Créneau"} · {participant.timeSlot.name}</span>
                             )}
-                            {participant.squad && (
+                            {!staff && participant.squad && (
                               <span className={`text-xs text-${color}-500`}>• Squad {participant.squad.number}</span>
                             )}
                           </div>
@@ -187,7 +191,7 @@ export function ParticipantTypeSection({
         <TabsContent value="creneaux" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className={`text-lg font-semibold text-${color}-500`}>Créneaux {title}</h3>
+              <h3 className={`text-lg font-semibold text-${color}-500`}>{staff ? "Attributions du staff" : `Créneaux ${title}`}</h3>
               <p className="text-sm text-muted-foreground">
                 {event?.eventDay ? <time dateTime={event.eventDay} className="capitalize">{formatEventDay(event.eventDay)}</time>
                   : "Date à définir dans Configuration"}
@@ -200,7 +204,7 @@ export function ParticipantTypeSection({
           <Card>
             <CardHeader>
               <CardTitle className="text-sm">Import/Export Excel</CardTitle>
-              <CardDescription>Importez ou exportez les créneaux via Excel</CardDescription>
+              <CardDescription>Importez ou exportez {staff ? "les attributions" : "les créneaux"} via Excel</CardDescription>
             </CardHeader>
             <CardContent>
               <ExcelImport type={type} module="time-slots" />
@@ -213,12 +217,12 @@ export function ParticipantTypeSection({
           {/* Liste des créneaux */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Liste des créneaux</CardTitle>
-              <CardDescription>{timeSlots.length} créneau(x) configuré(s)</CardDescription>
+              <CardTitle className="text-sm">{staff ? "Liste des attributions" : "Liste des créneaux"}</CardTitle>
+              <CardDescription>{timeSlots.length} {staff ? "attribution(s)" : "créneau(x)"}</CardDescription>
             </CardHeader>
             <CardContent>
               {timeSlots.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">Aucun créneau configuré</p>
+                <p className="text-sm text-muted-foreground text-center py-8">{staff ? "Aucune attribution configurée" : "Aucun créneau configuré"}</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {timeSlots.map((slot) => (
@@ -227,18 +231,21 @@ export function ParticipantTypeSection({
                         <div className="flex justify-between items-start gap-2">
                           <div className="min-w-0 flex-1">
                             <p className="break-words font-semibold text-sm">{slot.name}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Jeu: {slot.gameTime} — Sortie: {slot.exitTime}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Repas: {slot.mealTime}
-                            </p>
+                            {staff ? <div className="mt-1 space-y-1 text-xs text-muted-foreground">
+                              {slot.staffAssignment && <p>{staffAssignmentLabels[slot.staffAssignment]}</p>}
+                              {slot.briefingTime && <p>Arrivée · {slot.briefingTime}</p>}
+                              {slot.mealTime && <p>Repas conseillé · {slot.mealTime}</p>}
+                              {slot.exitTime && <p>Fin de l’attribution · {slot.exitTime}</p>}
+                            </div> : <>
+                              <p className="mt-1 text-xs text-muted-foreground">Jeu · {slot.gameTime} — Sortie · {slot.exitTime}</p>
+                              <p className="text-xs text-muted-foreground">Repas · {slot.mealTime}</p>
+                            </>}
                           </div>
                           <div className="flex shrink-0 gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
-                              aria-label={`Modifier le créneau ${slot.name}`}
+                              aria-label={`Modifier ${staff ? "l’attribution" : "le créneau"} ${slot.name}`}
                               onClick={() => setEditingTimeSlot(slot)}
                             >
                               <Pencil className="size-4" aria-hidden />
@@ -247,7 +254,7 @@ export function ParticipantTypeSection({
                               variant="ghost"
                               size="icon"
                               className="text-destructive"
-                              aria-label={`Supprimer le créneau ${slot.name}`}
+                              aria-label={`Supprimer ${staff ? "l’attribution" : "le créneau"} ${slot.name}`}
                               onClick={() => setDeletingTimeSlotId(slot.id)}
                             >
                               <Trash2 className="size-4" aria-hidden />
@@ -264,17 +271,17 @@ export function ParticipantTypeSection({
         </TabsContent>
 
         {/* Squads Tab */}
-        <TabsContent value="squads" className="space-y-4 mt-4">
+        {!staff && <TabsContent value="squads" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className={`text-lg font-semibold text-${color}-500`}>Squads {title}</h3>
               <p className="text-sm text-muted-foreground">{squads.length} squad(s)</p>
             </div>
-            {type !== "staff" && <AddSquadDialog type={type} />}
+            <AddSquadDialog type={type} />
           </div>
 
-          {type !== "staff" && <SquadList type={type} showActions />}
-        </TabsContent>
+          <SquadList type={type} showActions />
+        </TabsContent>}
 
         {/* Tout Tab */}
         <TabsContent value="tout" className="space-y-4 mt-4">
@@ -338,7 +345,7 @@ export function ParticipantTypeSection({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
             <AlertDialogDescription>
-              Êtes-vous sûr de vouloir supprimer ce créneau ? Cette action est irréversible.
+              Êtes-vous sûr de vouloir supprimer {staff ? "cette attribution" : "ce créneau"} ? Cette action est irréversible.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

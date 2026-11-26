@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, IdCard, Printer } from "lucide-react";
 import type { ParticipantWithRelations } from "@shared/schema";
-import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, staffSpecializationLabels, staffSpecializations, type CardPrintLayout, type StaffSpecialization } from "@shared/participant-card";
+import { calibratedCardSheet, cardPrintFormatLabel, cardsPath, cardSheet, defaultCardPrintLayout, staffAssignmentLabels, staffCardSpecialization, staffSpecializationLabels, staffSpecializations, type CardPrintLayout, type StaffSpecialization } from "@shared/participant-card";
 import { checkInProfileLabels, checkInTypes, isCheckInType, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { ParticipantCard, SouvenirPhoto, usePrintableCard } from "@/components/participant-card";
@@ -198,7 +198,7 @@ export default function BadgesPage() {
                     <span className="block text-xs font-normal text-muted-foreground">
                       {[checkInProfileLabels[person.type],
                         person.timeSlot?.name,
-                        person.squad && `${person.type === "zombie" ? "Squad" : "Équipe"} ${person.squad.number}`].filter(Boolean).join(" · ")}
+                        person.type !== "staff" && person.squad && `${person.type === "zombie" ? "Squad" : "Équipe"} ${person.squad.number}`].filter(Boolean).join(" · ")}
                     </span>
                   </button>
                   {hasAnyRole(["admin"]) && <AdminSouvenirLink id={person.id} name={`${person.firstName} ${person.lastName}`} />}
@@ -211,7 +211,12 @@ export default function BadgesPage() {
               <h2 className="font-semibold">Carte de {current.firstName} {current.lastName}</h2>
               <Button type="button" variant="outline" disabled={busy || specialization.isPending} onClick={() => void download([current.id])}><Download /> Exporter cette carte</Button>
             </div>
-            {current.type === "staff" && hasAnyRole(["admin"]) && (
+            {current.type === "staff" && current.timeSlot?.staffAssignment && (
+              <p className="rounded-xl border border-border bg-card p-3 text-sm">
+                Attribution · {current.timeSlot.name} · {staffAssignmentLabels[current.timeSlot.staffAssignment]}
+              </p>
+            )}
+            {current.type === "staff" && !current.timeSlot?.staffAssignment && hasAnyRole(["admin"]) && (
               <div className="space-y-2 rounded-xl border border-border bg-card p-3">
                 <label className="grid gap-1 text-sm font-medium">Spécialisation
                   <select className="min-h-11 rounded-md border border-input bg-background px-2"
@@ -229,7 +234,7 @@ export default function BadgesPage() {
             )}
             {card.isLoading && <p role="status">Préparation de la carte…</p>}
             {card.isError && <p role="alert">Impossible de charger la carte.</p>}
-            {card.data && <><CardCodeActions key={card.data.id} card={card.data} /><ParticipantCard card={{ ...card.data, staffSpecialization: current.staffSpecialization }} /></>}
+            {card.data && <><CardCodeActions key={card.data.id} card={card.data} /><ParticipantCard card={{ ...card.data, staffSpecialization: staffCardSpecialization(current.timeSlot?.staffAssignment, current.staffSpecialization) }} /></>}
             <SouvenirPhoto key={current.id} onSave={async photo => { await apiRequest("PATCH", `${cardsPath}/${current.id}/photo`, { photo }); }} />
           </section> : <p className="p-4 text-muted-foreground">Ouvrez un nom dans la liste pour voir sa carte et associer une photo.</p>}
         </div>

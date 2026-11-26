@@ -137,15 +137,6 @@ export default function AdminPage() {
     },
   });
 
-  const { data: staffSquads = [] } = useQuery<SquadWithRelations[]>({
-    queryKey: ["/api/squads/with-participants", { type: "staff" }],
-    queryFn: async () => {
-      const res = await fetch("/api/squads/with-participants?type=staff");
-      if (!res.ok) throw new Error("Failed to fetch");
-      return res.json();
-    },
-  });
-
   const deleteTimeSlotMutation = useMutation({
     mutationFn: async (timeSlotId: number) => {
       return await apiRequest("DELETE", `/api/time-slots/${timeSlotId}`);
@@ -312,7 +303,7 @@ export default function AdminPage() {
               title="Participants Staff"
               participants={staffParticipants}
               timeSlots={staffTimeSlots}
-              squads={staffSquads}
+              squads={[]}
               onDeleteTimeSlot={(id) => deleteTimeSlotMutation.mutate(id)}
               onDeleteSquad={(id) => deleteSquadMutation.mutate(id)}
             />

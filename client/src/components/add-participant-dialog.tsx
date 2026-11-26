@@ -152,8 +152,8 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
 
   // Créneau courant calculé après chargement des créneaux
   const defaultTimeSlotId = useMemo(
-    () => findCurrentSlotId(timeSlots),
-    [timeSlots]
+    () => effectiveType === "staff" ? undefined : findCurrentSlotId(timeSlots),
+    [effectiveType, timeSlots]
   );
 
   const form = useForm<ParticipantFormData>({
@@ -342,7 +342,7 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
                 name="timeSlotId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Créneau horaire (optionnel)</FormLabel>
+                    <FormLabel>{effectiveType === "staff" ? "Attribution (facultative)" : "Créneau horaire (optionnel)"}</FormLabel>
                     <Select
                       onValueChange={(value) =>
                         field.onChange(value ? parseInt(value) : undefined)
@@ -351,7 +351,7 @@ export function AddParticipantDialog({ participantType }: AddParticipantDialogPr
                     >
                       <FormControl>
                         <SelectTrigger data-testid="select-timeslot" className="text-base">
-                          <SelectValue placeholder="Sélectionner un créneau" />
+                          <SelectValue placeholder={effectiveType === "staff" ? "Sélectionner une attribution" : "Sélectionner un créneau"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>

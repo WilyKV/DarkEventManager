@@ -1,3 +1,5 @@
+import { WelcomeTabletHandoff } from "./welcome-tablet-handoff";
+import { makeTabletTransfer, type TabletPresentation, type TabletTransfer } from "./welcome-tablet-transfer";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
 import { useId, useState, type ReactNode } from "react";
@@ -67,6 +69,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
   const [largeGroup, setLargeGroup] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
   const [confirmedArrivals, setConfirmedArrivals] = useState<Record<number, string>>({});
+  const [tabletTransfer, setTabletTransfer] = useState<TabletTransfer>();
+  const [savedSquadNumber, setSavedSquadNumber] = useState<number>();
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [savedSquadId, setSavedSquadId] = useState<number>();
   const [search, setSearch] = useState("");
@@ -110,6 +114,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     setLargeGroup(false);
     setSelection([]);
     setSavedIds([]);
+    setTabletTransfer(undefined);
+    setSavedSquadNumber(undefined);
     setSavedSquadId(undefined);
     setSearch("");
     setLetter("");
@@ -125,11 +131,12 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
     resetGroup();
   }
 
-  async function confirm(arrivals: OfflineArrival[]) {
+  async function confirm(arrivals: OfflineArrival[], tablet?: TabletPresentation) {
     if (saving) return;
     setSaving(true);
     setError("");
     try {
+      const transfer = tablet && makeTabletTransfer(tablet);
       if (onSaveOfflineGroup) {
         await onSaveOfflineGroup(arrivals);
         setSavedIds(arrivals.map(({ player }) => player.id));
@@ -145,6 +152,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
       setConfirmedArrivals(previous => ({
         ...previous, ...Object.fromEntries(arrivals.map(({ player }) => [player.id, player.arrivedAt ?? previous[player.id] ?? confirmedAt])),
       }));
+      setTabletTransfer(transfer);
+      setSavedSquadNumber(type === "zombie" ? roster.teams.find(team => team.id === arrivals[0]?.details.squadId)?.number : undefined);
       setStep("done");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Impossible d’enregistrer le groupe.");
@@ -342,6 +351,8 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
                   <p className="text-sm text-muted-foreground">{onSaveOfflineGroup ? "Arrivées enregistrées sur cet appareil." : "Arrivées enregistrées."}</p>
                 </div>
               </div>
+              {tabletTransfer ? <WelcomeTabletHandoff key={tabletTransfer.id} transfer={tabletTransfer} />
+                : savedSquadNumber !== undefined && <p className="text-lg font-semibold">Squad {savedSquadNumber}</p>}
               <section className="space-y-3" aria-label={makeup ? "Heures estimées de maquillage" : "Participants accueillis"}>
                 {makeup && <div className="space-y-1">
                   <h3 className="flex items-center gap-2 text-lg font-semibold"><Paintbrush className="size-5 text-primary" aria-hidden /> Maquillage · horaires estimés</h3>

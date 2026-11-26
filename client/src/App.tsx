@@ -1,4 +1,5 @@
 import React from "react";
+import { welcomeTabletPage } from "@/components/welcome-tablet-transfer";
 import { ArrowLeft } from "lucide-react";
 import { Switch, Route, Redirect, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
@@ -23,6 +24,7 @@ const VisitorPage = React.lazy(() => import("@/pages/visitor"));
 const OverviewPage = React.lazy(() => import("@/pages/overview"));
 const DashboardPage = React.lazy(() => import("@/pages/dashboard"));
 const ZombiePage = React.lazy(() => import("@/pages/zombie"));
+const WelcomeTabletPage = React.lazy(() => import("@/pages/welcome-tablet"));
 const OfflineCheckInPage = React.lazy(() => import("@/pages/offline-check-in"));
 const SurvivantPage = React.lazy(() => import("@/pages/survivant"));
 const StaffPage = React.lazy(() => import("@/pages/staff"));
@@ -52,7 +54,7 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     retry: false,
   });
 
-  if (data?.needsSetup === true && location !== "/setup" && location !== offlineCheckInPage && location !== legacyOfflineCheckInPage) {
+  if (data?.needsSetup === true && location !== "/setup" && location !== offlineCheckInPage && location !== legacyOfflineCheckInPage && location !== welcomeTabletPage) {
     setLocation("/setup");
     return null;
   }
@@ -84,18 +86,18 @@ function Router() {
   useTrackAppHistory();
   const canGoBack = useCanGoBack();
   const online = useOnlineStatus();
-  const publicPage = ["/login", "/visitor", "/setup", "/profil-joueur"].includes(location) || location.startsWith("/souvenir/");
+  const publicPage = ["/login", "/visitor", "/setup", "/profil-joueur", welcomeTabletPage].includes(location) || location.startsWith("/souvenir/");
   React.useLayoutEffect(() => {
     document.documentElement.classList.toggle("dark", publicPage);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", publicPage ? "#121417" : "#d6dae1");
     document.documentElement.dataset.workspace = publicPage ? "" : location.slice(1);
   }, [location, publicPage]);
-  if (!online && !location.startsWith("/souvenir/") && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup"].includes(location)) {
+  if (!online && !location.startsWith("/souvenir/") && ![offlineCheckInPage, legacyOfflineCheckInPage, "/login", "/visitor", "/setup", welcomeTabletPage].includes(location)) {
     return <Redirect replace to={offlineCheckInPage} />;
   }
   return (
     <>
-      {publicPage && canGoBack && <div className="px-3 pt-[calc(.5rem+env(safe-area-inset-top))]">
+      {publicPage && location !== welcomeTabletPage && canGoBack && <div className="px-3 pt-[calc(.5rem+env(safe-area-inset-top))]">
         <Button type="button" variant="ghost" size="icon" className="size-11"
           onClick={() => window.history.back()} aria-label="Retour à la page précédente">
           <ArrowLeft aria-hidden />
@@ -134,6 +136,7 @@ function Router() {
           </RequireAuth>
         </Route>
 
+        <Route path={welcomeTabletPage} component={WelcomeTabletPage} />
         <Route path={offlineCheckInPage} component={OfflineCheckInPage} />
         <Route path={legacyOfflineCheckInPage}><Redirect replace to={offlineCheckInPage} /></Route>
         <Route path="/zombie">

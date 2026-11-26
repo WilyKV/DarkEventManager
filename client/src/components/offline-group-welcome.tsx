@@ -1,3 +1,4 @@
+import type { TabletPresentation } from "./welcome-tablet-transfer";
 import { ZombieWelcomeVideo } from "./zombie-welcome-video";
 import { normalizeWelcomeTime } from "./zombie-welcome-timeline";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
@@ -23,7 +24,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
   error: string;
   savedIds: number[];
   savedSquadId?: number;
-  onConfirm: (arrivals: OfflineArrival[]) => Promise<void>;
+  onConfirm: (arrivals: OfflineArrival[], tablet?: TabletPresentation) => Promise<void>;
   onBack: () => void;
   onReplan: () => Promise<void>;
 }) {
@@ -37,6 +38,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
     : undefined);
   const [completed, setCompleted] = useState<OfflineArrival[]>();
   const [checklistDraft, setChecklistDraft] = useState<CheckInDetails>();
+  const [tablet, setTablet] = useState<TabletPresentation>();
   const [briefed, setBriefed] = useState(false);
 
   if (selected.length !== ids.length || !selected.length) {
@@ -98,11 +100,12 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
       const otherTimes = roster.slots.flatMap(item => {
         const time = normalizeWelcomeTime(item.briefingTime);
         const zombieWave = item.type === "zombie" || (!item.type && roster.players.some(player => player.type === "zombie" && player.timeSlotId === item.id));
-        return zombieWave && item.id !== slot?.id && time ? [time] : [];
+        return zombieWave && item.id !== slot?.id && time && time !== briefing ? [time] : [];
       });
       const squadCount = roster.teams.filter(item => item.timeSlotId === team.timeSlotId && (!item.type || item.type === "zombie")).length;
-      return <ZombieWelcomeVideo briefing={briefing}
-        start={start} end={end} squad={team.number} otherTimes={otherTimes} squadCount={squadCount} onBack={back} onContinue={continueWelcome} />;
+      const presentation = { briefing, start, end, squad: team.number, otherTimes: Array.from(new Set(otherTimes)).slice(0, 8), squadCount };
+      return <ZombieWelcomeVideo {...presentation} onBack={back} onContinue={continueWelcome}
+        onTablet={() => { setTablet(presentation); continueWelcome(); }} />;
     }
     return <WelcomeBriefing type={first.type} slot={slot} arrivals={assignment} teams={roster.teams} onBack={back} onContinue={continueWelcome} />;
   }
@@ -119,6 +122,7 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
         <div className="min-w-0">
           <h3 className="text-lg font-semibold">Consignes d’accueil</h3>
           <p className="break-words text-sm text-muted-foreground">{groupNames}</p>
+          {tablet && <p className="text-sm">Le QR de transfert sera affiché après la confirmation des arrivées.</p>}
         </div>
       </div>}
       saveLabel="Valider"
@@ -157,8 +161,8 @@ export function OfflineGroupWelcome({ roster, checklist, ids, saving, error, sav
         else setCompleted(undefined);
       }}><ArrowLeft aria-hidden /> {error ? "Actualiser et revoir les fiches restantes" : "Revoir les consignes"}</Button>
       {first.type !== "staff" && !savedIds.length && !error && <Button type="button" variant="outline" className="min-h-12" disabled={saving}
-        onClick={() => { setCompleted(undefined); setChecklistDraft(undefined); setBriefed(false); setAssignment(undefined); }}>Modifier {words.article}</Button>}
-      <Button type="button" className="min-h-12 flex-1" disabled={saving} loading={saving} onClick={() => void onConfirm(completed)}>
+        onClick={() => { setCompleted(undefined); setChecklistDraft(undefined); setTablet(undefined); setBriefed(false); setAssignment(undefined); }}>Modifier {words.article}</Button>}
+      <Button type="button" className="min-h-12 flex-1" disabled={saving} loading={saving} onClick={() => void onConfirm(completed, tablet)}>
         {error ? "Réessayer" : "Confirmer"} <Check aria-hidden />
       </Button>
     </div>

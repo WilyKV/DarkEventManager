@@ -271,4 +271,26 @@ describe("Accueil tactile", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
+  it("prépare sur le téléphone le QR tablette et le maquillage après l’enregistrement local", async () => {
+    const user = userEvent.setup();
+    const onSaveOfflineGroup = vi.fn();
+    render(<WelcomeDialog roster={roster} onClose={vi.fn()} onSaveOfflineGroup={onSaveOfflineGroup} />);
+    await begin(user);
+    await click(user, "M");
+    await click(user, /Martin Clara/);
+    await click(user, "Commencer l’accueil");
+    await click(user, /Squad 2.*Recommandée/);
+    await click(user, "Confirmer la squad");
+    await click(user, "Présenter sur la tablette");
+    expect(onSaveOfflineGroup).not.toHaveBeenCalled();
+    await click(user, "Valider");
+    await click(user, "Confirmer");
+    expect(onSaveOfflineGroup).toHaveBeenCalledOnce();
+    expect(screen.getByText("Présentation sur tablette · Squad 2")).toBeVisible();
+    expect(screen.getByText("QR de transfert vers la tablette")).toBeInTheDocument();
+    const recap = within(screen.getByRole("region", { name: "Heures estimées de maquillage" }));
+    expect(recap.getByText("Clara Martin")).toBeVisible();
+    expect(recap.getByText(/^\d{2}:\d{2}$/)).toBeVisible();
+  });
+
 });

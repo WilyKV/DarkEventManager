@@ -1,3 +1,4 @@
+import { welcomeTabletPage } from "@/components/welcome-tablet-transfer";
 import { lazy, Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronDown } from "lucide-react";
@@ -37,6 +38,7 @@ export default function OverviewPage() {
 
   return (
     <ManagementLayout title="Vue d’ensemble" subtitle="Zomb’in The Dark">
+      <Link href={welcomeTabletPage} className="inline-flex min-h-11 items-center rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-muted">Ouvrir l’écran d’accueil tablette</Link>
       <div className="space-y-6">
         {modules.length > 0 && (
           <section aria-labelledby="workspace-modules">

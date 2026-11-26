@@ -1,11 +1,10 @@
 import { Maximize, Minimize, Pause, Play, RotateCcw, SkipBack, SkipForward, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { briefingChoices, displayWelcomeTime, shuffle, squadChoices, zombieBriefingLocation, zombieOverlays, zombieQuestions, zombieQuizStart } from "./zombie-welcome-timeline";
+import { zombieVideoAssets, type TabletPresentation } from "./welcome-tablet-transfer";
 import cues from "./zombie-voice-cues.json";
 import "./zombie-welcome-video.css";
 
-const assetRoot = "/accueil-zombies/";
-const files = ["zombies_video_principale_1080p.mp4", "voix_quiz.m4a"] as const;
 const voiceCues: Record<string, number[]> = cues;
 const feedbackClips = {
   correct: ["ok_1", "ok_2", "ok_3"],
@@ -20,15 +19,11 @@ function feedbackClip(result: keyof typeof feedbackClips) {
 type Phase = "loading" | "ready" | "main" | "ended" | "error";
 type Quiz = { index: number; choices: string[]; correct: string };
 
-interface Props {
-  briefing: string;
-  start: string;
-  end: string;
-  squad: number;
-  otherTimes: string[];
-  squadCount: number;
+interface Props extends TabletPresentation {
   onBack: () => void;
   onContinue: (completed: boolean) => void;
+  onTablet?: () => void;
+  tablet?: boolean;
 }
 
 function playbackTime(seconds: number) {
@@ -36,7 +31,7 @@ function playbackTime(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, squadCount, onBack, onContinue }: Props) {
+export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, squadCount, onBack, onContinue, onTablet, tablet = false }: Props) {
   const [sources, setSources] = useState<string[]>([]);
   const [phase, setPhase] = useState<Phase>("loading");
   const [overlay, setOverlay] = useState<keyof typeof zombieOverlays>();
@@ -67,8 +62,8 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
     const urls: string[] = [];
     disposed.current = false;
     // Read complete files from the PWA precache. Blob URLs also support media seeking offline.
-    void Promise.all(files.map(async file => {
-      const response = await fetch(assetRoot + file, { signal: controller.signal });
+    void Promise.all(zombieVideoAssets.map(async path => {
+      const response = await fetch(path, { signal: controller.signal });
       if (!response.ok) throw new Error("Média indisponible");
       const blob = await response.blob();
       if (controller.signal.aborted || !blob.type.match(/^(video|audio)\//)) throw new Error("Média indisponible");
@@ -318,7 +313,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
           {phase === "loading" && <p className="zombie-show-message" role="status">Chargement de la vidéo…</p>}
           {phase === "error" && <div className="zombie-show-center">
             <p role="status">Vidéo indisponible</p>
-            <button type="button" onClick={() => onContinue(false)}>Continuer vers le récapitulatif</button>
+            <button type="button" onClick={() => onContinue(false)}>{tablet ? "Revenir au scanner" : "Continuer vers le récapitulatif"}</button>
           </div>}
           {phase === "ready" && <div className="zombie-show-center"><button type="button" onClick={begin}><Maximize className="mr-2 inline size-5" aria-hidden /> Lancer en plein écran</button></div>}
           {visible("briefing") && <div className="zombie-show-card"><span>Votre briefing</span><strong>{displayWelcomeTime(briefing)}</strong><small>{zombieBriefingLocation}</small></div>}
@@ -337,7 +332,7 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
             <p role="status">{correct ? "Bien joué !" : wrong.length ? "Essayez encore." : ""}</p>
           </div>}
           {phase === "main" && resumeNeeded && !quiz && <div className="zombie-show-center"><button type="button" onClick={resume}>Reprendre la vidéo</button></div>}
-          {phase === "ended" && <div className="zombie-show-center"><button type="button" onClick={() => onContinue(true)}>Groupe suivant</button></div>}
+          {phase === "ended" && <div className="zombie-show-center"><button type="button" onClick={() => onContinue(true)}>{tablet ? "Terminer la présentation" : "Groupe suivant"}</button></div>}
         </div>
       </div>
       <div className="zombie-show-controls" role="group" aria-label="Commandes de la présentation">
@@ -362,7 +357,9 @@ export function ZombieWelcomeVideo({ briefing, start, end, squad, otherTimes, sq
             {muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}
           </button>
         </>}
-        {phase !== "ended" && <button type="button" onClick={onBack}>Squads</button>}
+        {phase !== "ended" && <button type="button" onClick={onBack}>{tablet ? "Retour au scanner" : "Squads"}</button>}
+        {onTablet && (phase === "loading" || phase === "ready" || phase === "error") &&
+          <button type="button" onClick={onTablet}>Présenter sur la tablette</button>}
         {phase !== "ended" && <button type="button" onClick={() => onContinue(false)}>
           <SkipForward aria-hidden="true" /> Passer la présentation
         </button>}

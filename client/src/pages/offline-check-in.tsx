@@ -1,3 +1,4 @@
+import { welcomeTabletPage } from "@/components/welcome-tablet-transfer";
 import { useWelcomeChecklist } from "@/components/welcome-checklist-editor";
 import { ArrivalTime, ArrivalTimeOption } from "@/components/arrival-time";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -401,6 +402,7 @@ export default function OfflineCheckInPage() {
           </Button>
         </div>
       </header>
+      <Link href={welcomeTabletPage} className={buttonVariants({ variant: "outline" })}>Ouvrir l’écran d’accueil tablette</Link>
 
       {notice && <p role="status" className="rounded-lg border border-primary/40 p-3 text-sm">{notice}</p>}
       {error && <p role="alert" className="rounded-lg border border-destructive/60 p-3 text-sm">{error}</p>}

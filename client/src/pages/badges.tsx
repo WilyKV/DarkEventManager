@@ -100,7 +100,7 @@ export default function BadgesPage() {
             <p><strong className="text-foreground">Papier épais ou cartonné</strong> · sélectionnez ce type de papier dans les propriétés de l’imprimante.</p>
             {layout !== "card" ? <>
               <p>A4 portrait, taille réelle (100 %). Pour les cartes complètes et le modèle vierge, choisissez le recto verso sur le bord long si le pilote le permet.</p>
-              {layout === "a4-calibrated" && <p>Correction du recto appliquée · 1 mm à gauche et 4 mm vers le haut.</p>}
+              {layout === "a4-calibrated" && <p>Correction du recto appliquée · 1 mm à gauche et 5 mm vers le haut.</p>}
               <p>Superposez les deux croix par transparence. Leurs graduations sont espacées de 1 mm. Découpez ensuite aux repères des cartes.</p>
             </> : <p>Imprimez à taille réelle (100 %).</p>}
             {mode !== "complete" && <p>Utilisez la même sélection et le même format pour exporter les deux faces.</p>}

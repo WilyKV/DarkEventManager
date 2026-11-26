@@ -152,7 +152,7 @@ export function cardPrintFormatLabel(layout: CardPrintLayout) {
 }
 
 export function cardSheetOffset(side: "front" | "back", calibrated: boolean) {
-  return calibrated && side === "front" ? { x: -1, y: -4 } : { x: 0, y: 0 };
+  return calibrated && side === "front" ? { x: -1, y: -5 } : { x: 0, y: 0 };
 }
 
 export function cardSheetPosition(index: number, side: "front" | "back", calibrated = false) {

@@ -2,7 +2,7 @@ import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import QRCode from "qrcode";
-import { a4CardBleed, calibratedCardSheet, cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
+import { a4CardBleed, calibratedCardSheet, cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardSheet, cardSheetOffset, cardSheetPosition, cardTheme, printedCardName, souvenirCodeHint, souvenirPath, souvenirRecoveryPath, type CardPrintLayout, type PrintableCard } from "@shared/participant-card";
 
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
@@ -38,6 +38,13 @@ function backdrop(doc: PDFKit.PDFDocument, theme: ReturnType<typeof cardTheme>, 
   }
 }
 
+function fieldIcon(doc: PDFKit.PDFDocument, field: keyof typeof cardFieldIcons, x: number, y: number, w: number, h: number) {
+  const size = Math.min(w, h) * 0.62;
+  doc.save().translate(pt(x + (w - size) / 2), pt(y + (h - size) / 2)).scale(pt(size) / 24)
+    .lineWidth(1.8).lineCap("round").lineJoin("round").strokeOpacity(0.2)
+    .path(cardFieldIcons[field]).stroke("#0f172a").restore();
+}
+
 function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: ReturnType<typeof cardTheme>, bleed: { x: number; y: number }, recovery: boolean, type: string, artwork?: string) {
   backdrop(doc, theme, bleed, artwork);
   doc.fillColor("#ffffff").font("CardBold").fontSize(12)
@@ -62,15 +69,16 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
         const centerY = pt(scheduleY + scheduleHeight / 2);
         doc.roundedRect(pt(labelX), pt(scheduleY), pt(scheduleSideLabelWidth), pt(scheduleHeight), pt(0.8)).fill("#100b12");
         doc.save().rotate(-90, { origin: [centerX, centerY] });
-        doc.fillColor("#ffffff").font("CardBold").fontSize(4.8);
-        doc.text(field.label, centerX - doc.widthOfString(field.label) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
+        doc.fillColor("#ffffff").font("CardBold").fontSize(6);
+        doc.text(field.shortLabel, centerX - doc.widthOfString(field.shortLabel) / 2, centerY - doc.currentLineHeight() / 2, { lineBreak: false });
         doc.restore();
+        fieldIcon(doc, field.key, field.x, scheduleY, field.width, scheduleHeight);
       }
     }
     if (cardHasMealBox(type)) {
       const mealY = type === "staff" ? staffMealBoxY : mealBoxY;
       doc.roundedRect(pt(6), pt(mealY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
-      doc.fillColor("#ffffff").font("CardBold").fontSize(8).text("Repas", pt(13.5), pt(mealY + 1.25), { lineBreak: false });
+      fieldIcon(doc, "meal", 6, mealY, mealBoxSize, mealBoxSize);
     }
     return;
   }

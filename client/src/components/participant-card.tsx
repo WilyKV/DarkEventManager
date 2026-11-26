@@ -5,7 +5,7 @@ import { Camera } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
-import { cardAssets, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
+import { cardAssets, cardFieldIcons, cardHasMealBox, cardLayout, cardScheduleFields, cardBriefingTime, cardTheme, cardsPath, photoMaxBytes, printedCardName, souvenirCodeHint, souvenirPath, type PrintableCard } from "@shared/participant-card";
 
 export function usePrintableCard(id: number | undefined) {
   return useQuery({
@@ -27,6 +27,13 @@ function at(x: number, y: number, w?: number, h?: number): CSSProperties {
     width: w === undefined ? undefined : `${w / width * 100}%`,
     height: h === undefined ? undefined : `${h / height * 100}%`,
   };
+}
+
+function CardFieldIcon({ field }: { field: keyof typeof cardFieldIcons }) {
+  return <svg aria-hidden viewBox="0 0 24 24" className="size-[62%] max-w-[8.4cqw] text-slate-900/20"
+    fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+    <path d={cardFieldIcons[field]} />
+  </svg>;
 }
 
 export function ParticipantCard({ card }: { card: PrintableCard }) {
@@ -65,16 +72,20 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
         <div key={field.key}>
           <span className="absolute flex items-center justify-center rounded-l-[0.95cqw] bg-[#100b12]"
             style={at(field.x - scheduleSideLabelWidth, scheduleY, scheduleSideLabelWidth, scheduleHeight)}>
-            <span className="-rotate-90 whitespace-nowrap text-[1.95cqw] font-bold leading-none">{field.label}</span>
+            <span className="-rotate-90 whitespace-nowrap text-[2.55cqw] font-bold leading-none">{field.shortLabel}</span>
           </span>
           <span aria-label={`Case ${field.label} à remplir à la main`} role="img"
-            className="absolute rounded-r-[0.95cqw] bg-white" style={at(field.x, scheduleY, field.width, scheduleHeight)} />
+            className="absolute flex items-center justify-center rounded-r-[0.95cqw] bg-white" style={at(field.x, scheduleY, field.width, scheduleHeight)}>
+            <CardFieldIcon field={field.key} />
+          </span>
         </div>
       ))}
-      {cardHasMealBox(card.type) && <>
-        <span aria-hidden className="absolute rounded-[0.55cqw] bg-white" style={at(6, mealY, mealBoxSize, mealBoxSize)} />
-        <span className="absolute text-[3.3cqw] font-bold leading-none" style={at(13.5, mealY + 1.25)}>Repas</span>
-      </>}
+      {cardHasMealBox(card.type) && (
+        <span role="img" aria-label="Case repas à cocher" className="absolute flex items-center justify-center rounded-[0.55cqw] bg-white"
+          style={at(6, mealY, mealBoxSize, mealBoxSize)}>
+          <CardFieldIcon field="meal" />
+        </span>
+      )}
       <p className="absolute whitespace-nowrap rounded-sm bg-black/65 px-0.5 text-center leading-tight" style={{
         ...at(5, linkY, 75), fontSize: `${Math.min(2.7, 156 / url.length)}cqw`,
       }}>{url}</p>

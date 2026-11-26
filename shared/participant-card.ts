@@ -80,12 +80,18 @@ export function printedCardName({ firstName, surnamePrefix }: Pick<PrintableCard
 }
 
 const briefingField = { key: "briefing", label: "Briefing", x: 5, width: 14 } as const;
-const squadField = { key: "squad", label: "Squad", x: 23, width: 10.5 } as const;
-const makeupField = { key: "makeup", label: "Maquillage", x: 37.5, width: 15.5 } as const;
+const squadField = { key: "squad", label: "Squad", shortLabel: "SQ", x: 23, width: 11.5 } as const;
+const makeupField = { key: "makeup", label: "Maquillage", shortLabel: "MQ", x: 38.5, width: 14.5 } as const;
+
+export const cardFieldIcons = {
+  squad: "M4 5h16M4 12h16M4 19h16M9 3L7 21M17 3l-2 18",
+  makeup: "M10 14l8-10a2 2 0 0 1 3 3l-8 10M10 14a4 4 0 0 0-5 3c0 2-2 4-2 4h5a4 4 0 0 0 5-4z",
+  meal: "M4 3v5a3 3 0 0 0 6 0V3M7 3v18M18 21V3c-3 1-4 4-4 8v2h4",
+} as const;
 
 export function cardScheduleFields(type: string) {
   if (type === "staff") return [];
-  if (type === "survivant") return [briefingField, { ...squadField, label: "Équipe" }];
+  if (type === "survivant") return [briefingField, { ...squadField, label: "Équipe", shortLabel: "ÉQ" }];
   return [briefingField, squadField, makeupField];
 }
 
@@ -106,13 +112,13 @@ export const cardLayout = {
   nameX: 6,
   nameWidth: 46,
   nameCenterY: 25,
-  namePanelY: 18.5,
-  namePanelHeight: 13,
-  scheduleY: 33,
-  scheduleHeight: 10.5,
+  namePanelY: 20,
+  namePanelHeight: 10,
+  scheduleY: 32,
+  scheduleHeight: 11.5,
   scheduleSideLabelWidth: 3.5,
-  mealBoxSize: 5.5,
-  mealBoxY: 45,
+  mealBoxSize: 6,
+  mealBoxY: 44.5,
   staffMealBoxY: 38,
   qrX: 55.5,
   qrY: 13.5,

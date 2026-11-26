@@ -36,6 +36,30 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
     : undefined);
   const [pending, setPending] = useState<{ tablet?: TabletPresentation }>();
 
+  const first = selected[0];
+  const words = placementLabels(first?.type);
+  const slot = roster.slots.find(slot => slot.id === first?.timeSlotId);
+  const groupNames = selected.map(player => player.firstName).join(", ");
+  const squadStoragePrefix = `welcome-closed-squad:${roster.eventDay ?? "event"}:${slot?.id ?? "none"}:`;
+  const [closedSquads, setClosedSquads] = useState(() => new Set(roster.teams.flatMap(team => {
+    if (first?.type !== "zombie" || team.timeSlotId !== first.timeSlotId) return [];
+    try { return localStorage.getItem(squadStoragePrefix + team.id) === "1" ? [team.id] : []; }
+    catch { return []; }
+  })));
+
+  function toggleSquad(id: number) {
+    const next = new Set(closedSquads);
+    const key = squadStoragePrefix + id;
+    if (next.has(id)) {
+      next.delete(id);
+      try { localStorage.removeItem(key); } catch {}
+    } else {
+      next.add(id);
+      try { localStorage.setItem(key, "1"); } catch {}
+    }
+    setClosedSquads(next);
+  }
+
   if (selected.length !== ids.length || !selected.length) {
     return <>
       <p role="alert">Une fiche n’est plus disponible. Vérifiez la sélection.</p>
@@ -43,10 +67,6 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
     </>;
   }
 
-  const first = selected[0];
-  const words = placementLabels(first.type);
-  const slot = roster.slots.find(slot => slot.id === first.timeSlotId);
-  const groupNames = selected.map(player => player.firstName).join(", ");
   if (!assignment) {
     const teams = roster.teams.filter(team => team.timeSlotId === first.timeSlotId &&
       (!team.type || team.type === first.type) && (savedSquadId === undefined || team.id === savedSquadId));
@@ -69,7 +89,8 @@ export function OfflineGroupWelcome({ roster, ids, saving, error, savedIds, save
         Les fiches restantes rejoindront {words.article} déjà confirmée pour le groupe.
       </p>}
       <WelcomeGuide type={first.type} initialDetails={initialDetails} slot={slot} teams={teams} membersByTeam={membersByTeam}
-        squadOnly requirePlacement={selected.length > 1 || savedSquadId !== undefined} groupSize={selected.length} sharedArrival allowCapacityOverride saving={false} error=""
+        squadOnly closedSquads={first.type === "zombie" ? closedSquads : undefined}
+        onToggleSquad={first.type === "zombie" ? toggleSquad : undefined} requirePlacement={selected.length > 1 || savedSquadId !== undefined} groupSize={selected.length} sharedArrival allowCapacityOverride saving={false} error=""
         groupSeatsNeeded={id => selected.length - (selectedByTeam.get(id)?.length ?? 0)}
         saveLabel={`Confirmer ${words.article}`} onSave={(details, _, overflowConfirmed) => setAssignment(
           selected.map(player => ({ player, details: {

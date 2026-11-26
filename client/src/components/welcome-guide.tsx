@@ -101,6 +101,8 @@ interface WelcomeGuideProps {
   error: string;
   onReload?: () => void;
   squadOnly?: boolean;
+  closedSquads?: ReadonlySet<number>;
+  onToggleSquad?: (id: number) => void;
   requirePlacement?: boolean;
   groupSeatsNeeded?: (id: number) => number;
   membersByTeam?: ReadonlyMap<number, readonly PlacementMember[]>;
@@ -109,7 +111,7 @@ interface WelcomeGuideProps {
   saveLabel: string;
 }
 
-export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, defaultChecked = false, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam }: WelcomeGuideProps) {
+export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1, plannedTeamId, review, defaultChecked = false, checklistSettings = defaultWelcomeChecklist, canEditChecklist, summary, saving, error, onReload, onSave, saveLabel, sharedArrival = false, allowCapacityOverride = false, squadOnly = false, lockSquad = false, requirePlacement = false, groupSeatsNeeded, membersByTeam, closedSquads, onToggleSquad }: WelcomeGuideProps) {
   const items: ChecklistItem[] = checkInProfiles[type].checklist.filter(item =>
     squadOnly ? item === "squadExplained" : !lockSquad || item !== "squadExplained");
   const extra = type === "zombie" && !squadOnly
@@ -141,8 +143,9 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
   const seatsForGroup = groupSeatsNeeded ?? ((id: number) => sharedArrival
     ? groupSize * newSeatNeeded(id)
     : groupSize - 1 + newSeatNeeded(id));
-  const groupRecommendation = recommendSquad(teams, seatsForGroup);
-  const recommendation = groupRecommendation ?? (groupSize > 1 ? recommendSquad(teams, newSeatNeeded) : undefined);
+  const openTeams = closedSquads ? teams.filter(team => !closedSquads.has(team.id)) : teams;
+  const groupRecommendation = recommendSquad(openTeams, seatsForGroup);
+  const recommendation = groupRecommendation ?? (groupSize > 1 ? recommendSquad(openTeams, newSeatNeeded) : undefined);
   const seats = selectedTeam ? (sharedArrival ? seatsForGroup(selectedTeam.id) : newSeatNeeded(selectedTeam.id)) : 0;
   const needsOverride = Boolean(selectedTeam && seats > squadPlaces(selectedTeam));
   const overflowConfirmed = selectedTeam !== undefined && overflowTeamId === selectedTeam.id;
@@ -248,12 +251,13 @@ export function WelcomeGuide({ type, initialDetails, slot, teams, groupSize = 1,
                       </p>
                     )}
                     <ul aria-label={`${words.plural} du créneau`} className="grid gap-3 sm:grid-cols-2">
-                      {orderSquads(teams, sharedArrival ? seatsForGroup : newSeatNeeded, plannedTeamId ?? recommendation?.id).map(team => {
+                      {orderSquads(teams, sharedArrival ? seatsForGroup : newSeatNeeded, plannedTeamId ?? recommendation?.id, closedSquads).map(team => {
                         const label = team.id === plannedTeamId ? "Choix du groupe"
                           : team.id === recommendation?.id ? (groupRecommendation ? "Recommandée" : "Pour ce joueur") : undefined;
                         return (
                           <li key={team.id}>
                             <SquadPlacementCard team={team} profile={type} people={membersByTeam?.get(team.id)} label={label} selected={team.id === details.squadId}
+                              closed={closedSquads?.has(team.id)} onToggleClosed={onToggleSquad && (() => onToggleSquad(team.id))}
                               disabled={!allowCapacityOverride && squadPlaces(team) < newSeatNeeded(team.id)} onSelect={() => chooseTeam(team.id)} />
                           </li>
                         );

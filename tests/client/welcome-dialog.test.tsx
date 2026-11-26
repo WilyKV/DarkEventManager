@@ -48,7 +48,7 @@ async function reviewArrival(user: User) {
   await click(user, "Passer la présentation");
 }
 
-beforeEach(() => sessionStorage.clear());
+beforeEach(() => { sessionStorage.clear(); localStorage.clear(); });
 
 describe("Accueil tactile", () => {
   it("filtre par profil, par vague et par initiale et conserve la sélection entre les lettres", async () => {
@@ -107,14 +107,46 @@ describe("Accueil tactile", () => {
     expect(await screen.findByText("2 personnes accueillies.")).toBeVisible();
     expect(onSave.mock.calls.map(([person, details]) => [person.id, details.squadId])).toEqual([[1, 1], [2, 1]]);
 
+    expect(screen.queryByRole("button", { name: "Clôturer la vague" })).toBeNull();
     await click(user, "Nouveau groupe");
+    expect(button("Vague 18 h")).toBeVisible();
     expect(screen.getByText("Zombie · Vague 18 h")).toBeVisible();
     await click(user, "Clôturer la vague");
     expect(screen.getByText("Zombie · Vague 20 h")).toBeVisible();
+    expect(button("Vague 20 h")).toBeVisible();
     await click(user, "Choisir les personnes");
     await click(user, "D");
     expect(button(/Durand Gaël/)).toBeVisible();
     expect(button("M")).toBeDisabled();
+  });
+
+  it("place une squad fermée en dernier et permet de la sélectionner ou de la rouvrir", async () => {
+    const user = userEvent.setup();
+    const props = { roster, onClose: vi.fn(), onSave: vi.fn() };
+    async function openPlacement() {
+      await begin(user);
+      await click(user, "M");
+      await click(user, /Martin Clara/);
+      await click(user, "Commencer l’accueil");
+    }
+
+    const first = render(<WelcomeDialog {...props} />);
+    await openPlacement();
+    await click(user, "Fermer la squad 2");
+    const squads = within(screen.getByRole("list", { name: "Squads du créneau" }));
+    expect(squads.getAllByRole("listitem").at(-1)).toHaveTextContent("Squad 2");
+    expect(squads.getByRole("button", { name: /Squad 2.*Fermée/ })).toBeEnabled();
+    expect(squads.queryByRole("button", { name: /Squad 2.*Recommandée/ })).toBeNull();
+
+    first.unmount();
+    render(<WelcomeDialog {...props} />);
+    await openPlacement();
+    expect(button("Rouvrir la squad 2")).toBeVisible();
+    await click(user, /Squad 2.*Fermée/);
+    expect(button("Confirmer la squad")).toBeEnabled();
+    await click(user, "Rouvrir la squad 2");
+    expect(button("Fermer la squad 2")).toBeVisible();
+    expect(button(/Squad 2.*Recommandée/)).toBeVisible();
   });
 
   it("retrouve la vague active après fermeture du dialogue", async () => {

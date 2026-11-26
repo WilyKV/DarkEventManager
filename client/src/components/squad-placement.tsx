@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Check, ChevronDown, Users } from "lucide-react";
+import { Check, ChevronDown, Lock, LockOpen, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SquadCapacity = {
@@ -26,8 +26,9 @@ export function recommendSquad<T extends SquadCapacity>(teams: readonly T[], sea
   return best;
 }
 
-export function orderSquads<T extends SquadCapacity>(teams: readonly T[], seatsNeeded: (id: number) => number, firstId?: number): T[] {
-  return [...teams].sort((a, b) => Number(b.id === firstId) - Number(a.id === firstId) ||
+export function orderSquads<T extends SquadCapacity>(teams: readonly T[], seatsNeeded: (id: number) => number, firstId?: number, closed?: ReadonlySet<number>): T[] {
+  return [...teams].sort((a, b) => Number(closed?.has(a.id) ?? false) - Number(closed?.has(b.id) ?? false) ||
+    Number(b.id === firstId) - Number(a.id === firstId) ||
     Number(squadPlaces(b) >= seatsNeeded(b.id)) - Number(squadPlaces(a) >= seatsNeeded(a.id)) ||
     a.number - b.number);
 }
@@ -49,7 +50,7 @@ export function placementMembers(players: readonly (PlacementMember & { squadId:
   return groups;
 }
 
-export function SquadPlacementCard({ team, profile, people = [], selected, disabled, label, onSelect }: {
+export function SquadPlacementCard({ team, profile, people = [], selected, disabled, label, onSelect, closed, onToggleClosed }: {
   team: SquadCapacity;
   profile?: string;
   people?: readonly PlacementMember[];
@@ -57,6 +58,8 @@ export function SquadPlacementCard({ team, profile, people = [], selected, disab
   disabled?: boolean;
   label?: string;
   onSelect: () => void;
+  closed?: boolean;
+  onToggleClosed?: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const memberListId = useId();
@@ -76,26 +79,34 @@ export function SquadPlacementCard({ team, profile, people = [], selected, disab
         </span>
         <span className="min-w-0 flex-1">
           <span className="block text-lg font-bold leading-tight">{name}</span>
-          {label && <span className="text-xs font-semibold text-primary">{label}</span>}
+          {closed ? <span className="text-xs font-semibold text-muted-foreground">Fermée</span>
+            : label && <span className="text-xs font-semibold text-primary">{label}</span>}
         </span>
         <span className={cn("rounded-full px-2 py-1 text-right text-xs font-semibold",
-          places === 0 ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300")}>
+          closed || places === 0 ? "bg-muted text-muted-foreground" : "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300")}>
           {maxMembers === null ? "Sans limite de places" : places === 0 ? "Complète" : `${places} ${places === 1 ? "place libre" : "places libres"}`}
         </span>
       </button>
       {maxMembers !== null && (
         <div aria-hidden className="mx-3 h-1.5 overflow-hidden rounded-full bg-muted sm:mx-4">
-          <div className={cn("h-full rounded-full", places === 0 ? "bg-muted-foreground/60" : "bg-emerald-500")} style={{ width: `${filled}%` }} />
+          <div className={cn("h-full rounded-full", closed || places === 0 ? "bg-muted-foreground/60" : "bg-emerald-500")} style={{ width: `${filled}%` }} />
         </div>
       )}
-      <button type="button" aria-expanded={expanded} aria-controls={memberListId}
-        aria-label={`Membres · ${name} · ${members}`} data-testid={`button-toggle-squad-${team.id}`}
-        onClick={() => setExpanded(!expanded)}
-        className="flex min-h-11 w-full items-center gap-2 px-3 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4">
-        <span className="font-bold tabular-nums">{maxMembers === null ? members : `${members} / ${maxMembers}`}</span>
-        <span className="flex-1 text-muted-foreground"> {members === 1 ? "membre" : "membres"}</span>
-        <ChevronDown className={cn("size-4 shrink-0 transition-transform", expanded && "rotate-180")} aria-hidden />
-      </button>
+      <div className="flex items-center">
+        <button type="button" aria-expanded={expanded} aria-controls={memberListId}
+          aria-label={`Membres · ${name} · ${members}`} data-testid={`button-toggle-squad-${team.id}`}
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:px-4">
+          <span className="font-bold tabular-nums">{maxMembers === null ? members : `${members} / ${maxMembers}`}</span>
+          <span className="flex-1 text-muted-foreground"> {members === 1 ? "membre" : "membres"}</span>
+          <ChevronDown className={cn("size-4 shrink-0 transition-transform", expanded && "rotate-180")} aria-hidden />
+        </button>
+        {onToggleClosed && <button type="button" aria-label={`${closed ? "Rouvrir" : "Fermer"} la squad ${team.number}`}
+          onClick={onToggleClosed} className="mr-2 flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
+          {closed ? <LockOpen className="size-4" aria-hidden /> : <Lock className="size-4" aria-hidden />}
+          {closed ? "Rouvrir" : "Fermer"}
+        </button>}
+      </div>
       <div id={memberListId} hidden={!expanded} className="border-t bg-muted/30 px-3 py-2 sm:px-4">
         {expanded && (people.length ? (
           <ul aria-label={`Membres · ${name}`} className="divide-y divide-border text-sm">

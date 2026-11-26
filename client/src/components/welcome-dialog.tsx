@@ -4,7 +4,7 @@ import { WelcomeReminders, welcomeReminderDefaults } from "./welcome-reminders";
 import type { WelcomeChecklist } from "@shared/welcome-checklist";
 import { makeupEstimates } from "@shared/makeup";
 import { useId, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ArrowRight, Check, Footprints, Paintbrush, Plus, Search, ShieldCheck, Skull, UserCheck, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Footprints, Paintbrush, Plus, Search, ShieldCheck, Skull, UserCheck, Users } from "lucide-react";
 import { checkInProfiles, checkInTypes, type CheckInDetails, type CheckInPlayer, type CheckInRoster, type CheckInType } from "@shared/check-in";
 import { normalizePlayerName } from "@shared/zombie-offline";
 import { Button } from "@/components/ui/button";
@@ -268,15 +268,15 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
               {profileTypes.map(value => {
                 const { Icon, colors } = profileCards[value];
                 return <Button key={value} type="button" variant="outline" aria-pressed={type === value}
-                  className={cn("min-h-11 px-1 sm:px-3", type === value && colors)}
+                  className={cn("min-h-11 px-1 sm:px-3", colors, type === value && "ring-2 ring-primary ring-offset-2 ring-offset-background")}
                   onClick={() => { if (type !== value) { setType(value); setWave(undefined); resetGroup(); } }}>
                   <Icon aria-hidden /> {checkInProfiles[value].label}
                 </Button>;
               })}
             </div>
             {type && <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>{type === "staff" ? "Choisir une attribution" : "Choisir une vague"}</Button>
-              {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline"
+              <Button type="button" variant="outline" aria-expanded={showWaves} onClick={() => setShowWaves(!showWaves)}>{currentWave?.label ?? "Vagues terminées"} <ChevronDown aria-hidden /></Button>
+              {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="secondary" className="bg-slate-200 text-slate-800 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100"
                 onClick={() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished")}>Clôturer la vague <ArrowRight /></Button>}
             </div>}
             {showWaves && (
@@ -432,8 +432,7 @@ function WelcomeSession({ roster, profileTypes = checkInTypes, unavailable, chec
               <Button type="button" className="min-h-12" disabled={saving} onClick={() => void leave(resetGroup)}>Nouveau groupe</Button>
               <Button type="button" variant="outline" className="min-h-12" disabled={saving} onClick={() => void leave(onClose)}>Quitter l’accueil</Button>
               {dirtyReminders && <Button type="button" variant="outline" disabled={saving} onClick={() => void saveReminders()}>Enregistrer les coches</Button>}
-              {type !== "staff" && currentWave && waveIndex < profileSlots.length && <Button type="button" variant="outline" className="min-h-12"
-                disabled={saving} onClick={() => void leave(() => switchWave(waveOptions[waveIndex + 1]?.value ?? "finished"))}>Clôturer la vague <ArrowRight /></Button>}
+
             </div>
           </div>
         )}

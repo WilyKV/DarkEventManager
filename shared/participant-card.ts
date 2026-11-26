@@ -106,25 +106,39 @@ export function cardBriefingTime(briefing: PrintableCard["briefingTime"]) {
 
 // Millimetres on the finished card. Keep the personalization positions aligned
 // with previously printed stock and with the browser preview.
+const namePanelY = 20;
+const scheduleY = 32;
+const scheduleHeight = 11.5;
+const qrPanelX = 54.5;
+const qrPanelWidth = 25;
+const qrSize = 19.2;
+
 export const cardLayout = {
   width: 85,
   height: 55,
   nameX: 6,
   nameWidth: 46,
   nameCenterY: 25,
-  namePanelY: 20,
+  namePanelY,
   namePanelHeight: 10,
-  scheduleY: 32,
-  scheduleHeight: 11.5,
+  scheduleY,
+  scheduleHeight,
   scheduleSideLabelWidth: 3.5,
   mealBoxSize: 6,
+  mealBoxX: 73.5,
   mealBoxY: 44.5,
-  staffMealBoxY: 38,
-  qrX: 55.5,
-  qrY: 13.5,
-  qrSize: 23,
+  qrPanelX,
+  qrPanelWidth,
+  qrPanelHeight: scheduleY + scheduleHeight - namePanelY,
+  qrLabelY: namePanelY + 0.9,
+  qrX: qrPanelX + (qrPanelWidth - qrSize) / 2,
+  qrY: namePanelY + 3.6,
+  qrSize,
   codeY: 27,
-  linkY: 51.5,
+  linkX: 5,
+  linkY: 46,
+  linkWidth: 66,
+  backNoticeY: 42,
 } as const;
 
 export const cardAssets = "card-assets";

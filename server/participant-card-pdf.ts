@@ -7,7 +7,7 @@ import { a4CardBleed, calibratedCardSheet, cardAssets, cardFieldIcons, cardHasMe
 export const printModes = ["complete", "front", "back"] as const;
 export type PrintMode = typeof printModes[number];
 const pt = (mm: number) => mm * 72 / 25.4;
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrPanelX, qrPanelWidth, qrPanelHeight, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 async function findCardAsset(file: string) {
   // esbuild emits the production server beside Vite’s public directory.
@@ -55,9 +55,9 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
   if (side === "front") {
     doc.roundedRect(pt(4.5), pt(namePanelY), pt(48.5), pt(namePanelHeight), pt(2)).fill("#ffffff");
     doc.rect(pt(4.5), pt(namePanelY + 2), pt(0.6), pt(namePanelHeight - 4)).fill(theme.accent);
-    doc.roundedRect(pt(54.5), pt(12.5), pt(25), pt(25), pt(2)).fill("#ffffff");
-    doc.fillColor("#ffffff").font("CardBold").fontSize(7)
-      .text("Mon espace souvenir", pt(51), pt(39), { width: pt(32), align: "center" });
+    doc.roundedRect(pt(qrPanelX), pt(namePanelY), pt(qrPanelWidth), pt(qrPanelHeight), pt(2)).fill("#ffffff");
+    doc.fillColor("#101828").font("CardBold").fontSize(5.5)
+      .text("Mon espace souvenir", pt(qrPanelX), pt(qrLabelY), { width: pt(qrPanelWidth), align: "center", lineBreak: false });
     for (const field of cardScheduleFields(type)) {
       doc.roundedRect(pt(field.x), pt(scheduleY), pt(field.width), pt(scheduleHeight), pt(0.8)).fill("#ffffff");
       const labelX = field.x - scheduleSideLabelWidth;
@@ -71,9 +71,8 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
       if (field.key !== "briefing") fieldIcon(doc, field.key, field.x, scheduleY, field.width, scheduleHeight);
     }
     if (cardHasMealBox(type)) {
-      const mealY = type === "staff" ? staffMealBoxY : mealBoxY;
-      doc.roundedRect(pt(6), pt(mealY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
-      fieldIcon(doc, "meal", 6, mealY, mealBoxSize, mealBoxSize);
+      doc.roundedRect(pt(mealBoxX), pt(mealBoxY), pt(mealBoxSize), pt(mealBoxSize), pt(0.45)).fill("#ffffff");
+      fieldIcon(doc, "meal", mealBoxX, mealBoxY, mealBoxSize, mealBoxSize);
     }
     return;
   }
@@ -87,16 +86,16 @@ function template(doc: PDFKit.PDFDocument, side: "front" | "back", theme: Return
     recovery
       ? "Scannez le QR au recto, puis indiquez ce code,\nvos nom et prénom et votre profil."
       : "Scannez le QR au recto, puis saisissez ce code.\nEspace disponible jusqu’à 3 mois après la clôture.",
-    pt(5), pt(44), { width: pt(75), align: "center", lineGap: 2 });
+    pt(5), pt(backNoticeY), { width: pt(75), align: "center", lineGap: 2 });
 }
 
 function printCardLink(doc: PDFKit.PDFDocument, url: string) {
   doc.font("CardRegular").fontSize(6.5);
-  const maxWidth = pt(74);
+  const maxWidth = pt(linkWidth - 1);
   const size = Math.min(6.5, 6.5 * maxWidth / doc.widthOfString(url));
-  doc.roundedRect(pt(5), pt(linkY - 0.45), pt(75), pt(3.15), pt(0.5)).fill("#100b12");
-  doc.fillColor("#ffffff").fontSize(size).text(url, pt(5), pt(linkY), {
-    width: pt(75), align: "center", lineBreak: false, link: url,
+  doc.roundedRect(pt(linkX), pt(linkY - 0.45), pt(linkWidth), pt(3.15), pt(0.5)).fill("#100b12");
+  doc.fillColor("#ffffff").fontSize(size).text(url, pt(linkX), pt(linkY), {
+    width: pt(linkWidth), align: "center", lineBreak: false, link: url,
   });
 }
 

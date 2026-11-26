@@ -18,7 +18,7 @@ export function usePrintableCard(id: number | undefined) {
   });
 }
 
-const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxY, staffMealBoxY, qrX, qrY, qrSize, codeY, linkY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
+const { width, height, nameX, nameWidth, nameCenterY, namePanelY, namePanelHeight, mealBoxSize, mealBoxX, mealBoxY, qrPanelX, qrPanelWidth, qrPanelHeight, qrLabelY, qrX, qrY, qrSize, codeY, linkX, linkY, linkWidth, backNoticeY, scheduleY, scheduleHeight, scheduleSideLabelWidth } = cardLayout;
 
 function at(x: number, y: number, w?: number, h?: number): CSSProperties {
   return {
@@ -38,7 +38,6 @@ function CardFieldIcon({ field }: { field: keyof typeof cardFieldIcons }) {
 
 export function ParticipantCard({ card }: { card: PrintableCard }) {
   const theme = cardTheme(card.type);
-  const mealY = card.type === "staff" ? staffMealBoxY : mealBoxY;
   const url = new URL(`${souvenirPath}/${card.token}`, window.location.origin).href;
   const face = "participant-card-face isolate relative aspect-[85/55] w-full max-w-[425px] overflow-hidden rounded-xl bg-[#100b12] text-white shadow-lg [container-type:inline-size]";
   const cream = "absolute rounded-[2.35cqw] bg-white text-[#101828]";
@@ -58,10 +57,10 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
         style={{ ...at(nameX, nameCenterY, nameWidth), fontSize: `${Math.min(7, 112 / Math.max(1, printedName.length))}cqw` }}>
         {printedName}
       </p>
-      <div aria-hidden className={cream} style={at(54.5, 12.5, 25, 25)} />
+      <div aria-hidden className={cream} style={at(qrPanelX, namePanelY, qrPanelWidth, qrPanelHeight)} />
       <QRCodeSVG title="QR code de l’espace souvenir" value={url} level="M" marginSize={4} className="absolute"
         style={at(qrX, qrY, qrSize, qrSize)} />
-      <p className="absolute text-center text-[2.9cqw] font-bold leading-none" style={at(51, 39, 32)}>Mon espace souvenir</p>
+      <p className="absolute z-10 text-center text-[2.3cqw] font-bold leading-none text-[#101828]" style={at(qrPanelX, qrLabelY, qrPanelWidth)}>Mon espace souvenir</p>
       {cardScheduleFields(card.type).map(field => (
         <div key={field.key}>
           <span className="absolute flex items-center justify-center rounded-l-[0.95cqw] bg-[#100b12]"
@@ -80,12 +79,12 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       ))}
       {cardHasMealBox(card.type) && (
         <span role="img" aria-label="Case repas à cocher" className="absolute flex items-center justify-center rounded-[0.55cqw] bg-white"
-          style={at(6, mealY, mealBoxSize, mealBoxSize)}>
+          style={at(mealBoxX, mealBoxY, mealBoxSize, mealBoxSize)}>
           <CardFieldIcon field="meal" />
         </span>
       )}
       <p className="absolute whitespace-nowrap rounded-sm bg-black/65 px-0.5 text-center leading-tight" style={{
-        ...at(5, linkY, 75), fontSize: `${Math.min(2.7, 156 / url.length)}cqw`,
+        ...at(linkX, linkY, linkWidth), fontSize: `${Math.min(2.7, 138 / url.length)}cqw`,
       }}>{url}</p>
     </section>
     <section aria-label="Verso" className={face}>
@@ -98,7 +97,7 @@ export function ParticipantCard({ card }: { card: PrintableCard }) {
       <p className="absolute text-center text-[6.65cqw] font-bold leading-none text-[#101828]" style={at(13, codeY, 59)}>
         {card.code.slice(0, 5)} {card.code.slice(5)}
       </p>
-      <p className="absolute text-center text-[3.3cqw] leading-tight" style={at(5, 44, 75)}>
+      <p className="absolute text-center text-[3.3cqw] leading-tight" style={at(5, backNoticeY, 75)}>
         Scannez le QR au recto, puis saisissez ce code.<br />Espace disponible jusqu’à 3 mois après la clôture.
       </p>
     </section>
